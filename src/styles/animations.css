@@ -1,0 +1,171 @@
+/* ═══════════════════════════════════════════════════════════════
+   OX GYM — ANIMATION UTILITIES
+   Subtle, premium motion effects.
+   Import this file in globals.css.
+   Apply classes where needed — nothing auto-animates.
+═══════════════════════════════════════════════════════════════ */
+
+/* ── PAGE FADE-IN ────────────────────────────────────────────── */
+/* Apply to page wrapper for smooth entrance */
+.ox-page-enter {
+  animation: ox-page-fade 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes ox-page-fade {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── CARD HOVER LIFT ─────────────────────────────────────────── */
+/* Apply to cards for subtle hover elevation */
+.ox-card-lift {
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 220ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ox-card-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* ── SIDEBAR HOVER MOTION ────────────────────────────────────── */
+/* Apply to sidebar nav items for slide-in feedback */
+.ox-nav-hover {
+  transition: padding-left 180ms cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 120ms ease,
+              color 120ms ease,
+              border-color 120ms ease;
+}
+.ox-nav-hover:hover {
+  padding-left: calc(var(--sp-5, 20px) + 4px);
+}
+/* RTL support */
+[dir="rtl"] .ox-nav-hover:hover {
+  padding-left: var(--sp-5, 20px);
+  padding-right: calc(var(--sp-5, 20px) + 4px);
+}
+
+/* ── GOLD ACCENT SWEEP ───────────────────────────────────────── */
+/* Apply to elements for a gold highlight sweep on hover */
+.ox-gold-sweep {
+  position: relative;
+  overflow: hidden;
+}
+.ox-gold-sweep::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(245, 193, 0, 0.06) 50%,
+    transparent 100%
+  );
+  transition: left 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+.ox-gold-sweep:hover::after {
+  left: 100%;
+}
+
+/* ── SUBTLE BACKGROUND DRIFT ────────────────────────────────── */
+/* Apply to background textured areas for slow drift */
+.ox-bg-drift {
+  animation: ox-drift 20s linear infinite;
+  background-size: 40px 40px;
+}
+
+@keyframes ox-drift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 40px 40px;
+  }
+}
+
+/* ── STAGGER ENTRANCE ────────────────────────────────────────── */
+/* Apply parent class, children get staggered fade-up */
+.ox-stagger > * {
+  animation: ox-page-fade 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.ox-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.ox-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.ox-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.ox-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.ox-stagger > *:nth-child(5) { animation-delay: 240ms; }
+.ox-stagger > *:nth-child(6) { animation-delay: 300ms; }
+.ox-stagger > *:nth-child(7) { animation-delay: 360ms; }
+.ox-stagger > *:nth-child(8) { animation-delay: 420ms; }
+
+/* ── SCALE POP ───────────────────────────────────────────────── */
+/* Apply to buttons or icons for pop on click */
+.ox-scale-pop:active {
+  transform: scale(0.96);
+  transition: transform 80ms ease;
+}
+
+/* ── PULSE GLOW ──────────────────────────────────────────────── */
+/* Apply to important elements for attention */
+.ox-pulse-glow {
+  animation: ox-glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ox-glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 193, 0, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 12px 4px rgba(245, 193, 0, 0.25);
+  }
+}
+
+/* ── RED PULSE GLOW ─────────────────────────────────────────── */
+/* Apply to danger/attention elements for red energy pulse */
+.ox-red-pulse {
+  animation: ox-red-glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ox-red-glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(212, 43, 43, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 10px 3px rgba(212, 43, 43, 0.25);
+  }
+}
+
+/* ── RED SWEEP ──────────────────────────────────────────────── */
+/* Apply to elements for a red highlight sweep on hover */
+.ox-red-sweep {
+  position: relative;
+  overflow: hidden;
+}
+.ox-red-sweep::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(212, 43, 43, 0.06) 50%,
+    transparent 100%
+  );
+  transition: left 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+.ox-red-sweep:hover::after {
+  left: 100%;
+}

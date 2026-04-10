@@ -1,0 +1,494 @@
+/* ═══════════════════════════════════════════════════════════════
+   OX GYM — GLOBAL STYLES
+   Design system tokens, base resets, and utility classes.
+   These CSS variables are the single source of truth —
+   Tailwind config references them, components use them.
+═══════════════════════════════════════════════════════════════ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── DESIGN TOKENS ───────────────────────────────────────────── */
+/* Font families are loaded via next/font in layout.tsx and injected
+   as CSS variables (--font-display, --font-body, --font-mono).
+   No @import needed — next/font handles subsetting + self-hosting. */
+:root {
+  /* ── COLOR FOUNDATION ─ */
+  --ox-void:      #0A0A0A;
+  --ox-charcoal:  #111111;
+  --ox-iron:      #1A1A1A;
+  --ox-gunmetal:  #252525;
+  --ox-steel:     #333333;
+  --ox-slate:     #555555;
+  --ox-muted:     #777777;
+  --ox-ghost:     #AAAAAA;
+  --ox-offwhite:  #F0EDE6;
+  --ox-white:     #FFFFFF;
+
+  /* ── BRAND GOLD ─ */
+  --ox-gold:      #F5C100;
+  --ox-gold-high: #FFD740;
+  --ox-gold-deep: #C49A00;
+  --ox-gold-dim:  #8A6D00;
+  --ox-gold-10:   rgba(245, 193, 0, 0.10);
+  --ox-gold-20:   rgba(245, 193, 0, 0.20);
+  --ox-gold-05:   rgba(245, 193, 0, 0.05);
+
+  /* ── ACCENT RED (the 10% energy smudge) ─ */
+  --ox-red:       #D42B2B;
+  --ox-red-bright:#FF3333;
+  --ox-red-deep:  #8B1A1A;
+  --ox-red-10:    rgba(212, 43, 43, 0.12);
+  --ox-red-06:    rgba(212, 43, 43, 0.06);
+
+  /* ── RED GLOW ─ */
+  --shadow-red-sm: 0 0 0 1px rgba(212, 43, 43, 0.20);
+  --shadow-red-md: 0 0 8px rgba(212, 43, 43, 0.25);
+  --shadow-red-pulse: 0 0 12px 2px rgba(212, 43, 43, 0.30);
+
+  /* ── STATUS GREEN ─ */
+  --ox-green:     #5CC45C;
+  --ox-green-12:  rgba(92, 196, 92, 0.12);
+
+  /* ── SPACING (8px base) ─ */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  20px;
+  --sp-6:  24px;
+  --sp-8:  32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+  --sp-20: 80px;
+  --sp-24: 96px;
+
+  /* ── LAYOUT ─ */
+  --nav-height:        52px;
+  --sidebar-width:     240px;
+  --bottom-nav-height: 56px;
+  --page-gutter:       40px;
+  --page-max:          1280px;
+
+  /* ── ANIMATION ─ */
+  --ease-snap:  cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out:   cubic-bezier(0.0, 0, 0.2, 1);
+  --dur-fast:   120ms;
+  --dur-mid:    220ms;
+  --dur-slow:   400ms;
+
+  /* ── BORDER RADIUS ─ */
+  /* Brand rule: zero radius everywhere.
+     Only exception: 2px for tiny status badges. */
+  --r-none:  0px;
+  --r-badge: 2px;
+
+  /* ── CORNER CUT (clip-path shorthand values) ─ */
+  --corner-cut-sm: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+  --corner-cut-md: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+  --corner-cut-lg: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+  --corner-cut-double: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
+
+  /* ── SHADOWS / GLOW ─ */
+  --shadow-gold-sm: 0 0 0 1px rgba(245, 193, 0, 0.15);
+  --shadow-gold-md: 0 0 0 1px rgba(245, 193, 0, 0.35);
+  --shadow-gold-lg: 0 0 20px rgba(245, 193, 0, 0.20);
+  --shadow-dark-lg: 0 4px 24px rgba(0, 0, 0, 0.6);
+  --shadow-dark-xl: 0 8px 40px rgba(0, 0, 0, 0.8);
+}
+
+/* ── BASE RESET ──────────────────────────────────────────────── */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--ox-void);
+    color: var(--ox-offwhite);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Prevent horizontal scroll from animations */
+    overflow-x: hidden;
+  }
+
+  /* Remove default button styles */
+  button {
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-family: inherit;
+  }
+
+  /* Remove default input styles */
+  input,
+  select,
+  textarea {
+    font-family: var(--font-body);
+    border-radius: 0;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  /* Focus visible — gold ring */
+  :focus-visible {
+    outline: 2px solid var(--ox-gold);
+    outline-offset: 2px;
+  }
+
+  /* Selection highlight */
+  ::selection {
+    background: var(--ox-gold-20);
+    color: var(--ox-white);
+  }
+
+  /* Scrollbar styling (webkit) */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--ox-charcoal);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--ox-steel);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--ox-slate);
+  }
+
+  /* Heading defaults — Bebas Neue */
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    font-weight: 400; /* Bebas Neue is single-weight */
+    color: var(--ox-white);
+    line-height: 1;
+    letter-spacing: 0.03em;
+  }
+
+  h4, h5, h6 {
+    font-family: var(--font-body);
+    font-weight: 600;
+    color: var(--ox-white);
+  }
+
+  p {
+    color: var(--ox-offwhite);
+  }
+
+  a {
+    color: var(--ox-gold);
+    text-decoration: none;
+    transition: color var(--dur-fast);
+  }
+  a:hover {
+    color: var(--ox-gold-high);
+  }
+
+  /* Table defaults */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  /* Image defaults */
+  img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* Style <option> elements for dark theme */
+  option {
+    background-color: var(--ox-charcoal);
+    color: var(--ox-offwhite);
+  }
+}
+
+/* ── COMPONENT LAYER ─────────────────────────────────────────── */
+@layer components {
+
+  /* ── Loading bar ─ */
+  .ox-loading-bar {
+    height: 2px;
+    background: var(--ox-steel);
+    position: relative;
+    overflow: hidden;
+  }
+  .ox-loading-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 25%;
+    height: 100%;
+    background: var(--ox-gold);
+    animation: loading-sweep 1.4s ease-in-out infinite;
+  }
+
+  /* ── Hazard stripe bar ─ */
+  .ox-stripe {
+    height: 8px;
+    background-image: repeating-linear-gradient(
+      45deg,
+      var(--ox-gold) 0px, var(--ox-gold) 8px,
+      transparent 8px, transparent 16px
+    );
+  }
+  .ox-stripe-thin {
+    height: 4px;
+    background-image: repeating-linear-gradient(
+      45deg,
+      var(--ox-gold) 0px, var(--ox-gold) 4px,
+      transparent 4px, transparent 8px
+    );
+  }
+
+  /* ── Red accent stripe (thin energy line) ─ */
+  .ox-stripe-red {
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--ox-red) 20%,
+      var(--ox-red-bright) 50%,
+      var(--ox-red) 80%,
+      transparent 100%
+    );
+    opacity: 0.7;
+  }
+
+  /* ── Page background with chevron texture ─ */
+  .ox-bg-textured {
+    background-color: var(--ox-void);
+    background-image: repeating-linear-gradient(
+      45deg,
+      transparent 0px, transparent 18px,
+      rgba(245, 193, 0, 0.04) 18px, rgba(245, 193, 0, 0.04) 20px
+    );
+  }
+
+  /* ── Corner-cut clip-paths ─ */
+  .clip-corner-sm { clip-path: var(--corner-cut-sm); }
+  .clip-corner-md { clip-path: var(--corner-cut-md); }
+  .clip-corner-lg { clip-path: var(--corner-cut-lg); }
+  .clip-corner-double { clip-path: var(--corner-cut-double); }
+
+  /* ── Hexagon clip-path (for logo/avatar) ─ */
+  .clip-hex {
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  }
+
+  /* ── Page container ─ */
+  .page-container {
+    max-width: var(--page-max);
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: var(--page-gutter);
+    padding-right: var(--page-gutter);
+  }
+
+  @media (max-width: 640px) {
+    .page-container {
+      padding-left: 20px;
+      padding-right: 20px;
+    }
+  }
+
+  /* ── Fade-up stagger utilities ─ */
+  .animate-stagger-1 { animation-delay: 60ms; }
+  .animate-stagger-2 { animation-delay: 120ms; }
+  .animate-stagger-3 { animation-delay: 180ms; }
+  .animate-stagger-4 { animation-delay: 240ms; }
+  .animate-stagger-5 { animation-delay: 300ms; }
+
+  /* ── Figure with gradient fade (bottom-to-top dissolve) ─ */
+  .fig-fade {
+    -webkit-mask-image: linear-gradient(to top, transparent 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,1) 100%);
+    mask-image: linear-gradient(to top, transparent 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,1) 100%);
+  }
+  .fig-fade-left {
+    -webkit-mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,0.5) 30%, rgba(0,0,0,1) 100%);
+    mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,0.5) 30%, rgba(0,0,0,1) 100%);
+  }
+  .fig-fade-right {
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.5) 30%, rgba(0,0,0,1) 100%);
+    mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.5) 30%, rgba(0,0,0,1) 100%);
+  }
+
+  /* ── Burning edge glow for completed cards ─ */
+  .burn-glow {
+    box-shadow:
+      inset 0 -2px 12px rgba(255, 80, 0, 0.25),
+      inset 0 -1px 4px rgba(255, 160, 0, 0.3),
+      0 0 20px rgba(255, 80, 0, 0.15);
+    animation: burn-edge 2.5s ease-in-out infinite;
+  }
+  .burn-glow::before {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      #FF5500 15%,
+      #FFAA00 30%,
+      #F5C100 50%,
+      #FFAA00 70%,
+      #FF5500 85%,
+      transparent 100%
+    );
+    animation: burn-flicker 1.5s ease-in-out infinite alternate;
+  }
+  .burn-glow::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      #FF3300 20%,
+      #FF6600 50%,
+      #FF3300 80%,
+      transparent 100%
+    );
+    animation: burn-flicker 2s ease-in-out infinite alternate-reverse;
+  }
+
+  /* ── Gold chevron arrows strip ─ */
+  .chevron-arrows {
+    background-image: url('/chevron-arrows.png');
+    background-size: 24px auto;
+    background-repeat: repeat-x;
+    image-rendering: crisp-edges;
+  }
+
+  /* ── Danger tape bar ─ */
+  .danger-tape {
+    background: repeating-linear-gradient(
+      -45deg,
+      #F5C100 0px, #F5C100 8px,
+      #0A0A0A 8px, #0A0A0A 16px
+    );
+  }
+  .danger-tape-thin {
+    background: repeating-linear-gradient(
+      -45deg,
+      #F5C100 0px, #F5C100 4px,
+      #0A0A0A 4px, #0A0A0A 8px
+    );
+  }
+}
+
+/* ── UTILITY LAYER ───────────────────────────────────────────── */
+@layer utilities {
+
+  /* Typography utilities */
+  .font-display { font-family: var(--font-display); }
+  .font-body    { font-family: var(--font-body); }
+  .font-mono    { font-family: var(--font-mono); }
+
+  /* Text color shorthands */
+  .text-gold    { color: var(--ox-gold); }
+  .text-muted   { color: var(--ox-muted); }
+  .text-ghost   { color: var(--ox-ghost); }
+  .text-danger  { color: var(--ox-red); }
+  .text-red-bright { color: var(--ox-red-bright); }
+  .text-success { color: var(--ox-green); }
+
+  /* Background shorthands */
+  .bg-void      { background-color: var(--ox-void); }
+  .bg-charcoal  { background-color: var(--ox-charcoal); }
+  .bg-iron      { background-color: var(--ox-iron); }
+  .bg-gunmetal  { background-color: var(--ox-gunmetal); }
+  .bg-gold      { background-color: var(--ox-gold); }
+  .bg-gold-10   { background-color: var(--ox-gold-10); }
+
+  /* Border shorthands */
+  .border-steel { border-color: var(--ox-steel); }
+  .border-gold  { border-color: var(--ox-gold); }
+  .border-red   { border-color: var(--ox-red); }
+
+  /* Safe area (mobile notch) */
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .pt-safe { padding-top:    env(safe-area-inset-top); }
+
+  /* Prevent text select on UI elements */
+  .no-select { user-select: none; }
+
+  /* Transition shorthands */
+  .transition-fast { transition-duration: var(--dur-fast); transition-timing-function: var(--ease-snap); }
+  .transition-mid  { transition-duration: var(--dur-mid);  transition-timing-function: var(--ease-snap); }
+  .transition-slow { transition-duration: var(--dur-slow); transition-timing-function: var(--ease-snap); }
+}
+
+/* ── KEYFRAME ANIMATIONS ─────────────────────────────────────── */
+@keyframes loading-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes gold-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(245,193,0,0.2); }
+  50%       { box-shadow: 0 0 0 3px rgba(245,193,0,0.4); }
+}
+
+@keyframes chevron-march {
+  from { background-position: 0 0; }
+  to   { background-position: 40px 0; }
+}
+
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes red-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(212, 43, 43, 0.15); }
+  50%      { box-shadow: 0 0 10px 3px rgba(212, 43, 43, 0.25); }
+}
+
+@keyframes burn-edge {
+  0%, 100% {
+    box-shadow:
+      inset 0 -2px 12px rgba(255, 80, 0, 0.2),
+      inset 0 -1px 4px rgba(255, 160, 0, 0.2),
+      0 0 15px rgba(255, 80, 0, 0.1);
+  }
+  50% {
+    box-shadow:
+      inset 0 -4px 20px rgba(255, 80, 0, 0.35),
+      inset 0 -2px 8px rgba(255, 160, 0, 0.4),
+      0 0 30px rgba(255, 80, 0, 0.25);
+  }
+}
+
+@keyframes burn-flicker {
+  0%   { opacity: 0.6; transform: scaleX(0.95); }
+  50%  { opacity: 1;   transform: scaleX(1.02); }
+  100% { opacity: 0.7; transform: scaleX(0.98); }
+}

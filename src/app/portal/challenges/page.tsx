@@ -48,7 +48,7 @@ export default function ChallengesPage() {
 
   return (
     <div className="relative min-h-full pb-28 lg:pb-10">
-      <div className="absolute top-6 left-2 w-28 h-36 opacity-70 pointer-events-none select-none fig-fade-right z-0">
+      <div className="absolute top-6 -left-4 w-24 h-32 opacity-40 pointer-events-none select-none z-0" dir="ltr">
         <Image src="/fig-flex.png" alt="" fill className="object-contain object-left-top" unoptimized />
       </div>
 

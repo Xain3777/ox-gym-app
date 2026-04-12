@@ -2,16 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
+import { useTranslation } from "@/lib/i18n";
 
 export default function SignupPage() {
-  const router = useRouter();
+  const { t } = useTranslation();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -20,7 +21,6 @@ export default function SignupPage() {
     setError("");
     setLoading(true);
 
-    // 1. Create user + member via server API (bypasses RLS)
     const res = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -40,7 +40,6 @@ export default function SignupPage() {
       return;
     }
 
-    // 2. Sign in client-side to establish the session cookie
     const supabase = createBrowserSupabase();
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
@@ -53,18 +52,17 @@ export default function SignupPage() {
       return;
     }
 
-    // 3. Hard navigate so middleware picks up new session cookie
-    window.location.href = "/portal";
+    window.location.href = "/onboarding";
     return;
   }
 
   return (
     <div className="p-6">
       <h2 className="font-display text-[28px] tracking-[0.04em] text-white leading-none mb-1">
-        CREATE ACCOUNT
+        {t("auth.signUp")}
       </h2>
       <p className="text-[13px] text-muted mb-6">
-        Join OX GYM and start your fitness journey.
+        {t("auth.signUpDesc")}
       </p>
 
       <form onSubmit={handleSignup} className="space-y-4">
@@ -76,7 +74,7 @@ export default function SignupPage() {
 
         <div>
           <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-1.5">
-            Full Name
+            {t("auth.fullName")}
           </label>
           <input
             type="text"
@@ -90,7 +88,7 @@ export default function SignupPage() {
 
         <div>
           <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-1.5">
-            Email
+            {t("auth.email")}
           </label>
           <input
             type="email"
@@ -104,7 +102,7 @@ export default function SignupPage() {
 
         <div>
           <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-1.5">
-            Phone (optional)
+            {t("auth.phone")}
           </label>
           <input
             type="tel"
@@ -117,28 +115,37 @@ export default function SignupPage() {
 
         <div>
           <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-1.5">
-            Password
+            {t("auth.password")}
           </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-            className="w-full h-11 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
-            placeholder="Min 6 characters"
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              className="w-full h-11 px-4 pr-12 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
+              placeholder="••••••"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+            >
+              {showPassword ? "◉" : "◎"}
+            </button>
+          </div>
         </div>
 
         <Button type="submit" fullWidth loading={loading}>
-          CREATE ACCOUNT
+          {t("auth.signUp")}
         </Button>
       </form>
 
       <p className="text-[13px] text-muted mt-6 text-center">
-        Already have an account?{" "}
+        {t("auth.hasAccount")}{" "}
         <Link href="/login" className="text-gold hover:text-gold-high transition-colors">
-          Sign in
+          {t("auth.signInLink")}
         </Link>
       </p>
     </div>

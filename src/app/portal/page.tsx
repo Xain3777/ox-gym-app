@@ -118,7 +118,7 @@ export default function PortalHome() {
 
   return (
     <div className="relative min-h-full pb-28 lg:pb-10">
-      <div className="absolute top-6 left-2 rtl:left-auto rtl:right-2 w-28 h-36 opacity-70 pointer-events-none select-none fig-fade-right z-0">
+      <div className="absolute top-6 -left-4 w-24 h-32 opacity-50 pointer-events-none select-none z-0" dir="ltr">
         <Image src="/fig-charge.png" alt="" fill className="object-contain object-left-top" unoptimized />
       </div>
 
@@ -193,7 +193,7 @@ export default function PortalHome() {
             <ChevronDown className="text-gold/60" />
           </div>
 
-          <div className="absolute top-2 left-3 rtl:left-auto rtl:right-3 w-20 h-28 opacity-70 pointer-events-none select-none">
+          <div className="absolute top-2 -left-2 w-16 h-24 opacity-40 pointer-events-none select-none z-0" dir="ltr">
             <Image src="/fig-bicep.png" alt="" fill className="object-contain object-left-top" unoptimized />
           </div>
 
@@ -227,12 +227,13 @@ export default function PortalHome() {
               href="/portal/workouts"
               className="relative flex items-center justify-center gap-2 w-full bg-gold hover:bg-gold-high active:bg-gold-deep text-void font-bold text-[16px] py-4 transition-all duration-200 group overflow-visible"
               style={{ minHeight: "56px" }}
+              dir="ltr"
             >
-              <svg className="absolute -top-5 -left-2 w-8 h-8 text-gold group-hover:text-gold-high transition-colors drop-shadow-lg" viewBox="0 0 32 32" fill="currentColor">
-                <path d="M4 1C4 1 1 6 2 12C3 17 6 21 10 24C13 26 17 28 17 28L14 20C12 16 11 12 12 8C12.5 5 14 3 14 3L4 1Z" />
+              <svg className="absolute -top-4 left-1 w-6 h-6 text-gold group-hover:text-gold-high transition-colors drop-shadow-lg" viewBox="0 0 32 32" fill="currentColor">
+                <path d="M2 2C2 2 0 10 4 18C6 22 10 26 16 30L14 22C12 16 12 10 14 5C14.5 3.5 15 2.5 15 2.5L2 2Z" />
               </svg>
-              <svg className="absolute -top-5 -right-2 w-8 h-8 text-gold group-hover:text-gold-high transition-colors drop-shadow-lg" viewBox="0 0 32 32" fill="currentColor">
-                <path d="M28 1C28 1 31 6 30 12C29 17 26 21 22 24C19 26 15 28 15 28L18 20C20 16 21 12 20 8C19.5 5 18 3 18 3L28 1Z" />
+              <svg className="absolute -top-4 right-1 w-6 h-6 text-gold group-hover:text-gold-high transition-colors drop-shadow-lg" viewBox="0 0 32 32" fill="currentColor">
+                <path d="M30 2C30 2 32 10 28 18C26 22 22 26 16 30L18 22C20 16 20 10 18 5C17.5 3.5 17 2.5 17 2.5L30 2Z" />
               </svg>
               <OxDumbbell size={20} />
               {t("portal.startWorkout")}

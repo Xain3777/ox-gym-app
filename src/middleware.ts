@@ -10,7 +10,7 @@ const ROLE_HOME: Record<string, string> = {
 };
 
 // Routes that don't require authentication
-const PUBLIC_ROUTES = ["/login", "/signup", "/api/auth"];
+const PUBLIC_ROUTES = ["/login", "/signup", "/onboarding", "/api/auth"];
 
 // Routes that should be skipped entirely
 const SKIP_PREFIXES = ["/_next", "/favicon.ico", "/ox-logo.png", "/manifest.json", "/api/"];

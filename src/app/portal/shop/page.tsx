@@ -7,14 +7,14 @@ import { OxCheck, OxExternalLink, OxFlame } from "@/components/icons/OxIcons";
 
 type ShopTab = "plan" | "food" | "store";
 
-const mealKeys = ["meal1", "meal2", "snack1", "snack2", "preWorkout"] as const;
-const mealTimes = ["7:00 AM", "10:00 AM", "1:00 PM", "4:00 PM", "7:30 PM"];
+const mealKeys = ["meal1", "meal2", "meal3", "snack1", "preWorkout"] as const;
+const mealTimes = ["7:00 AM", "12:00 PM", "6:00 PM", "3:00 PM", "5:00 PM"];
 const mealItemKeys: string[][] = [
   ["shop.oats80g", "shop.eggs3", "shop.banana", "shop.honey"],
-  ["shop.greekYogurt200g", "shop.mixedNuts30g"],
   ["shop.chickenBreast200g", "shop.rice200g", "shop.salad"],
-  ["shop.bread2slices", "shop.peanutButter", "shop.coffee"],
   ["shop.salmon180g", "shop.sweetPotato", "shop.broccoli"],
+  ["shop.greekYogurt200g", "shop.mixedNuts30g"],
+  ["shop.bread2slices", "shop.peanutButter", "shop.coffee"],
 ];
 
 const foodCategoryKeys = ["shop.catChicken", "shop.catBeef", "shop.catVegetarian", "shop.catSnacks"] as const;
@@ -161,7 +161,7 @@ function ProductDetailModal({
 export default function ShopPage() {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<ShopTab>("plan");
-  const [mealsDone, setMealsDone] = useState<boolean[]>([false, false, false, false, false]);
+  const [mealsDone, setMealsDone] = useState<boolean[]>(Array(mealKeys.length).fill(false));
   const [foodFilter, setFoodFilter] = useState(0);
   const [ordered, setOrdered] = useState<Set<number>>(new Set());
   const [orderModal, setOrderModal] = useState<typeof foodItems[number] | null>(null);

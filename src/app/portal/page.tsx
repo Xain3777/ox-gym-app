@@ -128,10 +128,10 @@ export default function PortalHome() {
         <section className="relative flex items-center justify-between">
           <div>
             <p className="text-white/40 text-[11px] font-mono uppercase tracking-[0.16em] mb-0.5">
-              {t("portal.from")} OX GYM &rarr; {(data?.name ?? "").toUpperCase()}
+              {t("portal.from")} OX GYM
             </p>
             <h1 className="text-gold font-display text-[32px] tracking-wider leading-none mt-1">
-              {t("portal.welcome")}
+              {t("portal.welcome")}{data?.name ? `، ${data.name.toUpperCase()}` : ""}
             </h1>
             {data?.subscription && (
               <p className="text-white/30 text-[12px] mt-1 font-mono">
@@ -234,10 +234,10 @@ export default function PortalHome() {
               style={{ minHeight: "56px" }}
               dir="ltr"
             >
-              <svg className="absolute -top-4 left-1 w-6 h-6 text-gold group-hover:text-gold-high transition-colors drop-shadow-lg" viewBox="0 0 32 32" fill="currentColor">
+              <svg className="absolute -top-4 left-1 w-6 h-6 text-gold group-hover:text-gold-high transition-colors drop-shadow-lg" viewBox="0 0 32 32" fill="currentColor" style={{ transform: "scaleY(-1)" }}>
                 <path d="M2 2C2 2 0 10 4 18C6 22 10 26 16 30L14 22C12 16 12 10 14 5C14.5 3.5 15 2.5 15 2.5L2 2Z" />
               </svg>
-              <svg className="absolute -top-4 right-1 w-6 h-6 text-gold group-hover:text-gold-high transition-colors drop-shadow-lg" viewBox="0 0 32 32" fill="currentColor">
+              <svg className="absolute -top-4 right-1 w-6 h-6 text-gold group-hover:text-gold-high transition-colors drop-shadow-lg" viewBox="0 0 32 32" fill="currentColor" style={{ transform: "scaleY(-1)" }}>
                 <path d="M30 2C30 2 32 10 28 18C26 22 22 26 16 30L18 22C20 16 20 10 18 5C17.5 3.5 17 2.5 17 2.5L30 2Z" />
               </svg>
               <OxDumbbell size={20} />

@@ -46,13 +46,16 @@ function resolve(obj: Record<string, unknown>, path: string): string {
 
 // ── PROVIDER ───────────────────────────────────────────────────
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("en");
+  const [locale, setLocaleState] = useState<Locale>("ar");
 
-  // Read saved preference on mount
+  // Read saved preference on mount; default to Arabic if no preference saved
   useEffect(() => {
     const saved = localStorage.getItem("ox-lang") as Locale | null;
     if (saved === "ar" || saved === "en") {
       setLocaleState(saved);
+    } else {
+      // First launch: persist Arabic as default
+      localStorage.setItem("ox-lang", "ar");
     }
   }, []);
 

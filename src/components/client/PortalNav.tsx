@@ -8,7 +8,7 @@ import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
 import {
   OxHome, OxDumbbell, OxBag, OxMore, OxUser, OxTrendUp, OxPulse,
-  OxFork, OxTrainer, OxChat, OxStar, OxGear, OxBell, OxSettings,
+  OxFork, OxTrainer, OxChat, OxStar, OxGear, OxSettings,
   OxLogout, OxTrophy,
 } from "@/components/icons/OxIcons";
 
@@ -46,6 +46,7 @@ const sidebarSections: NavSection[] = [
     titleKey: "more.training",
     items: [
       { labelKey: "portal.myWorkout", href: "/portal/workouts", icon: OxDumbbell },
+      { labelKey: "portal.myMeals",   href: "/portal/meals",    icon: OxFork },
       { labelKey: "more.progress",    href: "/portal/progress",  icon: OxTrendUp },
       { labelKey: "more.inbody",      href: "/portal/inbody",    icon: OxPulse },
     ],
@@ -53,8 +54,7 @@ const sidebarSections: NavSection[] = [
   {
     titleKey: "nav.shop",
     items: [
-      { labelKey: "nav.shop",       href: "/portal/shop",  icon: OxBag },
-      { labelKey: "portal.myMeals", href: "/portal/meals", icon: OxFork },
+      { labelKey: "nav.shop", href: "/portal/shop", icon: OxBag },
     ],
   },
   {
@@ -68,9 +68,8 @@ const sidebarSections: NavSection[] = [
   {
     titleKey: "more.account",
     items: [
-      { labelKey: "more.machines",      href: "/portal/machines",  icon: OxGear },
-      { labelKey: "more.notifications", href: "/portal/settings",  icon: OxBell },
-      { labelKey: "more.settings",      href: "/portal/settings",  icon: OxSettings },
+      { labelKey: "more.machines",  href: "/portal/machines",  icon: OxGear },
+      { labelKey: "more.settings",  href: "/portal/settings",  icon: OxSettings },
     ],
   },
 ];

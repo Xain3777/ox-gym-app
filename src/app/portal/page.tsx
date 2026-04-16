@@ -127,12 +127,17 @@ export default function PortalHome() {
         {/* Greeting */}
         <section className="relative flex items-center justify-between">
           <div>
-            <p className="text-white/40 text-[13px] font-medium uppercase tracking-wider">
-              {t("portal.welcome")}
+            <p className="text-white/40 text-[11px] font-mono uppercase tracking-[0.16em] mb-0.5">
+              {t("portal.from")} OX GYM &rarr; {(data?.name ?? "").toUpperCase()}
             </p>
-            <h1 className="text-gold font-display text-[36px] tracking-wider leading-none mt-1">
-              {t("portal.hey")}, {(data?.name ?? "").toUpperCase()}
+            <h1 className="text-gold font-display text-[32px] tracking-wider leading-none mt-1">
+              {t("portal.welcome")}
             </h1>
+            {data?.subscription && (
+              <p className="text-white/30 text-[12px] mt-1 font-mono">
+                {t("portal.subscriptionActive")} · {data.subscription.plan}
+              </p>
+            )}
           </div>
           <Image src="/ox-logo.png" alt="OX GYM" width={120} height={120} className="w-14 h-14 object-contain" unoptimized />
         </section>

@@ -11,7 +11,7 @@ const mockLeaderboard = [
   { rank: 1, name: "Rami K.", points: 2840, streak: 14, avatar: "RK" },
   { rank: 2, name: "Sara M.", points: 2650, streak: 11, avatar: "SM" },
   { rank: 3, name: "Ali H.", points: 2510, streak: 9, avatar: "AH" },
-  { rank: 4, name: "Zein H.", points: 2380, streak: 7, avatar: "ZH" },
+  { rank: 4, name: "أنت", points: 2380, streak: 7, avatar: "أن" },
   { rank: 5, name: "Maya B.", points: 2200, streak: 6, avatar: "MB" },
   { rank: 6, name: "Karim D.", points: 2050, streak: 5, avatar: "KD" },
   { rank: 7, name: "Nour A.", points: 1920, streak: 4, avatar: "NA" },

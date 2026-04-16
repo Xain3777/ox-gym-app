@@ -194,6 +194,8 @@
   "portal": {
     "welcome": "WELCOME BACK",
     "hey": "HEY",
+    "from": "FROM",
+    "subscriptionActive": "Active Subscription",
     "welcomeDesc": "Track your progress, view workouts, and stay on top of your goals.",
     "myWorkout": "My Workout",
     "myMeals": "My Meals",

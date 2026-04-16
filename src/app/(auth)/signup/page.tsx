@@ -9,7 +9,6 @@ import { useTranslation } from "@/lib/i18n";
 export default function SignupPage() {
   const { t } = useTranslation();
   const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -25,7 +24,6 @@ export default function SignupPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        email,
         password,
         full_name: fullName,
         phone: phone || null,
@@ -42,7 +40,7 @@ export default function SignupPage() {
 
     const supabase = createBrowserSupabase();
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
+      email: result.data.generated_email,
       password,
     });
 
@@ -83,20 +81,6 @@ export default function SignupPage() {
             required
             className="w-full h-11 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
             placeholder="Ahmed Khalil"
-          />
-        </div>
-
-        <div>
-          <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-1.5">
-            {t("auth.email")}
-          </label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="w-full h-11 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
-            placeholder="you@example.com"
           />
         </div>
 

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
 import {
-  OxGear, OxTrainer, OxBell, OxSettings, OxUser, OxChevronRight,
+  OxGear, OxTrainer, OxSettings, OxUser, OxChevronRight,
   OxTrendUp, OxPulse, OxChat, OxStar, OxLogout,
 } from "@/components/icons/OxIcons";
 
@@ -39,9 +39,8 @@ const sections: { titleKey: string; items: MoreItem[] }[] = [
   {
     titleKey: "more.account",
     items: [
-      { labelKey: "more.profile", subtitleKey: "more.profileSub", href: "/portal/profile", icon: OxUser, iconBg: "bg-gold/10", iconColor: "text-gold" },
-      { labelKey: "more.notifications", subtitleKey: "more.notificationsSub", href: "/portal/settings", icon: OxBell, iconBg: "bg-danger/[0.08]", iconColor: "text-danger" },
-      { labelKey: "more.settings", subtitleKey: "more.settingsSub", href: "/portal/settings", icon: OxSettings, iconBg: "bg-white/[0.06]", iconColor: "text-white/50" },
+      { labelKey: "more.profile",   subtitleKey: "more.profileSub",   href: "/portal/profile",  icon: OxUser,     iconBg: "bg-gold/10",        iconColor: "text-gold" },
+      { labelKey: "more.settings",  subtitleKey: "more.settingsSub",  href: "/portal/settings", icon: OxSettings, iconBg: "bg-white/[0.06]",   iconColor: "text-white/50" },
     ],
   },
 ];

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { BackArrow } from "@/components/portal/BackArrow";
 import { OxCheck, OxShield, OxHeart, OxTarget, OxDumbbell, OxFlame } from "@/components/icons/OxIcons";
+import { createBrowserSupabase } from "@/lib/supabase";
 
 // ── COMMON ILLNESSES / INJURIES ────────────────────────────────
 const COMMON_CONDITIONS = [
@@ -23,13 +24,39 @@ const COMMON_INJURIES = [
 export default function ProfilePage() {
   const { t } = useTranslation();
 
-  const [firstName, setFirstName] = useState("Zein");
-  const [lastName, setLastName] = useState("Hydar");
-  const [birthday, setBirthday] = useState("2001-03-15");
-  const [phone, setPhone] = useState("+961 71 123 456");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [birthday, setBirthday] = useState("");
+  const [phone, setPhone] = useState("");
 
   const [selectedIllnesses, setSelectedIllnesses] = useState<string[]>(["None"]);
   const [selectedInjuries, setSelectedInjuries] = useState<string[]>(["None"]);
+
+  // Load user data from Supabase on mount
+  useEffect(() => {
+    async function loadProfile() {
+      const supabase = createBrowserSupabase();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: member } = await supabase
+        .from("members")
+        .select("full_name, phone, date_of_birth, illnesses, injuries, fitness_level, weight_goal, fitness_outcome")
+        .eq("auth_id", user.id)
+        .single();
+      if (!member) return;
+      const parts = (member.full_name ?? "").split(" ");
+      setFirstName(parts[0] ?? "");
+      setLastName(parts.slice(1).join(" ") ?? "");
+      setPhone(member.phone ?? "");
+      setBirthday(member.date_of_birth ?? "");
+      if (member.illnesses?.length) setSelectedIllnesses(member.illnesses);
+      if (member.injuries?.length) setSelectedInjuries(member.injuries);
+      if (member.fitness_level) setLevel(member.fitness_level as "normal" | "advanced");
+      if (member.weight_goal) setGoal(member.weight_goal as "maintain" | "lose" | "gain");
+      if (member.fitness_outcome) setOutcome(member.fitness_outcome as "muscle" | "health");
+    }
+    loadProfile();
+  }, []);
 
   const [level, setLevel] = useState<"normal" | "advanced">("normal");
   const [goal, setGoal] = useState<"maintain" | "lose" | "gain">("maintain");

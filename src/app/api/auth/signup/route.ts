@@ -4,14 +4,18 @@ import { createServiceClient } from "@/lib/supabase";
 // POST — handle signup server-side using service client (bypasses RLS)
 export async function POST(request: Request) {
   const body = await request.json();
-  const { email, password, full_name, phone } = body;
+  const { password, full_name, phone } = body;
 
-  if (!email || !password || !full_name) {
+  if (!password || !full_name || !phone) {
     return NextResponse.json(
-      { success: false, error: "Email, password, and full name are required" },
+      { success: false, error: "Full name, phone, and password are required" },
       { status: 400 },
     );
   }
+
+  // Generate a unique internal email from the phone number (never shown to user)
+  const digits = phone.replace(/\D/g, "");
+  const email = `${digits}@member.oxgym.app`;
 
   const supabase = createServiceClient();
 
@@ -58,6 +62,6 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     success: true,
-    data: { user_id: authData.user.id },
+    data: { user_id: authData.user.id, generated_email: email },
   });
 }

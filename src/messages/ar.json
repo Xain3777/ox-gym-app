@@ -194,6 +194,8 @@
   "portal": {
     "welcome": "أهلاً بعودتك",
     "hey": "أهلاً",
+    "from": "من",
+    "subscriptionActive": "اشتراك نشط",
     "welcomeDesc": "تابع تقدمك، واطلع على التمارين، وحقق أهدافك.",
     "myWorkout": "تماريني",
     "myMeals": "وجباتي",

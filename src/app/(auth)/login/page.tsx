@@ -8,7 +8,7 @@ import { useTranslation } from "@/lib/i18n";
 
 export default function LoginPage() {
   const { t } = useTranslation();
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,6 +17,10 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
+
+    // Convert phone to the internal email format used during signup
+    const digits = phone.replace(/\D/g, "");
+    const email = `${digits}@member.oxgym.app`;
 
     const supabase = createBrowserSupabase();
     const { data: authData, error: authError } =
@@ -44,10 +48,7 @@ export default function LoginPage() {
         reception: "/reception",
         player: "/portal",
       };
-      const destination = roleHomes[role] ?? "/portal";
-
-      window.location.href = destination;
-      return;
+      window.location.href = roleHomes[role] ?? "/portal";
     }
   }
 
@@ -69,15 +70,15 @@ export default function LoginPage() {
 
         <div>
           <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-2">
-            {t("auth.email")}
+            {t("auth.phone")}
           </label>
           <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
             required
             className="w-full h-12 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
-            placeholder="you@example.com"
+            placeholder="+966 5XX XXX XXX"
           />
         </div>
 

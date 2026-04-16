@@ -605,7 +605,9 @@
     "notifications": "الإشعارات",
     "notificationsSub": "إدارة التنبيهات",
     "settings": "الإعدادات",
-    "settingsSub": "تفضيلات التطبيق"
+    "settingsSub": "تفضيلات التطبيق",
+    "gymInfo": "معلومات الجيم",
+    "gymInfoSub": "الاشتراكات والخدمات والمرافق"
   },
   "onboarding": {
     "personalTitle": "عن نفسك",

@@ -605,7 +605,9 @@
     "notifications": "Notifications",
     "notificationsSub": "Manage your alerts",
     "settings": "Settings",
-    "settingsSub": "App preferences"
+    "settingsSub": "App preferences",
+    "gymInfo": "Gym Info",
+    "gymInfoSub": "Subscriptions, services & facilities"
   },
   "onboarding": {
     "personalTitle": "ABOUT YOU",

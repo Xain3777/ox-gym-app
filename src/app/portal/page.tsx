@@ -250,27 +250,27 @@ export default function PortalHome() {
         {/* Quick Actions */}
         <section className="grid grid-cols-2 gap-3">
           <Link
-            href="/portal/shop"
-            className="group relative bg-white/[0.04] border border-white/[0.06] p-5 hover:bg-gold/[0.04] hover:border-gold/20 active:scale-[0.98] transition-all duration-200 overflow-hidden"
+            href="/portal/order-meal"
+            className="group relative bg-emerald-950/40 border border-emerald-500/20 p-5 hover:bg-emerald-900/30 hover:border-emerald-400/30 active:scale-[0.98] transition-all duration-200 overflow-hidden"
           >
-            <div className="absolute top-0 left-0 right-0 h-[3px] danger-tape-thin opacity-30" />
-            <div className="w-12 h-12 bg-gold/10 flex items-center justify-center mb-4">
-              <OxFork size={22} className="text-gold" />
+            <div className="absolute top-0 left-0 right-0 h-[3px] opacity-40" style={{ backgroundImage: "repeating-linear-gradient(90deg,#10b981 0px,#10b981 6px,transparent 6px,transparent 12px)" }} />
+            <div className="w-12 h-12 bg-emerald-500/10 flex items-center justify-center mb-4">
+              <OxFork size={22} className="text-emerald-400" />
             </div>
             <p className="text-white text-[16px] font-semibold">{t("portal.orderMeal")}</p>
-            <p className="text-white/35 text-[13px] mt-1">{t("portal.orderMealSub")}</p>
+            <p className="text-emerald-400/60 text-[13px] mt-1">{t("portal.orderMealSub")}</p>
           </Link>
 
           <Link
-            href="/portal/shop?tab=store"
-            className="group relative bg-white/[0.04] border border-white/[0.06] p-5 hover:bg-gold/[0.04] hover:border-gold/20 active:scale-[0.98] transition-all duration-200 overflow-hidden"
+            href="/portal/shop"
+            className="group relative bg-blue-950/40 border border-blue-500/20 p-5 hover:bg-blue-900/30 hover:border-blue-400/30 active:scale-[0.98] transition-all duration-200 overflow-hidden"
           >
-            <div className="absolute top-0 left-0 right-0 h-[3px] danger-tape-thin opacity-30" />
-            <div className="w-12 h-12 bg-danger/[0.08] flex items-center justify-center mb-4">
-              <OxBag size={22} className="text-danger" />
+            <div className="absolute top-0 left-0 right-0 h-[3px] opacity-40" style={{ backgroundImage: "repeating-linear-gradient(90deg,#3b82f6 0px,#3b82f6 6px,transparent 6px,transparent 12px)" }} />
+            <div className="w-12 h-12 bg-blue-500/10 flex items-center justify-center mb-4">
+              <OxBag size={22} className="text-blue-400" />
             </div>
             <p className="text-white text-[16px] font-semibold">{t("portal.shop")}</p>
-            <p className="text-white/35 text-[13px] mt-1">{t("portal.shopSub")}</p>
+            <p className="text-blue-400/60 text-[13px] mt-1">{t("portal.shopSub")}</p>
           </Link>
         </section>
 

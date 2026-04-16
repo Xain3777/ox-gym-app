@@ -34,7 +34,7 @@ export default function AuthLayout({
           GYM
         </h1>
         <p className="font-mono text-[9px] tracking-[0.3em] text-muted uppercase mt-1.5">
-          HARDER · BETTER · FASTER
+          HARDER BETTER FASTER STRONGER
         </p>
       </div>
 

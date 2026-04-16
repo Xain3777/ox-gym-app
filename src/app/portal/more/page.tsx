@@ -7,7 +7,7 @@ import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
 import {
   OxGear, OxTrainer, OxSettings, OxUser, OxChevronRight,
-  OxTrendUp, OxPulse, OxChat, OxStar, OxLogout,
+  OxTrendUp, OxPulse, OxChat, OxStar, OxLogout, OxInfo,
 } from "@/components/icons/OxIcons";
 
 interface MoreItem {
@@ -39,6 +39,7 @@ const sections: { titleKey: string; items: MoreItem[] }[] = [
   {
     titleKey: "more.account",
     items: [
+      { labelKey: "more.gymInfo",   subtitleKey: "more.gymInfoSub",   href: "/portal/gym-info", icon: OxInfo,     iconBg: "bg-gold/10",        iconColor: "text-gold" },
       { labelKey: "more.profile",   subtitleKey: "more.profileSub",   href: "/portal/profile",  icon: OxUser,     iconBg: "bg-gold/10",        iconColor: "text-gold" },
       { labelKey: "more.settings",  subtitleKey: "more.settingsSub",  href: "/portal/settings", icon: OxSettings, iconBg: "bg-white/[0.06]",   iconColor: "text-white/50" },
     ],

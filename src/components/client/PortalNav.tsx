@@ -8,7 +8,7 @@ import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
 import {
   OxHome, OxDumbbell, OxBag, OxMore, OxUser, OxTrendUp, OxPulse,
-  OxFork, OxTrainer, OxChat, OxStar, OxGear, OxSettings, OxInfo,
+  OxFork, OxTrainer, OxChat, OxStar, OxGear, OxInfo,
   OxLogout, OxTrophy,
 } from "@/components/icons/OxIcons";
 
@@ -68,9 +68,8 @@ const sidebarSections: NavSection[] = [
   {
     titleKey: "more.account",
     items: [
-      { labelKey: "more.gymInfo",   href: "/portal/gym-info",  icon: OxInfo },
-      { labelKey: "more.machines",  href: "/portal/machines",  icon: OxGear },
-      { labelKey: "more.settings",  href: "/portal/settings",  icon: OxSettings },
+      { labelKey: "more.gymInfo",  href: "/portal/gym-info", icon: OxInfo },
+      { labelKey: "more.machines", href: "/portal/machines",  icon: OxGear },
     ],
   },
 ];

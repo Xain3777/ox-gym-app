@@ -23,12 +23,12 @@ export function SubscriptionGate({ endDate, children }: SubscriptionGateProps) {
         {children}
       </div>
       <div className="absolute inset-0 flex items-center justify-center">
-        <div className="rounded-lg bg-iron border border-gold/20 p-8 text-center max-w-sm mx-5">
-          <div className="w-16 h-16 rounded-lg bg-gold/10 border border-gold/20 flex items-center justify-center mx-auto mb-5">
+        <div className="bg-iron border border-gold/20 p-8 text-center max-w-sm mx-5" dir="rtl">
+          <div className="w-16 h-16 bg-gold/10 border border-gold/20 flex items-center justify-center mx-auto mb-5">
             <OxLock size={24} className="text-gold" />
           </div>
-          <h3 className="text-white text-[20px] font-bold mb-2">Subscription Expired</h3>
-          <p className="text-white/40 text-[15px] leading-relaxed">Renew your subscription to unlock this feature. Visit the front desk or contact us.</p>
+          <h3 className="text-white text-[20px] font-bold mb-2">الاشتراك منتهي</h3>
+          <p className="text-white/40 text-[15px] leading-relaxed">جدِّد اشتراكك لفتح هذه الميزة. تفضّل بزيارة الاستقبال أو تواصل معنا.</p>
         </div>
       </div>
     </div>

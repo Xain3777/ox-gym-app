@@ -79,19 +79,22 @@ export default function MealsPage() {
         <div className="absolute top-0 left-0 right-0 h-[6px] z-10"
           style={{ backgroundImage: "repeating-linear-gradient(90deg,#10b981 0,#10b981 14px,#071a12 14px,#071a12 28px)", opacity: 0.9 }} />
 
-        <div className="absolute inset-0 flex items-end justify-end rtl:justify-start pr-4 rtl:pl-4 rtl:pr-0 pb-2 z-0 pointer-events-none select-none">
-          <div className="relative w-36 h-44 opacity-25">
-            <Image src="/fig-charge.png" alt="" fill className="object-contain object-bottom" unoptimized />
-          </div>
-        </div>
-
+        {/* diagonal grid texture */}
         <div className="absolute inset-0 pointer-events-none"
           style={{ backgroundImage: "repeating-linear-gradient(45deg,transparent 0,transparent 28px,rgba(16,185,129,0.04) 28px,rgba(16,185,129,0.04) 30px)" }} />
 
-        <div className="absolute bottom-8 left-0 right-0 z-10 px-5">
-          <BackArrow href="/portal/workouts" className="mb-2" />
-          <p className="font-display text-[38px] leading-none tracking-wider text-emerald-400">وجباتي</p>
-          <p className="text-white/40 text-[13px] mt-1">خطة التغذية اليومية</p>
+        {/* Side-by-side layout: figure on left, text on right */}
+        <div className="absolute inset-0 flex items-end" dir="ltr">
+          {/* Left: figure */}
+          <div className="relative w-36 h-full flex-shrink-0 pointer-events-none select-none opacity-55">
+            <Image src="/fig-charge.png" alt="" fill className="object-contain object-bottom" unoptimized />
+          </div>
+          {/* Right: text */}
+          <div className="flex-1 pb-8 px-5 z-10" dir="rtl">
+            <BackArrow href="/portal/workouts" className="mb-2" />
+            <p className="font-display text-[38px] leading-none tracking-wider text-emerald-400">وجباتي</p>
+            <p className="text-white/40 text-[13px] mt-1">خطة التغذية اليومية</p>
+          </div>
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 h-[5px] z-10"

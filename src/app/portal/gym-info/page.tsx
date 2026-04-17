@@ -64,7 +64,7 @@ const facilities = [
 
 export default function GymInfoPage() {
   return (
-    <div className="min-h-full pb-28 lg:pb-10">
+    <div className="min-h-full pb-28 lg:pb-10" dir="rtl">
 
       {/* ── Hero ────────────────────────────────────────── */}
       <div className="relative w-full overflow-hidden bg-[#0a0a0a]" style={{ height: 200 }}>
@@ -74,7 +74,7 @@ export default function GymInfoPage() {
         <div className="absolute inset-0 pointer-events-none"
           style={{ backgroundImage: "repeating-linear-gradient(45deg,transparent 0,transparent 28px,rgba(245,193,0,0.03) 28px,rgba(245,193,0,0.03) 30px)" }} />
 
-        <div className="absolute bottom-8 left-0 right-0 z-10 px-5">
+        <div className="absolute bottom-8 left-0 right-0 z-10 px-5" dir="rtl">
           <BackArrow href="/portal/more" className="mb-2" />
           <p className="font-display text-[38px] leading-none tracking-wider text-gold">OX GYM</p>
           <p className="text-white/40 text-[13px] mt-1">معلومات الاشتراكات والخدمات</p>
@@ -161,22 +161,17 @@ export default function GymInfoPage() {
           <p className="text-white font-display text-[22px] tracking-wider leading-none mb-5">تواصل معنا</p>
 
           <div className="bg-white/[0.03] border border-white/[0.06] p-5 space-y-3">
-            <div className="flex justify-between">
-              <span className="text-white/40 text-[14px]">الهاتف</span>
-              <span className="text-white text-[14px] font-medium" dir="ltr">+966 XX XXX XXXX</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/40 text-[14px]">واتساب</span>
-              <span className="text-white text-[14px] font-medium" dir="ltr">+966 XX XXX XXXX</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/40 text-[14px]">العنوان</span>
-              <span className="text-white text-[14px] font-medium">الرياض، المملكة العربية السعودية</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/40 text-[14px]">مواعيد العمل</span>
-              <span className="text-white text-[14px] font-medium">٦ ص – ١٢ م يومياً</span>
-            </div>
+            {[
+              { label: "الهاتف",        value: "+966 XX XXX XXXX", ltr: true },
+              { label: "واتساب",        value: "+966 XX XXX XXXX", ltr: true },
+              { label: "العنوان",       value: "الرياض، المملكة العربية السعودية" },
+              { label: "مواعيد العمل", value: "٦ ص – ١٢ م يومياً" },
+            ].map(({ label, value, ltr }) => (
+              <div key={label} className="flex items-start justify-between gap-4">
+                <span className="text-white/40 text-[14px] shrink-0">{label}</span>
+                <span className="text-white text-[14px] font-medium text-left" dir={ltr ? "ltr" : "rtl"}>{value}</span>
+              </div>
+            ))}
           </div>
         </section>
 

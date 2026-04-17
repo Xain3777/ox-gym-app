@@ -1,10 +1,14 @@
 import type { Product } from "./supplements";
 
-/** OX GYM branded products (cups, shakers, snacks, etc.). Add / edit items here. */
+/** OX GYM branded products. Add / edit items here. */
 export const ourProducts: Product[] = [
-  { id: 201, name: "كوب بروتين OX", desc: "كوب بروتين حصري بتصميم OX GYM — ٢٠ غ بروتين، بنكهة الشوكولاتة.", price: 6, image: "🥤", badge: "OX حصري" },
-  { id: 202, name: "شيكر OX", desc: "شيكر ٧٠٠ مل مصنوع من البلاستيك الخالي من BPA بشعار OX GYM.", price: 12, image: "🥛" },
-  { id: 203, name: "بار بروتين OX", desc: "بار بروتين من إنتاج OX GYM — ٢٥ غ بروتين، بدون سكر مضاف.", price: 5, image: "🍫", badge: "جديد" },
-  { id: 204, name: "مسحوق كولاجين", desc: "كولاجين نوع I وIII لصحة المفاصل والجلد، بدون نكهة.", price: 28, image: "✨" },
-  { id: 205, name: "عصير OX الطبيعي", desc: "مشروب طاقة طبيعي بدون منشطات صناعية، ٥ نكهات.", price: 4, image: "🍊" },
+  // ── بروتين OX ─────────────────────────────────────────────
+  { id: 201, name: "بروتين OX — شوكولاتة", desc: "بروتين حصري من OX GYM. ٢٥ غ بروتين، بنكهة الشوكولاتة الداكنة الفاخرة. بدون سكر مضاف.", price: 45, image: "🍫", badge: "OX حصري", subCategory: "بروتين OX" },
+  { id: 202, name: "بروتين OX — فانيليا", desc: "بروتين حصري من OX GYM. ٢٥ غ بروتين، بنكهة الفانيليا الكريمية. بدون سكر مضاف.", price: 45, image: "🍦", badge: "OX حصري", subCategory: "بروتين OX" },
+  { id: 203, name: "بروتين OX — كلوريا", desc: "بروتين حصري من OX GYM. ٢٥ غ بروتين، بنكهة الكلوريا المنعشة. بدون سكر مضاف.", price: 45, image: "🍓", subCategory: "بروتين OX" },
+  // ── منتجات حصرية ──────────────────────────────────────────
+  { id: 210, name: "شيكر OX الاحترافي", desc: "شيكر ٧٠٠ مل مصنوع من البلاستيك الخالي من BPA. غطاء آمن ومقياس دقيق. بشعار OX GYM.", price: 15, image: "🥛", subCategory: "منتجات حصرية" },
+  { id: 211, name: "قارورة OX الذكية", desc: "قارورة ١٢٠٠ مل من الستيل المقاوم. تحافظ على برودة المشروب ٢٤ ساعة بشعار OX.", price: 28, image: "🍶", badge: "جديد", subCategory: "منتجات حصرية" },
+  { id: 212, name: "كيس OX الرياضي", desc: "حقيبة رياضية بمقصورات متعددة وحجرة للأحذية. تحمل شعار OX GYM.", price: 35, image: "👜", subCategory: "منتجات حصرية" },
+  { id: 213, name: "بار بروتين OX (علبة ١٢)", desc: "بار بروتين من إنتاج OX GYM — ٢٥ غ بروتين لكل بار، بدون سكر مضاف. علبة ١٢ حبة.", price: 30, image: "🍫", subCategory: "منتجات حصرية" },
 ];

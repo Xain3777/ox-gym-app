@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
-import { createBrowserSupabase } from "@/lib/supabase";
 import { LanguageSwitch } from "@/components/ui/LanguageSwitch";
+import { LogoutButton } from "@/components/ui/LogoutConfirm";
 import { RoleToggle } from "@/components/client/RoleToggle";
 import { ToastProvider } from "@/components/ui/Toast";
 import {
@@ -15,15 +15,16 @@ import {
   Users,
   CreditCard,
   ShoppingBag,
-  LogOut,
+  Activity,
 } from "lucide-react";
 
 const navItems = [
-  { labelKey: "reception.dashboard",      href: "/reception",               icon: LayoutDashboard, exact: true },
-  { labelKey: "nav.createAccount",        href: "/reception/create",        icon: UserPlus },
-  { labelKey: "nav.members",              href: "/reception/members",       icon: Users },
-  { labelKey: "nav.subscriptions",        href: "/reception/subscriptions", icon: CreditCard },
-  { labelKey: "nav.storeManage",          href: "/reception/store",         icon: ShoppingBag },
+  { label: "الرئيسية",         href: "/reception",               icon: LayoutDashboard, exact: true },
+  { label: "إنشاء حساب",       href: "/reception/create",        icon: UserPlus },
+  { label: "الأعضاء",          href: "/reception/members",       icon: Users },
+  { label: "الاشتراكات",       href: "/reception/subscriptions", icon: CreditCard },
+  { label: "المتجر والمخزون",   href: "/reception/store",         icon: ShoppingBag },
+  { label: "جهاز InBody",       href: "/reception/inbody",        icon: Activity },
 ];
 
 function isActive(pathname: string, href: string, exact?: boolean): boolean {
@@ -33,28 +34,20 @@ function isActive(pathname: string, href: string, exact?: boolean): boolean {
 
 export default function ReceptionLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { t } = useTranslation();
-
-  async function handleLogout() {
-    const supabase = createBrowserSupabase();
-    await supabase.auth.signOut();
-    document.cookie = "test-role=; path=/; max-age=0";
-    router.push("/login");
-  }
 
   return (
     <ToastProvider>
-      <div className="flex h-screen overflow-hidden bg-void">
+      <div className="flex h-screen overflow-hidden bg-void" dir="rtl">
         {/* Desktop Sidebar */}
-        <aside className="hidden md:flex md:flex-shrink-0 w-[250px] bg-charcoal border-r border-steel rtl:border-r-0 rtl:border-l flex-col h-full">
+        <aside className="hidden md:flex md:flex-shrink-0 w-[250px] bg-charcoal border-l border-steel flex-col h-full">
           <div className="border-b border-steel">
             <div className="flex items-center gap-3 px-6 py-5">
               <Image src="/ox-logo.png" alt="OX GYM" width={40} height={40} className="flex-shrink-0" />
               <div>
                 <span className="font-display text-[24px] tracking-[0.06em] text-gold leading-none block">GYM</span>
                 <span className="font-mono text-[8px] tracking-[0.3em] text-[#4ECDC4] uppercase block mt-0.5">
-                  {t("roles.reception")}
+                  استقبال
                 </span>
               </div>
             </div>
@@ -73,12 +66,12 @@ export default function ReceptionLayout({ children }: { children: React.ReactNod
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium rounded-none transition-all duration-200",
                       active
-                        ? "text-[#4ECDC4] bg-[#4ECDC4]/8 border-l-[3px] border-l-[#4ECDC4] rtl:border-l-0 rtl:border-r-[3px] rtl:border-r-[#4ECDC4]"
-                        : "text-muted border-l-[3px] border-l-transparent rtl:border-l-0 rtl:border-r-[3px] rtl:border-r-transparent hover:text-offwhite hover:bg-iron",
+                        ? "text-[#4ECDC4] bg-[#4ECDC4]/8 border-r-[3px] border-r-[#4ECDC4]"
+                        : "text-muted border-r-[3px] border-r-transparent hover:text-offwhite hover:bg-iron",
                     )}
                   >
                     <Icon size={16} className={active ? "text-[#4ECDC4]" : "text-slate"} />
-                    {t(item.labelKey)}
+                    {item.label}
                   </Link>
                 );
               })}
@@ -87,13 +80,7 @@ export default function ReceptionLayout({ children }: { children: React.ReactNod
 
           <div className="px-5 py-4 border-t border-steel space-y-3">
             <LanguageSwitch />
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 w-full px-1 py-2 text-[12px] text-muted hover:text-danger transition-colors font-mono tracking-[0.08em] uppercase"
-            >
-              <LogOut size={13} />
-              {t("auth.logout")}
-            </button>
+            <LogoutButton />
           </div>
         </aside>
 
@@ -105,7 +92,7 @@ export default function ReceptionLayout({ children }: { children: React.ReactNod
         </main>
 
         {/* Mobile Bottom Nav */}
-        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-charcoal/95 backdrop-blur-sm border-t border-steel grid grid-cols-5 h-16 pb-safe md:hidden">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-charcoal/95 backdrop-blur-sm border-t border-steel grid grid-cols-6 h-16 pb-safe md:hidden">
           {navItems.map((item) => {
             const active = isActive(pathname, item.href, item.exact);
             const Icon = item.icon;
@@ -119,7 +106,7 @@ export default function ReceptionLayout({ children }: { children: React.ReactNod
                 )}
               >
                 <Icon size={18} />
-                {t(item.labelKey).split(" ").slice(-1)[0]}
+                {item.label.split(" ").slice(-1)[0]}
               </Link>
             );
           })}

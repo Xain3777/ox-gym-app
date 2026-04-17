@@ -5,8 +5,8 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
-import { createBrowserSupabase } from "@/lib/supabase";
 import { LanguageSwitch } from "@/components/ui/LanguageSwitch";
+import { LogoutButton } from "@/components/ui/LogoutConfirm";
 import { RoleToggle } from "@/components/client/RoleToggle";
 import { ToastProvider } from "@/components/ui/Toast";
 import {
@@ -15,7 +15,6 @@ import {
   Dumbbell,
   UtensilsCrossed,
   MessageSquare,
-  LogOut,
 } from "lucide-react";
 
 const navItems = [
@@ -35,13 +34,6 @@ export default function CoachLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useTranslation();
-
-  async function handleLogout() {
-    const supabase = createBrowserSupabase();
-    await supabase.auth.signOut();
-    document.cookie = "test-role=; path=/; max-age=0";
-    router.push("/login");
-  }
 
   return (
     <ToastProvider>
@@ -87,13 +79,7 @@ export default function CoachLayout({ children }: { children: React.ReactNode })
 
           <div className="px-5 py-4 border-t border-steel space-y-3">
             <LanguageSwitch />
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 w-full px-1 py-2 text-[12px] text-muted hover:text-danger transition-colors font-mono tracking-[0.08em] uppercase"
-            >
-              <LogOut size={13} />
-              {t("auth.logout")}
-            </button>
+            <LogoutButton />
           </div>
         </aside>
 

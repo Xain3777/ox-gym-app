@@ -29,12 +29,22 @@ const PIE_COLORS = ["#F5C100", "#FFD740", "#C49A00", "#8A6D00", "#D42B2B"];
 function OxTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-charcoal border border-steel px-3 py-2 shadow-lg">
-      <p className="font-mono text-[9px] tracking-[0.12em] uppercase text-muted mb-1">
-        {label}
-      </p>
+    <div
+      className="border border-steel px-3 py-2 shadow-2xl"
+      style={{
+        backgroundColor: "#111111",   // fully opaque — no backdrop bleed
+        position: "relative",
+        zIndex: 9999,
+        pointerEvents: "none",
+      }}
+    >
+      {label && (
+        <p className="font-mono text-[9px] tracking-[0.12em] uppercase text-muted mb-1">
+          {label}
+        </p>
+      )}
       {payload.map((entry: any, i: number) => (
-        <p key={i} className="text-[12px] font-medium" style={{ color: entry.color }}>
+        <p key={i} className="text-[12px] font-medium" style={{ color: entry.color ?? "#F5C100" }}>
           {entry.name}: {typeof entry.value === "number" ? entry.value.toLocaleString() : entry.value}
         </p>
       ))}
@@ -111,7 +121,7 @@ export function MembershipGrowthChart({ data }: MembershipGrowthChartProps) {
           axisLine={false}
           tickLine={false}
         />
-        <Tooltip content={<OxTooltip />} />
+        <Tooltip content={<OxTooltip />} wrapperStyle={{ zIndex: 9999 }} />
         <Area
           type="monotone"
           dataKey="newMembers"
@@ -164,7 +174,7 @@ export function RevenueBreakdownChart({ data }: RevenueChartProps) {
           axisLine={false}
           tickLine={false}
         />
-        <Tooltip content={<OxTooltip />} />
+        <Tooltip content={<OxTooltip />} wrapperStyle={{ zIndex: 9999 }} />
         <Bar dataKey="revenue" name="Revenue" fill={COLORS.gold} radius={[2, 2, 0, 0]}>
           {data.map((_, i) => (
             <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
@@ -250,7 +260,7 @@ export function WeeklyActivityChart({ data }: WeeklyActivityChartProps) {
           tickLine={false}
         />
         <YAxis hide />
-        <Tooltip content={<OxTooltip />} />
+        <Tooltip content={<OxTooltip />} wrapperStyle={{ zIndex: 9999 }} />
         <Bar dataKey="plansSent" name="Plans Sent" fill={COLORS.gold} radius={[2, 2, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>

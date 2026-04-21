@@ -100,21 +100,26 @@ export default function GymInfoPage() {
                   plan.color
                 )}
               >
+                {/* Badge in normal flow — no overlap */}
                 {plan.badge && (
-                  <span className="absolute top-4 left-4 rtl:left-auto rtl:right-4 text-[10px] font-bold px-2.5 py-1 bg-gold/20 text-gold border border-gold/20">
-                    {plan.badge}
-                  </span>
+                  <div className="mb-3">
+                    <span className="inline-block text-[10px] font-bold px-2.5 py-1 bg-gold/20 text-gold border border-gold/20">
+                      {plan.badge}
+                    </span>
+                  </div>
                 )}
 
-                <div className="flex items-end justify-between mb-4 mt-1">
+                <div className="flex items-end justify-between mb-4">
                   <div>
-                    <p className={cn("font-display text-[26px] tracking-wider leading-none", plan.accent)}>
+                    <p className={cn("font-display text-[24px] tracking-wider leading-none", plan.accent)}>
                       {plan.name}
                     </p>
                     <p className="text-white/30 text-[13px] mt-1">{plan.period}</p>
                   </div>
-                  <div className="text-right rtl:text-left">
-                    <p className={cn("text-[28px] font-bold leading-none", plan.accent)}>{plan.price} <span className="text-[14px] font-normal text-white/40">ر.س</span></p>
+                  <div className="text-left">
+                    <p className={cn("text-[26px] font-bold leading-none", plan.accent)} dir="ltr">
+                      {plan.price} <span className="text-[13px] font-normal text-white/40">ر.س</span>
+                    </p>
                   </div>
                 </div>
 

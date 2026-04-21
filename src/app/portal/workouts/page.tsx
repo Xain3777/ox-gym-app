@@ -200,7 +200,7 @@ export default function WorkoutsPage() {
             </div>
             {allDone && (
               <p className="text-gold text-[13px] font-bold mt-3 text-center uppercase tracking-wider">
-                اكتمل التمرين 🎉
+                اكتمل التمرين
               </p>
             )}
           </div>
@@ -270,7 +270,7 @@ export default function WorkoutsPage() {
                       <OxTrophy size={28} className="text-gold" />
                     </div>
                     <h3 className="text-white font-display text-[24px] tracking-wider leading-none">
-                      أحسنت! 💪
+                      أحسنت!
                     </h3>
                     <p className="text-white/40 text-[14px] mt-2 text-center leading-relaxed">
                       أكملت جميع تمارين {day.title}.<br />هل تريد تسجيل هذا التمرين؟

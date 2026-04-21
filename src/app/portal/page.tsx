@@ -125,8 +125,8 @@ export default function PortalHome() {
 
   return (
     <div className="relative min-h-full pb-28 lg:pb-10" dir="rtl">
-      <div className="absolute top-6 -right-4 w-24 h-32 opacity-50 pointer-events-none select-none z-0">
-        <Image src="/fig-charge.png" alt="" fill className="object-contain object-right-top" unoptimized />
+      <div className="absolute top-6 -left-4 w-24 h-32 opacity-50 pointer-events-none select-none z-0">
+        <Image src="/fig-charge.png" alt="" fill className="object-contain object-left-top" unoptimized />
       </div>
 
       <div className="relative z-10 max-w-lg mx-auto px-5 pt-14 lg:pt-10 space-y-5">
@@ -251,8 +251,8 @@ export default function PortalHome() {
             <ChevronDown className="text-gold/60" />
           </div>
 
-          <div className="absolute top-2 -right-2 w-16 h-24 opacity-40 pointer-events-none select-none z-0">
-            <Image src="/fig-bicep.png" alt="" fill className="object-contain object-right-top" unoptimized />
+          <div className="absolute top-2 -left-2 w-16 h-24 opacity-40 pointer-events-none select-none z-0">
+            <Image src="/fig-bicep.png" alt="" fill className="object-contain object-left-top" unoptimized />
           </div>
 
           <div className="relative p-6 pb-4">

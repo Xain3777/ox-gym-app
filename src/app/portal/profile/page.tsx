@@ -130,8 +130,8 @@ export default function ProfilePage() {
 
   return (
     <div className="relative min-h-full pb-28 lg:pb-10" dir="rtl">
-      <div className="absolute top-6 right-2 w-28 h-36 opacity-70 pointer-events-none select-none fig-fade-left z-0">
-        <Image src="/fig-bicep.png" alt="" fill className="object-contain object-right-top" unoptimized />
+      <div className="absolute top-6 left-2 w-28 h-36 opacity-70 pointer-events-none select-none fig-fade-right z-0">
+        <Image src="/fig-bicep.png" alt="" fill className="object-contain object-left-top" unoptimized />
       </div>
 
       <div className="relative z-10 max-w-lg mx-auto px-5 pt-14 lg:pt-10">

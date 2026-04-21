@@ -8,8 +8,12 @@ import { SubscriptionGate } from "@/components/portal/SubscriptionGate";
 import { OxCheck, OxChevronRight, OxPlay, OxInfo, OxTrophy, OxDumbbell } from "@/components/icons/OxIcons";
 import { createBrowserSupabase } from "@/lib/supabase";
 
-// ── MOCK DATA ───────────────────────────────────────────────────
-const mockWorkoutDays = [
+// ── TYPES ────────────────────────────────────────────────────────
+type Exercise = { name: string; sets: number; reps: string; machine: string; done: boolean };
+type WorkoutDay = { label: string; title: string; isToday: boolean; exercises: Exercise[] };
+
+// ── FALLBACK MOCK DATA ───────────────────────────────────────────
+const mockWorkoutDays: WorkoutDay[] = [
   {
     label: "اليوم 1", title: "يوم الدفع", isToday: true,
     exercises: [
@@ -44,6 +48,22 @@ const mockWorkoutDays = [
   },
 ];
 
+// Convert DB plan content (array of {day, exercises}) → WorkoutDay[]
+function planContentToDays(content: Array<{ day: string; exercises: Array<{ name: string; sets: number; reps: string; notes?: string }> }>): WorkoutDay[] {
+  return content.map((d, i) => ({
+    label: `اليوم ${i + 1}`,
+    title: d.day,
+    isToday: i === 0,
+    exercises: d.exercises.map((ex) => ({
+      name: ex.name,
+      sets: ex.sets,
+      reps: String(ex.reps),
+      machine: ex.notes ?? "",
+      done: false,
+    })),
+  }));
+}
+
 // ── LOGGING ─────────────────────────────────────────────────────
 async function saveWorkoutLog(dayTitle: string, doneCount: number, totalCount: number, partial: boolean) {
   const entry = {
@@ -53,12 +73,10 @@ async function saveWorkoutLog(dayTitle: string, doneCount: number, totalCount: n
     partial,
     logged_at: new Date().toISOString(),
   };
-  // Persist locally as fallback
   try {
     const prev = JSON.parse(localStorage.getItem("ox-workout-logs") ?? "[]");
     localStorage.setItem("ox-workout-logs", JSON.stringify([...prev, entry]));
   } catch { /* ignore */ }
-  // Try Supabase (silent fail if table doesn't exist yet)
   try {
     const supabase = createBrowserSupabase();
     const { data: { user } } = await supabase.auth.getUser();
@@ -67,22 +85,39 @@ async function saveWorkoutLog(dayTitle: string, doneCount: number, totalCount: n
     if (member) {
       await supabase.from("workout_logs").insert({ member_id: member.id, ...entry });
     }
-  } catch { /* silent — table may not exist yet */ }
+  } catch { /* silent */ }
 }
 
 // ── PAGE ─────────────────────────────────────────────────────────
 export default function WorkoutsPage() {
   const router = useRouter();
-  const [days, setDays] = useState(mockWorkoutDays);
+  const [days, setDays] = useState<WorkoutDay[]>(mockWorkoutDays);
+  const [planName, setPlanName] = useState<string | null>(null);
+  const [loadingPlan, setLoadingPlan] = useState(true);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [machineHelp, setMachineHelp] = useState<string | null>(null);
-
-  // Finish + quit modals
   const [showFinishModal, setShowFinishModal] = useState(false);
-  const [showQuitModal, setShowQuitModal]   = useState(false);
-  const [finishShownFor, setFinishShownFor] = useState<number | null>(null); // prevent re-showing
+  const [showQuitModal, setShowQuitModal] = useState(false);
+  const [finishShownFor, setFinishShownFor] = useState<number | null>(null);
   const [logging, setLogging] = useState(false);
   const [loggedSuccess, setLoggedSuccess] = useState(false);
+
+  // Load plan from DB
+  useEffect(() => {
+    async function loadPlan() {
+      try {
+        const res = await fetch("/api/portal/workout");
+        if (!res.ok) { setLoadingPlan(false); return; }
+        const { data: plan } = await res.json();
+        if (plan?.content && Array.isArray(plan.content) && plan.content.length > 0) {
+          setDays(planContentToDays(plan.content));
+          setPlanName(plan.name ?? null);
+        }
+      } catch { /* keep mock */ }
+      setLoadingPlan(false);
+    }
+    loadPlan();
+  }, []);
 
   function toggleExercise(dayIdx: number, exIdx: number) {
     setDays((prev) =>
@@ -97,18 +132,15 @@ export default function WorkoutsPage() {
   const getDoneCount = useCallback((dayIdx: number) => days[dayIdx].exercises.filter((e) => e.done).length, [days]);
   const isAllDone    = useCallback((dayIdx: number) => getDoneCount(dayIdx) === days[dayIdx].exercises.length, [days, getDoneCount]);
 
-  // Auto-show finish modal when all exercises are ticked
   useEffect(() => {
     if (selectedDay === null) return;
     if (isAllDone(selectedDay) && finishShownFor !== selectedDay) {
       setFinishShownFor(selectedDay);
-      // Small delay so the last checkbox animation completes
       const t = setTimeout(() => setShowFinishModal(true), 400);
       return () => clearTimeout(t);
     }
   }, [days, selectedDay, isAllDone, finishShownFor]);
 
-  // ── Log + go back ──────────────────────────────────────────
   async function handleLog(partial: boolean) {
     if (selectedDay === null) return;
     setLogging(true);
@@ -131,10 +163,8 @@ export default function WorkoutsPage() {
   function handleBackPress() {
     const doneCount = selectedDay !== null ? getDoneCount(selectedDay) : 0;
     if (doneCount === 0) {
-      // Nothing done — exit silently
       setSelectedDay(null);
     } else if (selectedDay !== null && isAllDone(selectedDay)) {
-      // Already finished → re-show finish modal
       setShowFinishModal(true);
     } else {
       setShowQuitModal(true);
@@ -156,7 +186,6 @@ export default function WorkoutsPage() {
         </div>
 
         <div className="relative z-10 max-w-lg mx-auto px-5 pt-14 lg:pt-10">
-          {/* Custom back button — intercepts to show quit modal */}
           <button
             onClick={handleBackPress}
             className="group flex items-center gap-2 mb-5 -mr-1 transition-all duration-200"
@@ -177,7 +206,6 @@ export default function WorkoutsPage() {
             <div className="w-20 h-[4px] mt-3 danger-tape-thin" />
           </div>
 
-          {/* Progress bar */}
           <div className={cn(
             "relative bg-white/[0.04] border border-white/[0.06] p-4 mb-6 overflow-hidden",
             allDone && "burn-glow"
@@ -235,7 +263,7 @@ export default function WorkoutsPage() {
                       </p>
                     </div>
                   </div>
-                  {!ex.done && (
+                  {!ex.done && ex.machine && (
                     <button
                       onClick={() => setMachineHelp(ex.machine)}
                       className="mt-3 me-[60px] flex items-center gap-2 text-white/30 hover:text-gold text-[13px] transition-colors"
@@ -269,15 +297,11 @@ export default function WorkoutsPage() {
                     <div className="w-16 h-16 bg-gold/10 border border-gold/20 flex items-center justify-center mb-4">
                       <OxTrophy size={28} className="text-gold" />
                     </div>
-                    <h3 className="text-white font-display text-[24px] tracking-wider leading-none">
-                      أحسنت!
-                    </h3>
+                    <h3 className="text-white font-display text-[24px] tracking-wider leading-none">أحسنت!</h3>
                     <p className="text-white/40 text-[14px] mt-2 text-center leading-relaxed">
                       أكملت جميع تمارين {day.title}.<br />هل تريد تسجيل هذا التمرين؟
                     </p>
                   </div>
-
-                  {/* Workout summary */}
                   <div className="bg-white/[0.03] border border-white/[0.06] p-4 mb-5 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <OxDumbbell size={18} className="text-gold" />
@@ -288,7 +312,6 @@ export default function WorkoutsPage() {
                     </div>
                     <span className="text-gold font-bold text-[15px]" dir="ltr">{doneCount}/{totalCount}</span>
                   </div>
-
                   <button
                     onClick={() => handleLog(false)}
                     disabled={logging}
@@ -384,66 +407,77 @@ export default function WorkoutsPage() {
       <div className="relative z-10 max-w-lg mx-auto px-5 pt-14 lg:pt-10">
         <div className="relative mb-6">
           <h1 className="text-white font-display text-[32px] tracking-wider leading-none">تماريني</h1>
+          {planName && (
+            <p className="text-gold/60 text-[13px] font-medium mt-1">{planName}</p>
+          )}
           <div className="w-24 h-[4px] mt-3 danger-tape-thin" />
         </div>
 
-        <div className="space-y-3">
-          {days.map((day, dayIdx) => {
-            const allDone = isAllDone(dayIdx);
-            const doneCount = getDoneCount(dayIdx);
-            return (
-              <button
-                key={dayIdx}
-                onClick={() => setSelectedDay(dayIdx)}
-                className={cn(
-                  "relative w-full border p-5 flex items-center justify-between text-right transition-all duration-200 active:scale-[0.98] overflow-hidden",
-                  allDone && "burn-glow",
-                  day.isToday ? "bg-gold/[0.06] border-gold/20" : "bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.05]"
-                )}
-                style={{ minHeight: "80px" }}
-              >
-                <div className="absolute top-0 left-0 right-0 flex justify-center">
-                  <div className="flex gap-0 -mt-[0.5px]">
-                    <MiniChevron className={day.isToday ? "text-gold/40" : "text-white/[0.06]"} />
-                    <MiniChevron className={day.isToday ? "text-gold/25" : "text-white/[0.04]"} />
-                    <MiniChevron className={day.isToday ? "text-gold/40" : "text-white/[0.06]"} />
-                  </div>
-                </div>
-
-                {day.isToday && (
-                  <div className="absolute right-0 top-0 bottom-0 w-[3px] bg-gold" />
-                )}
-
-                <div className="flex items-center gap-4">
-                  <div className={cn(
-                    "w-12 h-12 flex items-center justify-center flex-shrink-0",
-                    allDone ? "bg-gold text-void" : day.isToday ? "bg-gold/15 text-gold" : "bg-white/[0.06] text-white/30"
-                  )}>
-                    {allDone ? <OxCheck size={20} /> : <OxPlay size={18} />}
-                  </div>
-                  <div className="text-right">
-                    <p className="text-white/40 text-[12px] font-medium uppercase tracking-wider">
-                      {day.label}{day.isToday && " · اليوم"}
-                    </p>
-                    <p className={cn("text-[18px] font-semibold mt-0.5", day.isToday ? "text-white" : "text-white/80")}>
-                      {day.title}
-                    </p>
-                    <p className="text-white/35 text-[13px] mt-0.5">
-                      {day.exercises.length} تمرين{doneCount > 0 && !allDone && ` · ${doneCount} تم`}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {allDone ? (
-                    <span className="text-gold text-[12px] font-bold uppercase tracking-wider">تم ✓</span>
-                  ) : (
-                    <OxChevronRight size={18} className="text-white/20 rotate-180" />
+        {loadingPlan ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="w-full border border-white/[0.06] bg-white/[0.02] animate-pulse" style={{ height: 80 }} />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {days.map((day, dayIdx) => {
+              const allDone = isAllDone(dayIdx);
+              const doneCount = getDoneCount(dayIdx);
+              return (
+                <button
+                  key={dayIdx}
+                  onClick={() => setSelectedDay(dayIdx)}
+                  className={cn(
+                    "relative w-full border p-5 flex items-center justify-between text-right transition-all duration-200 active:scale-[0.98] overflow-hidden",
+                    allDone && "burn-glow",
+                    day.isToday ? "bg-gold/[0.06] border-gold/20" : "bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.05]"
                   )}
-                </div>
-              </button>
-            );
-          })}
-        </div>
+                  style={{ minHeight: "80px" }}
+                >
+                  <div className="absolute top-0 left-0 right-0 flex justify-center">
+                    <div className="flex gap-0 -mt-[0.5px]">
+                      <MiniChevron className={day.isToday ? "text-gold/40" : "text-white/[0.06]"} />
+                      <MiniChevron className={day.isToday ? "text-gold/25" : "text-white/[0.04]"} />
+                      <MiniChevron className={day.isToday ? "text-gold/40" : "text-white/[0.06]"} />
+                    </div>
+                  </div>
+
+                  {day.isToday && (
+                    <div className="absolute right-0 top-0 bottom-0 w-[3px] bg-gold" />
+                  )}
+
+                  <div className="flex items-center gap-4">
+                    <div className={cn(
+                      "w-12 h-12 flex items-center justify-center flex-shrink-0",
+                      allDone ? "bg-gold text-void" : day.isToday ? "bg-gold/15 text-gold" : "bg-white/[0.06] text-white/30"
+                    )}>
+                      {allDone ? <OxCheck size={20} /> : <OxPlay size={18} />}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-white/40 text-[12px] font-medium uppercase tracking-wider">
+                        {day.label}{day.isToday && " · اليوم"}
+                      </p>
+                      <p className={cn("text-[18px] font-semibold mt-0.5", day.isToday ? "text-white" : "text-white/80")}>
+                        {day.title}
+                      </p>
+                      <p className="text-white/35 text-[13px] mt-0.5">
+                        {day.exercises.length} تمرين{doneCount > 0 && !allDone && ` · ${doneCount} تم`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {allDone ? (
+                      <span className="text-gold text-[12px] font-bold uppercase tracking-wider">تم ✓</span>
+                    ) : (
+                      <OxChevronRight size={18} className="text-white/20 rotate-180" />
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

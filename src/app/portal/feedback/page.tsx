@@ -20,11 +20,35 @@ export default function FeedbackPage() {
   const [comments, setComments] = useState<Comments>({ workouts: "", meals: "", trainer: "", overall: "" });
   const [hoveredStar, setHoveredStar] = useState<Record<string, number>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const setRating = (section: string, value: number) => setRatings((prev) => ({ ...prev, [section]: value }));
   const setComment = (section: string, value: string) => setComments((prev) => ({ ...prev, [section]: value }));
   const setHover = (section: string, value: number) => setHoveredStar((prev) => ({ ...prev, [section]: value }));
   const hasAnyRating = Object.values(ratings).some((r) => r > 0);
+
+  async function handleSubmit() {
+    if (!hasAnyRating || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await fetch("/api/portal/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ratings, comments }),
+      });
+      if (res.ok) {
+        setSubmitted(true);
+      } else {
+        setSubmitError("حدث خطأ. حاول مرة أخرى.");
+      }
+    } catch {
+      setSubmitError("حدث خطأ. حاول مرة أخرى.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   if (submitted) {
     return (
@@ -105,16 +129,20 @@ export default function FeedbackPage() {
           })}
         </div>
 
+        {submitError && (
+          <p className="text-danger text-[13px] text-center mt-4">{submitError}</p>
+        )}
+
         <button
-          disabled={!hasAnyRating}
-          onClick={() => setSubmitted(true)}
+          disabled={!hasAnyRating || submitting}
+          onClick={handleSubmit}
           className={cn(
             "mt-6 w-full bg-gold hover:bg-gold-high text-void font-bold text-[16px] py-4 transition-all duration-200",
-            !hasAnyRating && "opacity-30 cursor-not-allowed"
+            (!hasAnyRating || submitting) && "opacity-30 cursor-not-allowed"
           )}
           style={{ minHeight: "56px" }}
         >
-          إرسال التقييم
+          {submitting ? "جاري الإرسال..." : "إرسال التقييم"}
         </button>
       </div>
     </div>

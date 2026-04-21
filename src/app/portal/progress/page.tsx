@@ -1,43 +1,86 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { BackArrow } from "@/components/portal/BackArrow";
-import { OxScale, OxTrendDown, OxDumbbell, OxTrophy, OxFlame, OxCalendar, OxTarget, OxAward } from "@/components/icons/OxIcons";
+import { OxScale, OxDumbbell, OxFlame, OxCalendar, OxTrophy } from "@/components/icons/OxIcons";
+import { createBrowserSupabase } from "@/lib/supabase";
 
-const stats = [
-  { label: "الوزن الابتدائي", value: "92 kg", icon: OxScale, change: null },
-  { label: "الوزن الحالي", value: "85 kg", icon: OxScale, change: null },
-  { label: "تغير الوزن", value: "-7 kg", icon: OxTrendDown, change: "down" },
-  { label: "التمارين المنجزة", value: "48", icon: OxDumbbell, change: null },
-];
-
-const timeline = [
-  { date: "25 مارس 2026", event: "رقم قياسي ديدليفت: 140kg × 3 تكرارات", type: "achievement", icon: OxTrophy },
-  { date: "20 مارس 2026", event: "أكملت 4 تمارين هذا الأسبوع", type: "workout", icon: OxFlame },
-  { date: "15 مارس 2026", event: "فحص InBody: نسبة الدهون 18.2%", type: "measurement", icon: OxTarget },
-  { date: "8 مارس 2026", event: "تفعيل خطة وجبات جديدة", type: "plan", icon: OxCalendar },
-  { date: "1 مارس 2026", event: "رقم قياسي ضغط المقعدة: 100kg × 1 تكرار", type: "achievement", icon: OxAward },
-  { date: "22 فبراير 2026", event: "تحقيق هدف الوزن: أقل من 86kg", type: "milestone", icon: OxTrophy },
-];
-
-const typeColor: Record<string, string> = {
-  achievement: "bg-gold/10 text-gold",
-  workout: "bg-success/[0.12] text-success",
-  measurement: "bg-sky-400/10 text-sky-400",
-  plan: "bg-purple-400/10 text-purple-400",
-  milestone: "bg-danger/[0.08] text-danger",
+type WorkoutLog = {
+  id: string;
+  workout_day: string;
+  exercises_done: number;
+  total_exercises: number;
+  partial: boolean;
+  logged_at: string;
 };
 
-const weeklyWorkouts = [
-  { week: "أ1", count: 3, label: "10 فبر" }, { week: "أ2", count: 5, label: "17 فبر" },
-  { week: "أ3", count: 4, label: "24 فبر" }, { week: "أ4", count: 4, label: "3 مارس" },
-  { week: "أ5", count: 6, label: "10 مارس" }, { week: "أ6", count: 4, label: "17 مارس" },
-];
-const maxCount = Math.max(...weeklyWorkouts.map((w) => w.count));
+type WeekBucket = { week: string; count: number; label: string };
+
+function getWeekBuckets(logs: WorkoutLog[]): WeekBucket[] {
+  const now = new Date();
+  return Array.from({ length: 6 }, (_, i) => {
+    const weekEnd = new Date(now);
+    weekEnd.setDate(now.getDate() - (5 - i) * 7);
+    const weekStart = new Date(weekEnd);
+    weekStart.setDate(weekEnd.getDate() - 7);
+
+    const count = logs.filter((l) => {
+      const d = new Date(l.logged_at);
+      return d >= weekStart && d < weekEnd;
+    }).length;
+
+    const label = weekStart.toLocaleDateString("ar-SA", { month: "short", day: "numeric" });
+    return { week: `أ${i + 1}`, count, label };
+  });
+}
 
 export default function ProgressPage() {
   const [activeTab, setActiveTab] = useState<"timeline" | "chart">("timeline");
+  const [logs, setLogs] = useState<WorkoutLog[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadLogs() {
+      try {
+        const supabase = createBrowserSupabase();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setLoading(false); return; }
+
+        const { data: member } = await supabase
+          .from("members")
+          .select("id")
+          .eq("auth_id", user.id)
+          .single();
+
+        if (!member) { setLoading(false); return; }
+
+        const { data } = await supabase
+          .from("workout_logs")
+          .select("*")
+          .eq("member_id", member.id)
+          .order("logged_at", { ascending: false });
+
+        setLogs(data ?? []);
+      } catch { /* table might not exist yet */ }
+      setLoading(false);
+    }
+    loadLogs();
+  }, []);
+
+  const completedLogs = logs.filter((l) => !l.partial);
+  const partialLogs   = logs.filter((l) => l.partial);
+  const totalDone     = completedLogs.length;
+
+  const weeklyBuckets = getWeekBuckets(logs);
+  const maxCount = Math.max(...weeklyBuckets.map((w) => w.count), 1);
+
+  const stats = [
+    { label: "التمارين المكتملة", value: String(totalDone), icon: OxDumbbell },
+    { label: "جلسات جزئية", value: String(partialLogs.length), icon: OxFlame },
+    { label: "إجمالي السجلات", value: String(logs.length), icon: OxScale },
+    { label: "آخر تمرين", value: logs[0] ? new Date(logs[0].logged_at).toLocaleDateString("ar-SA", { month: "short", day: "numeric" }) : "—", icon: OxCalendar },
+  ];
 
   return (
     <div className="min-h-full pb-28 lg:pb-10" dir="rtl">
@@ -45,6 +88,7 @@ export default function ProgressPage() {
         <BackArrow href="/portal/more" label="رجوع" />
         <h1 className="text-white font-display text-[32px] tracking-wider leading-none mb-6">التقدم</h1>
 
+        {/* Stats grid */}
         <div className="grid grid-cols-2 gap-3 mb-6">
           {stats.map((stat) => {
             const Icon = stat.icon;
@@ -54,8 +98,8 @@ export default function ProgressPage() {
                   <Icon size={14} className="text-gold" />
                   <p className="text-white/30 text-[11px] font-medium tracking-wider">{stat.label}</p>
                 </div>
-                <p className={cn("text-[22px] font-bold", stat.change === "down" ? "text-gold" : "text-white")} dir="ltr">
-                  {stat.value}
+                <p className="text-[22px] font-bold text-white" dir="ltr">
+                  {loading ? <span className="text-white/20">...</span> : stat.value}
                 </p>
               </div>
             );
@@ -79,20 +123,39 @@ export default function ProgressPage() {
 
         {activeTab === "timeline" && (
           <div className="space-y-3">
-            {timeline.map((entry, i) => {
-              const Icon = entry.icon;
-              return (
-                <div key={i} className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-4 flex items-center gap-4">
-                  <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0", typeColor[entry.type])}>
-                    <Icon size={18} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-[15px] font-medium">{entry.event}</p>
-                    <p className="text-white/30 text-[12px] mt-0.5">{entry.date}</p>
-                  </div>
+            {loading && (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-4 h-16 animate-pulse" />
+                ))}
+              </div>
+            )}
+            {!loading && logs.length === 0 && (
+              <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-8 text-center">
+                <OxDumbbell size={32} className="text-white/10 mx-auto mb-3" />
+                <p className="text-white/30 text-[15px]">لا توجد سجلات تمرين بعد.</p>
+                <p className="text-white/20 text-[13px] mt-1">سجّل تمرينك الأول من صفحة التمارين.</p>
+              </div>
+            )}
+            {!loading && logs.map((log, i) => (
+              <div key={log.id ?? i} className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-4 flex items-center gap-4">
+                <div className={cn(
+                  "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0",
+                  log.partial ? "bg-white/[0.06] text-white/40" : "bg-gold/10 text-gold"
+                )}>
+                  {log.partial ? <OxFlame size={18} /> : <OxTrophy size={18} />}
                 </div>
-              );
-            })}
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-[15px] font-medium">
+                    {log.partial ? `جزئي — ${log.workout_day}` : `اكتمل — ${log.workout_day}`}
+                  </p>
+                  <p className="text-white/30 text-[12px] mt-0.5" dir="ltr">
+                    {log.exercises_done}/{log.total_exercises} تمارين ·{" "}
+                    {new Date(log.logged_at).toLocaleDateString("ar-SA", { year: "numeric", month: "short", day: "numeric" })}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -100,23 +163,35 @@ export default function ProgressPage() {
           <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-6">
             <p className="text-white text-[17px] font-semibold mb-1">التمارين الأسبوعية</p>
             <p className="text-white/30 text-[13px] mb-6">آخر 6 أسابيع</p>
-            <div className="flex items-end justify-between gap-3 h-48" dir="ltr">
-              {weeklyWorkouts.map((week) => {
-                const heightPercent = (week.count / maxCount) * 100;
-                return (
-                  <div key={week.week} className="flex-1 flex flex-col items-center gap-2">
-                    <span className="text-white text-[13px] font-bold">{week.count}</span>
-                    <div className="w-full flex items-end" style={{ height: "140px" }}>
-                      <div className="w-full bg-gold rounded-sm transition-all duration-500 hover:bg-gold-high" style={{ height: `${heightPercent}%` }} />
+            {loading ? (
+              <div className="h-48 flex items-center justify-center">
+                <p className="text-white/20 text-[14px]">جاري التحميل...</p>
+              </div>
+            ) : (
+              <div className="flex items-end justify-between gap-3 h-48" dir="ltr">
+                {weeklyBuckets.map((week) => {
+                  const heightPercent = (week.count / maxCount) * 100;
+                  return (
+                    <div key={week.week} className="flex-1 flex flex-col items-center gap-2">
+                      <span className="text-white text-[13px] font-bold">{week.count || ""}</span>
+                      <div className="w-full flex items-end" style={{ height: "140px" }}>
+                        <div
+                          className={cn("w-full rounded-sm transition-all duration-500", week.count > 0 ? "bg-gold hover:bg-gold-high" : "bg-white/[0.06]")}
+                          style={{ height: week.count > 0 ? `${Math.max(heightPercent, 4)}%` : "4%" }}
+                        />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-white/40 text-[11px] font-medium">{week.week}</p>
+                        <p className="text-white/20 text-[9px]">{week.label}</p>
+                      </div>
                     </div>
-                    <div className="text-center">
-                      <p className="text-white/40 text-[11px] font-medium">{week.week}</p>
-                      <p className="text-white/20 text-[9px]">{week.label}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
+            {!loading && logs.length === 0 && (
+              <p className="text-white/20 text-[13px] text-center -mt-4">سجّل تمارينك لتظهر هنا</p>
+            )}
           </div>
         )}
       </div>

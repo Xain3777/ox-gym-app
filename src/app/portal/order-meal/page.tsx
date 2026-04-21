@@ -32,6 +32,7 @@ function OrderModal({
 }) {
   const [phase, setPhase] = useState<"confirm" | "counting" | "done">("confirm");
   const [seconds, setSeconds] = useState(120);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (phase !== "counting") return;
@@ -40,8 +41,26 @@ function OrderModal({
     return () => clearTimeout(t);
   }, [phase, seconds]);
 
-  const confirm = () => { onConfirmed(item.id); setPhase("counting"); };
-  const cancel  = () => { setPhase("done"); onClose(); };
+  const confirm = async () => {
+    setSaving(true);
+    try {
+      await fetch("/api/portal/order-meal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          item_id: item.id,
+          item_name: item.name,
+          price: item.price,
+          calories: item.cal,
+        }),
+      });
+    } catch { /* silent — order still shows locally */ }
+    setSaving(false);
+    onConfirmed(item.id);
+    setPhase("counting");
+  };
+
+  const cancel = () => { setPhase("done"); onClose(); };
 
   const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
   const ss = String(seconds % 60).padStart(2, "0");
@@ -75,7 +94,9 @@ function OrderModal({
           {phase === "confirm" && (
             <div className="flex gap-3">
               <button onClick={onClose} className="flex-1 py-3 border border-white/[0.1] text-white/50 text-[14px] font-semibold hover:bg-white/[0.04] transition-colors">إلغاء</button>
-              <button onClick={confirm} className="flex-1 py-3 bg-emerald-500 text-white text-[14px] font-bold hover:bg-emerald-400 active:scale-95 transition-all">تأكيد الطلب</button>
+              <button onClick={confirm} disabled={saving} className="flex-1 py-3 bg-emerald-500 text-white text-[14px] font-bold hover:bg-emerald-400 active:scale-95 transition-all disabled:opacity-50">
+                {saving ? "..." : "تأكيد الطلب"}
+              </button>
             </div>
           )}
 
@@ -109,6 +130,21 @@ export default function OrderMealPage() {
   const [catIdx, setCatIdx] = useState(0);
   const [ordered, setOrdered] = useState<Set<number>>(new Set());
   const [modal, setModal] = useState<(typeof foodItems)[number] | null>(null);
+
+  // Load today's orders from DB on mount so state persists across page visits
+  useEffect(() => {
+    async function loadTodayOrders() {
+      try {
+        const res = await fetch("/api/portal/order-meal");
+        if (!res.ok) return;
+        const { data } = await res.json();
+        if (Array.isArray(data)) {
+          setOrdered(new Set(data.map((o: { item_id: number }) => o.item_id)));
+        }
+      } catch { /* ignore */ }
+    }
+    loadTodayOrders();
+  }, []);
 
   const handleOrder = useCallback((item: (typeof foodItems)[number]) => {
     if (ordered.has(item.id)) return;

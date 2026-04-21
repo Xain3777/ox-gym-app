@@ -62,6 +62,8 @@ export default function ProfilePage() {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [snapshot, setSnapshot] = useState<ProfileSnapshot | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -80,7 +82,7 @@ export default function ProfilePage() {
       if (!user) return;
       const { data: member } = await supabase
         .from("members")
-        .select("full_name, phone, date_of_birth, illnesses, injuries, fitness_level, weight_goal, fitness_outcome")
+        .select("full_name, phone, date_of_birth, illnesses, injuries, training_level, weight_goal, fitness_outcome")
         .eq("auth_id", user.id)
         .single();
       if (!member) return;
@@ -91,7 +93,7 @@ export default function ProfilePage() {
       const bd = member.date_of_birth ?? "";
       const il = member.illnesses?.length ? member.illnesses : ["None"];
       const inj = member.injuries?.length ? member.injuries : ["None"];
-      const lv = (member.fitness_level as "normal" | "advanced") ?? "normal";
+      const lv = (member.training_level as "normal" | "advanced") ?? "normal";
       const gl = (member.weight_goal as "maintain" | "lose" | "gain") ?? "maintain";
       const oc = (member.fitness_outcome as "muscle" | "health") ?? "muscle";
 
@@ -104,6 +106,7 @@ export default function ProfilePage() {
 
   function startEditing() {
     setSnapshot({ firstName, lastName, birthday, phone, illnesses: selectedIllnesses, injuries: selectedInjuries, level, goal, outcome });
+    setSaveError(null);
     setIsEditing(true);
   }
 
@@ -113,7 +116,42 @@ export default function ProfilePage() {
     setBirthday(snapshot.birthday); setPhone(snapshot.phone);
     setSelectedIllnesses(snapshot.illnesses); setSelectedInjuries(snapshot.injuries);
     setLevel(snapshot.level); setGoal(snapshot.goal); setOutcome(snapshot.outcome);
+    setSaveError(null);
     setIsEditing(false);
+  }
+
+  async function saveProfile() {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const supabase = createBrowserSupabase();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setSaveError("غير مسجل الدخول"); return; }
+
+      const { error } = await supabase
+        .from("members")
+        .update({
+          full_name: `${firstName} ${lastName}`.trim(),
+          phone: phone || null,
+          date_of_birth: birthday || null,
+          illnesses: selectedIllnesses,
+          injuries: selectedInjuries,
+          training_level: level,
+          weight_goal: goal,
+          fitness_outcome: outcome,
+        })
+        .eq("auth_id", user.id);
+
+      if (error) {
+        setSaveError("حدث خطأ أثناء الحفظ. حاول مرة أخرى.");
+      } else {
+        setIsEditing(false);
+      }
+    } catch {
+      setSaveError("حدث خطأ أثناء الحفظ. حاول مرة أخرى.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function toggleItem(list: string[], item: string, setter: (v: string[]) => void) {
@@ -251,14 +289,20 @@ export default function ProfilePage() {
 
         {/* ── Save Button (only shown when editing) ──── */}
         {isEditing && (
-          <button
-            className="w-full mt-4 mb-6 bg-gold hover:bg-gold-high active:bg-gold-deep text-void font-bold text-[16px] py-4 transition-all duration-200 flex items-center justify-center gap-2"
-            style={{ minHeight: "56px" }}
-            onClick={() => setIsEditing(false)}
-          >
-            <OxCheck size={20} />
-            {t("profile.saveProfile")}
-          </button>
+          <div className="mt-4 mb-6">
+            {saveError && (
+              <p className="text-danger text-[13px] text-center mb-3">{saveError}</p>
+            )}
+            <button
+              className="w-full bg-gold hover:bg-gold-high active:bg-gold-deep text-void font-bold text-[16px] py-4 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50"
+              style={{ minHeight: "56px" }}
+              onClick={saveProfile}
+              disabled={saving}
+            >
+              <OxCheck size={20} />
+              {saving ? "جاري الحفظ..." : t("profile.saveProfile")}
+            </button>
+          </div>
         )}
       </div>
     </div>

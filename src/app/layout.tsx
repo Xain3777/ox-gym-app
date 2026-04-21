@@ -31,14 +31,15 @@ const dmMono = DM_Mono({
 // ── METADATA ──────────────────────────────────────────────────
 export const metadata: Metadata = {
   title: {
-    default: "OX Gym",
-    template: "%s · OX Gym",
+    default: "OX GYM",
+    template: "%s · OX GYM",
   },
   description:
-    "OX Gym — Where power, discipline, and progress come together. Premium gym management platform.",
-  keywords: ["gym", "fitness", "workout", "OX Gym"],
+    "OX GYM — Where power, discipline, and progress come together. Premium gym management platform.",
+  keywords: ["gym", "fitness", "workout", "OX GYM"],
   icons: {
-    icon: "/favicon.ico",
+    icon: "/ox-o-logo.png",
+    apple: "/ox-o-logo.png",
   },
   manifest: "/manifest.json",
 };

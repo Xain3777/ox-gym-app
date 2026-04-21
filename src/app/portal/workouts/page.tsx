@@ -10,7 +10,7 @@ import { OxCheck, OxChevronRight, OxPlay, OxInfo } from "@/components/icons/OxIc
 // ── MOCK DATA ───────────────────────────────────────────────────
 const mockWorkoutDays = [
   {
-    label: "Day 1", title: "Push Day", isToday: true,
+    label: "اليوم 1", title: "يوم الدفع", isToday: true,
     exercises: [
       { name: "Bench Press", sets: 4, reps: "8-10", machine: "Flat Bench", done: false },
       { name: "Overhead Press", sets: 3, reps: "10-12", machine: "Shoulder Press Machine", done: false },
@@ -21,7 +21,7 @@ const mockWorkoutDays = [
     ],
   },
   {
-    label: "Day 2", title: "Pull Day", isToday: false,
+    label: "اليوم 2", title: "يوم السحب", isToday: false,
     exercises: [
       { name: "Deadlifts", sets: 4, reps: "6-8", machine: "Barbell", done: false },
       { name: "Barbell Rows", sets: 4, reps: "8-10", machine: "Barbell", done: false },
@@ -32,7 +32,7 @@ const mockWorkoutDays = [
     ],
   },
   {
-    label: "Day 3", title: "Leg Day", isToday: false,
+    label: "اليوم 3", title: "يوم الأرجل", isToday: false,
     exercises: [
       { name: "Squats", sets: 4, reps: "8-10", machine: "Squat Rack", done: false },
       { name: "Leg Press", sets: 4, reps: "10-12", machine: "Leg Press Machine", done: false },
@@ -70,21 +70,19 @@ export default function WorkoutsPage() {
     const allDone = doneCount === totalCount;
 
     return (
-      <div className="relative min-h-full pb-28 lg:pb-10">
-        {/* Page bull figure — top left, 70% visible */}
-        <div className="absolute top-6 left-2 w-28 h-36 opacity-70 pointer-events-none select-none fig-fade-right z-0">
-          <Image src="/fig-squat.png" alt="" fill className="object-contain object-left-top" unoptimized />
+      <div className="relative min-h-full pb-28 lg:pb-10" dir="rtl">
+        <div className="absolute top-6 right-2 w-28 h-36 opacity-70 pointer-events-none select-none fig-fade-left z-0">
+          <Image src="/fig-squat.png" alt="" fill className="object-contain object-right-top" unoptimized />
         </div>
 
         <div className="relative z-10 max-w-lg mx-auto px-5 pt-14 lg:pt-10">
-          <BackArrow href="/portal/workouts" label="Back" />
+          <BackArrow href="/portal/workouts" label="رجوع" />
 
           <div className="relative mb-6">
             <p className="text-gold/60 text-[11px] font-bold uppercase tracking-[0.15em]">{day.label}</p>
             <h1 className="text-white font-display text-[32px] tracking-wider leading-none mt-1">
-              {day.title.toUpperCase()}
+              {day.title}
             </h1>
-            {/* Danger tape accent */}
             <div className="w-20 h-[4px] mt-3 danger-tape-thin" />
           </div>
 
@@ -93,13 +91,12 @@ export default function WorkoutsPage() {
             "relative bg-white/[0.04] border border-white/[0.06] p-4 mb-6 overflow-hidden",
             allDone && "burn-glow"
           )}>
-            {/* Chevron arrows on top when complete */}
             {allDone && (
               <div className="absolute top-0 left-0 right-0 h-[4px] danger-tape" />
             )}
             <div className="flex items-center justify-between mb-3">
-              <p className="text-white/50 text-[13px]">Progress</p>
-              <p className={cn("text-[15px] font-semibold", allDone ? "text-gold" : "text-white")}>
+              <p className="text-white/50 text-[13px]">التقدم</p>
+              <p className={cn("text-[15px] font-semibold", allDone ? "text-gold" : "text-white")} dir="ltr">
                 {doneCount}/{totalCount}
               </p>
             </div>
@@ -111,7 +108,7 @@ export default function WorkoutsPage() {
             </div>
             {allDone && (
               <p className="text-gold text-[13px] font-bold mt-3 text-center uppercase tracking-wider">
-                Workout Complete
+                اكتمل التمرين
               </p>
             )}
           </div>
@@ -123,9 +120,8 @@ export default function WorkoutsPage() {
                   "relative border p-4 transition-all duration-200 overflow-hidden",
                   ex.done ? "bg-gold/[0.06] border-gold/20" : "bg-white/[0.03] border-white/[0.06]"
                 )}>
-                  {/* Danger tape accent on completed */}
                   {ex.done && (
-                    <div className="absolute top-0 left-0 w-[3px] h-full bg-gold" />
+                    <div className="absolute top-0 right-0 w-[3px] h-full bg-gold" />
                   )}
                   <div className="flex items-start gap-4">
                     <button
@@ -144,16 +140,18 @@ export default function WorkoutsPage() {
                       <p className={cn("text-[17px] font-semibold", ex.done ? "text-white/40 line-through" : "text-white")}>
                         {ex.name}
                       </p>
-                      <p className="text-gold text-[15px] font-medium mt-1">{ex.sets} sets × {ex.reps} reps</p>
+                      <p className="text-gold text-[15px] font-medium mt-1" dir="ltr">
+                        {ex.sets} sets × {ex.reps} reps
+                      </p>
                     </div>
                   </div>
                   {!ex.done && (
                     <button
                       onClick={() => setMachineHelp(ex.machine)}
-                      className="mt-3 ml-[60px] flex items-center gap-2 text-white/30 hover:text-gold text-[13px] transition-colors"
+                      className="mt-3 me-[60px] flex items-center gap-2 text-white/30 hover:text-gold text-[13px] transition-colors"
                     >
                       <OxInfo size={14} />
-                      How to use machine
+                      كيفية استخدام الجهاز
                     </button>
                   )}
                 </div>
@@ -172,11 +170,10 @@ export default function WorkoutsPage() {
               </div>
               <h3 className="text-white text-[20px] font-bold">{machineHelp}</h3>
               <p className="text-white/40 text-[15px] mt-2 leading-relaxed">
-                Adjust the seat height. Keep your back flat against the pad.
-                Grip the handles firmly. Push with controlled motion. Exhale on effort.
+                اضبط ارتفاع المقعد. حافظ على استقامة ظهرك. أمسك بالمقابض بإحكام. اضغط بحركة منضبطة. أخرج الهواء عند بذل الجهد.
               </p>
               <button onClick={() => setMachineHelp(null)} className="w-full mt-6 bg-white/[0.06] hover:bg-white/[0.10] text-white font-semibold text-[16px] py-4 transition-colors" style={{ minHeight: "56px" }}>
-                Got it
+                فهمت
               </button>
             </div>
           </div>
@@ -187,16 +184,14 @@ export default function WorkoutsPage() {
 
   // ── Day List View ──────────────────────────────────────────
   return (
-    <div className="relative min-h-full pb-28 lg:pb-10">
-      {/* Page bull figure — top left, 70% visible */}
-      <div className="absolute top-6 left-2 w-28 h-36 opacity-70 pointer-events-none select-none fig-fade-right z-0">
-        <Image src="/fig-flex.png" alt="" fill className="object-contain object-left-top" unoptimized />
+    <div className="relative min-h-full pb-28 lg:pb-10" dir="rtl">
+      <div className="absolute top-6 right-2 w-28 h-36 opacity-70 pointer-events-none select-none fig-fade-left z-0">
+        <Image src="/fig-flex.png" alt="" fill className="object-contain object-right-top" unoptimized />
       </div>
 
       <div className="relative z-10 max-w-lg mx-auto px-5 pt-14 lg:pt-10">
         <div className="relative mb-6">
-          <h1 className="text-white font-display text-[32px] tracking-wider leading-none">MY WORKOUTS</h1>
-          {/* Danger tape accent */}
+          <h1 className="text-white font-display text-[32px] tracking-wider leading-none">تماريني</h1>
           <div className="w-24 h-[4px] mt-3 danger-tape-thin" />
         </div>
 
@@ -209,7 +204,7 @@ export default function WorkoutsPage() {
                 key={dayIdx}
                 onClick={() => setSelectedDay(dayIdx)}
                 className={cn(
-                  "relative w-full border p-5 flex items-center justify-between text-left transition-all duration-200 active:scale-[0.98] overflow-hidden",
+                  "relative w-full border p-5 flex items-center justify-between text-right transition-all duration-200 active:scale-[0.98] overflow-hidden",
                   allDone && "burn-glow",
                   day.isToday ? "bg-gold/[0.06] border-gold/20" : "bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.05]"
                 )}
@@ -224,9 +219,9 @@ export default function WorkoutsPage() {
                   </div>
                 </div>
 
-                {/* Gold left accent bar for today */}
+                {/* Gold right accent bar for today (RTL) */}
                 {day.isToday && (
-                  <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gold" />
+                  <div className="absolute right-0 top-0 bottom-0 w-[3px] bg-gold" />
                 )}
 
                 <div className="flex items-center gap-4">
@@ -236,23 +231,23 @@ export default function WorkoutsPage() {
                   )}>
                     {allDone ? <OxCheck size={20} /> : <OxPlay size={18} />}
                   </div>
-                  <div>
+                  <div className="text-right">
                     <p className="text-white/40 text-[12px] font-medium uppercase tracking-wider">
-                      {day.label} {day.isToday && "· Today"}
+                      {day.label}{day.isToday && " · اليوم"}
                     </p>
                     <p className={cn("text-[18px] font-semibold mt-0.5", day.isToday ? "text-white" : "text-white/80")}>
                       {day.title}
                     </p>
                     <p className="text-white/35 text-[13px] mt-0.5">
-                      {day.exercises.length} exercises{doneCount > 0 && !allDone && ` · ${doneCount} done`}
+                      {day.exercises.length} تمرين{doneCount > 0 && !allDone && ` · ${doneCount} تم`}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {allDone ? (
-                    <span className="text-gold text-[12px] font-bold uppercase tracking-wider">Done</span>
+                    <span className="text-gold text-[12px] font-bold uppercase tracking-wider">تم</span>
                   ) : (
-                    <OxChevronRight size={18} className="text-white/20" />
+                    <OxChevronRight size={18} className="text-white/20 rotate-180" />
                   )}
                 </div>
               </button>

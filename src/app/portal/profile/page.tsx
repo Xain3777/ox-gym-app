@@ -8,7 +8,7 @@ import { BackArrow } from "@/components/portal/BackArrow";
 import { OxCheck, OxShield, OxHeart, OxTarget, OxDumbbell, OxFlame } from "@/components/icons/OxIcons";
 import { createBrowserSupabase } from "@/lib/supabase";
 
-// ── COMMON ILLNESSES / INJURIES ────────────────────────────────
+// ── CONDITIONS / INJURIES ──────────────────────────────────────
 const COMMON_CONDITIONS = [
   "Asthma", "Diabetes (Type 1)", "Diabetes (Type 2)",
   "High Blood Pressure", "Heart Condition", "Epilepsy",
@@ -21,18 +21,58 @@ const COMMON_INJURIES = [
   "Tennis / Golfer's Elbow", "Wrist / Carpal Tunnel", "Hip Flexor Strain", "None",
 ];
 
+const CONDITIONS_AR: Record<string, string> = {
+  "Asthma": "الربو",
+  "Diabetes (Type 1)": "السكري (النوع الأول)",
+  "Diabetes (Type 2)": "السكري (النوع الثاني)",
+  "High Blood Pressure": "ضغط الدم المرتفع",
+  "Heart Condition": "أمراض القلب",
+  "Epilepsy": "الصرع",
+  "Thyroid Disorder": "اضطراب الغدة الدرقية",
+  "Chronic Fatigue": "التعب المزمن",
+  "None": "لا شيء",
+};
+
+const INJURIES_AR: Record<string, string> = {
+  "Lower Back Pain": "ألم أسفل الظهر",
+  "Knee Injury (ACL/MCL)": "إصابة الركبة (ACL/MCL)",
+  "Shoulder Impingement": "ضغط الكتف",
+  "Herniated Disc": "انزلاق غضروفي",
+  "Rotator Cuff Tear": "تمزق كفة الروتاتور",
+  "Ankle Sprain (Chronic)": "التواء الكاحل (مزمن)",
+  "Tennis / Golfer's Elbow": "كوع التنس / الجولف",
+  "Wrist / Carpal Tunnel": "إصابة المعصم / النفق الرسغي",
+  "Hip Flexor Strain": "شد عضلة الورك",
+  "None": "لا شيء",
+};
+
+type ProfileSnapshot = {
+  firstName: string;
+  lastName: string;
+  birthday: string;
+  phone: string;
+  illnesses: string[];
+  injuries: string[];
+  level: "normal" | "advanced";
+  goal: "maintain" | "lose" | "gain";
+  outcome: "muscle" | "health";
+};
+
 export default function ProfilePage() {
   const { t } = useTranslation();
+  const [isEditing, setIsEditing] = useState(false);
+  const [snapshot, setSnapshot] = useState<ProfileSnapshot | null>(null);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [birthday, setBirthday] = useState("");
   const [phone, setPhone] = useState("");
-
   const [selectedIllnesses, setSelectedIllnesses] = useState<string[]>(["None"]);
   const [selectedInjuries, setSelectedInjuries] = useState<string[]>(["None"]);
+  const [level, setLevel] = useState<"normal" | "advanced">("normal");
+  const [goal, setGoal] = useState<"maintain" | "lose" | "gain">("maintain");
+  const [outcome, setOutcome] = useState<"muscle" | "health">("muscle");
 
-  // Load user data from Supabase on mount
   useEffect(() => {
     async function loadProfile() {
       const supabase = createBrowserSupabase();
@@ -45,24 +85,39 @@ export default function ProfilePage() {
         .single();
       if (!member) return;
       const parts = (member.full_name ?? "").split(" ");
-      setFirstName(parts[0] ?? "");
-      setLastName(parts.slice(1).join(" ") ?? "");
-      setPhone(member.phone ?? "");
-      setBirthday(member.date_of_birth ?? "");
-      if (member.illnesses?.length) setSelectedIllnesses(member.illnesses);
-      if (member.injuries?.length) setSelectedInjuries(member.injuries);
-      if (member.fitness_level) setLevel(member.fitness_level as "normal" | "advanced");
-      if (member.weight_goal) setGoal(member.weight_goal as "maintain" | "lose" | "gain");
-      if (member.fitness_outcome) setOutcome(member.fitness_outcome as "muscle" | "health");
+      const fn = parts[0] ?? "";
+      const ln = parts.slice(1).join(" ") ?? "";
+      const ph = member.phone ?? "";
+      const bd = member.date_of_birth ?? "";
+      const il = member.illnesses?.length ? member.illnesses : ["None"];
+      const inj = member.injuries?.length ? member.injuries : ["None"];
+      const lv = (member.fitness_level as "normal" | "advanced") ?? "normal";
+      const gl = (member.weight_goal as "maintain" | "lose" | "gain") ?? "maintain";
+      const oc = (member.fitness_outcome as "muscle" | "health") ?? "muscle";
+
+      setFirstName(fn); setLastName(ln); setPhone(ph); setBirthday(bd);
+      setSelectedIllnesses(il); setSelectedInjuries(inj);
+      setLevel(lv); setGoal(gl); setOutcome(oc);
     }
     loadProfile();
   }, []);
 
-  const [level, setLevel] = useState<"normal" | "advanced">("normal");
-  const [goal, setGoal] = useState<"maintain" | "lose" | "gain">("maintain");
-  const [outcome, setOutcome] = useState<"muscle" | "health">("muscle");
+  function startEditing() {
+    setSnapshot({ firstName, lastName, birthday, phone, illnesses: selectedIllnesses, injuries: selectedInjuries, level, goal, outcome });
+    setIsEditing(true);
+  }
+
+  function cancelEditing() {
+    if (!snapshot) return;
+    setFirstName(snapshot.firstName); setLastName(snapshot.lastName);
+    setBirthday(snapshot.birthday); setPhone(snapshot.phone);
+    setSelectedIllnesses(snapshot.illnesses); setSelectedInjuries(snapshot.injuries);
+    setLevel(snapshot.level); setGoal(snapshot.goal); setOutcome(snapshot.outcome);
+    setIsEditing(false);
+  }
 
   function toggleItem(list: string[], item: string, setter: (v: string[]) => void) {
+    if (!isEditing) return;
     if (item === "None") { setter(["None"]); return; }
     const without = list.filter((i) => i !== "None");
     if (without.includes(item)) {
@@ -74,16 +129,16 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="relative min-h-full pb-28 lg:pb-10">
-      <div className="absolute top-6 left-2 w-28 h-36 opacity-70 pointer-events-none select-none fig-fade-right z-0">
-        <Image src="/fig-bicep.png" alt="" fill className="object-contain object-left-top" unoptimized />
+    <div className="relative min-h-full pb-28 lg:pb-10" dir="rtl">
+      <div className="absolute top-6 right-2 w-28 h-36 opacity-70 pointer-events-none select-none fig-fade-left z-0">
+        <Image src="/fig-bicep.png" alt="" fill className="object-contain object-right-top" unoptimized />
       </div>
 
       <div className="relative z-10 max-w-lg mx-auto px-5 pt-14 lg:pt-10">
-        <BackArrow href="/portal/more" />
+        <BackArrow href="/portal/more" label="رجوع" />
 
         {/* ── Header ─────────────────────────────────── */}
-        <div className="relative flex flex-col items-center mb-10">
+        <div className="relative flex flex-col items-center mb-8">
           <div className="w-20 h-20 bg-gold/10 border-2 border-gold/30 flex items-center justify-center mb-4" style={{ clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)" }}>
             <span className="text-gold text-[24px] font-bold tracking-wider">
               {firstName[0]}{lastName[0]}
@@ -93,14 +148,31 @@ export default function ProfilePage() {
             {t("profile.title")}
           </h1>
           <div className="w-16 h-[4px] danger-tape-thin mt-3" />
+
+          {/* Edit / Cancel button */}
+          {!isEditing ? (
+            <button
+              onClick={startEditing}
+              className="mt-5 flex items-center gap-2 px-5 py-2.5 bg-white/[0.04] border border-white/[0.10] hover:border-gold/40 hover:text-gold text-white/50 text-[14px] font-semibold transition-all duration-200"
+            >
+              تعديل الملف
+            </button>
+          ) : (
+            <button
+              onClick={cancelEditing}
+              className="mt-5 flex items-center gap-2 px-5 py-2.5 bg-white/[0.04] border border-white/[0.10] hover:border-danger/40 hover:text-danger text-white/50 text-[14px] font-semibold transition-all duration-200"
+            >
+              إلغاء
+            </button>
+          )}
         </div>
 
         {/* ── Personal Info ────────────────────────────── */}
         <Section title={t("profile.personalInfo")} icon={<OxShield size={14} className="text-gold" />}>
-          <InputField label={t("profile.firstName")} value={firstName} onChange={setFirstName} />
-          <InputField label={t("profile.lastName")} value={lastName} onChange={setLastName} />
-          <InputField label={t("profile.dateOfBirth")} value={birthday} onChange={setBirthday} type="date" />
-          <InputField label={t("profile.phone")} value={phone} onChange={setPhone} type="tel" />
+          <InputField label={t("profile.firstName")} value={firstName} onChange={setFirstName} readOnly={!isEditing} />
+          <InputField label={t("profile.lastName")} value={lastName} onChange={setLastName} readOnly={!isEditing} />
+          <InputField label={t("profile.dateOfBirth")} value={birthday} onChange={setBirthday} type="date" readOnly={!isEditing} />
+          <InputField label={t("profile.phone")} value={phone} onChange={setPhone} type="tel" readOnly={!isEditing} />
         </Section>
 
         {/* ── Health Conditions ────────────────────────── */}
@@ -110,12 +182,16 @@ export default function ProfilePage() {
             {COMMON_CONDITIONS.map((item) => {
               const active = selectedIllnesses.includes(item);
               return (
-                <button key={item} onClick={() => toggleItem(selectedIllnesses, item, setSelectedIllnesses)}
+                <button key={item}
+                  onClick={() => toggleItem(selectedIllnesses, item, setSelectedIllnesses)}
+                  disabled={!isEditing}
                   className={cn("px-4 py-2 text-[13px] font-medium border transition-all duration-200",
-                    active ? "bg-gold/15 border-gold/40 text-gold" : "bg-white/[0.03] border-white/[0.08] text-white/50 hover:border-white/20 hover:text-white/70"
+                    active ? "bg-gold/15 border-gold/40 text-gold" : "bg-white/[0.03] border-white/[0.08] text-white/50",
+                    isEditing && !active && "hover:border-white/20 hover:text-white/70",
+                    !isEditing && "cursor-default"
                   )}>
-                  {active && <span className="mr-1.5 rtl:ml-1.5 rtl:mr-0">&#x2713;</span>}
-                  {item === "None" ? t("profile.none") : item}
+                  {active && <span className="ml-1.5">&#x2713;</span>}
+                  {CONDITIONS_AR[item] ?? item}
                 </button>
               );
             })}
@@ -129,12 +205,16 @@ export default function ProfilePage() {
             {COMMON_INJURIES.map((item) => {
               const active = selectedInjuries.includes(item);
               return (
-                <button key={item} onClick={() => toggleItem(selectedInjuries, item, setSelectedInjuries)}
+                <button key={item}
+                  onClick={() => toggleItem(selectedInjuries, item, setSelectedInjuries)}
+                  disabled={!isEditing}
                   className={cn("px-4 py-2 text-[13px] font-medium border transition-all duration-200",
-                    active ? "bg-danger/10 border-danger/30 text-danger" : "bg-white/[0.03] border-white/[0.08] text-white/50 hover:border-white/20 hover:text-white/70"
+                    active ? "bg-danger/10 border-danger/30 text-danger" : "bg-white/[0.03] border-white/[0.08] text-white/50",
+                    isEditing && !active && "hover:border-white/20 hover:text-white/70",
+                    !isEditing && "cursor-default"
                   )}>
-                  {active && <span className="mr-1.5 rtl:ml-1.5 rtl:mr-0">&#x2713;</span>}
-                  {item === "None" ? t("profile.none") : item}
+                  {active && <span className="ml-1.5">&#x2713;</span>}
+                  {INJURIES_AR[item] ?? item}
                 </button>
               );
             })}
@@ -145,8 +225,8 @@ export default function ProfilePage() {
         <Section title={t("profile.trainingLevel")} icon={<OxDumbbell size={14} className="text-gold" />}>
           <p className="text-white/30 text-[13px] px-5 pt-3 pb-1">{t("profile.howExperienced")}</p>
           <div className="grid grid-cols-2 gap-3 px-5 py-4">
-            <LevelButton active={level === "normal"} onClick={() => setLevel("normal")} title={t("profile.normal")} subtitle={t("profile.normalSub")} color="gold" />
-            <LevelButton active={level === "advanced"} onClick={() => setLevel("advanced")} title={t("profile.advanced")} subtitle={t("profile.advancedSub")} color="danger" />
+            <LevelButton active={level === "normal"} onClick={() => isEditing && setLevel("normal")} title={t("profile.normal")} subtitle={t("profile.normalSub")} color="gold" disabled={!isEditing} />
+            <LevelButton active={level === "advanced"} onClick={() => isEditing && setLevel("advanced")} title={t("profile.advanced")} subtitle={t("profile.advancedSub")} color="danger" disabled={!isEditing} />
           </div>
         </Section>
 
@@ -154,9 +234,9 @@ export default function ProfilePage() {
         <Section title={t("profile.whatsYourGoal")} icon={<OxTarget size={14} className="text-gold" />}>
           <p className="text-white/30 text-[13px] px-5 pt-3 pb-1">{t("profile.goalQuestion")}</p>
           <div className="grid grid-cols-3 gap-3 px-5 py-4">
-            <GoalButton active={goal === "lose"} onClick={() => setGoal("lose")} title={t("profile.cut")} subtitle={t("profile.cutSub")} icon={<OxFlame size={22} />} />
-            <GoalButton active={goal === "maintain"} onClick={() => setGoal("maintain")} title={t("profile.maintain")} subtitle={t("profile.maintainSub")} icon={<OxTarget size={22} />} />
-            <GoalButton active={goal === "gain"} onClick={() => setGoal("gain")} title={t("profile.bulk")} subtitle={t("profile.bulkSub")} icon={<OxDumbbell size={22} />} />
+            <GoalButton active={goal === "lose"} onClick={() => isEditing && setGoal("lose")} title={t("profile.cut")} subtitle={t("profile.cutSub")} icon={<OxFlame size={22} />} disabled={!isEditing} />
+            <GoalButton active={goal === "maintain"} onClick={() => isEditing && setGoal("maintain")} title={t("profile.maintain")} subtitle={t("profile.maintainSub")} icon={<OxTarget size={22} />} disabled={!isEditing} />
+            <GoalButton active={goal === "gain"} onClick={() => isEditing && setGoal("gain")} title={t("profile.bulk")} subtitle={t("profile.bulkSub")} icon={<OxDumbbell size={22} />} disabled={!isEditing} />
           </div>
         </Section>
 
@@ -164,16 +244,22 @@ export default function ProfilePage() {
         <Section title={t("profile.whatDrivesYou")} icon={<OxFlame size={14} className="text-danger" />}>
           <p className="text-white/30 text-[13px] px-5 pt-3 pb-1">{t("profile.drivesQuestion")}</p>
           <div className="grid grid-cols-2 gap-3 px-5 py-4">
-            <OutcomeButton active={outcome === "muscle"} onClick={() => setOutcome("muscle")} title={t("profile.buildStrength")} subtitle={t("profile.buildStrengthSub")} icon={<OxDumbbell size={24} />} />
-            <OutcomeButton active={outcome === "health"} onClick={() => setOutcome("health")} title={t("profile.peakWellness")} subtitle={t("profile.peakWellnessSub")} icon={<OxHeart size={24} />} />
+            <OutcomeButton active={outcome === "muscle"} onClick={() => isEditing && setOutcome("muscle")} title={t("profile.buildStrength")} subtitle={t("profile.buildStrengthSub")} icon={<OxDumbbell size={24} />} disabled={!isEditing} />
+            <OutcomeButton active={outcome === "health"} onClick={() => isEditing && setOutcome("health")} title={t("profile.peakWellness")} subtitle={t("profile.peakWellnessSub")} icon={<OxHeart size={24} />} disabled={!isEditing} />
           </div>
         </Section>
 
-        {/* ── Save Button ──────────────────────────────── */}
-        <button className="w-full mt-4 mb-6 bg-gold hover:bg-gold-high active:bg-gold-deep text-void font-bold text-[16px] py-4 transition-all duration-200 flex items-center justify-center gap-2" style={{ minHeight: "56px" }}>
-          <OxCheck size={20} />
-          {t("profile.saveProfile")}
-        </button>
+        {/* ── Save Button (only shown when editing) ──── */}
+        {isEditing && (
+          <button
+            className="w-full mt-4 mb-6 bg-gold hover:bg-gold-high active:bg-gold-deep text-void font-bold text-[16px] py-4 transition-all duration-200 flex items-center justify-center gap-2"
+            style={{ minHeight: "56px" }}
+            onClick={() => setIsEditing(false)}
+          >
+            <OxCheck size={20} />
+            {t("profile.saveProfile")}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -194,26 +280,42 @@ function Section({ title, icon, children }: { title: string; icon?: React.ReactN
   );
 }
 
-function InputField({ label, value, onChange, placeholder, type = "text" }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
+function InputField({
+  label, value, onChange, placeholder, type = "text", readOnly = false
+}: {
+  label: string; value: string; onChange: (v: string) => void;
+  placeholder?: string; type?: string; readOnly?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.04] last:border-b-0">
-      <label className="text-white/35 text-[14px] flex-shrink-0 mr-4 rtl:ml-4 rtl:mr-0">{label}</label>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-        className="bg-transparent text-white text-[15px] font-medium text-right rtl:text-left w-full max-w-[60%] focus:outline-none focus:text-gold placeholder:text-white/15 transition-colors" />
+      <label className="text-white/35 text-[14px] flex-shrink-0 ml-4">{label}</label>
+      {readOnly ? (
+        <p className="text-white text-[15px] font-medium text-left w-full max-w-[60%] truncate" dir="ltr">
+          {value || <span className="text-white/20">—</span>}
+        </p>
+      ) : (
+        <input
+          type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+          className="bg-transparent text-white text-[15px] font-medium text-left w-full max-w-[60%] focus:outline-none focus:text-gold placeholder:text-white/15 transition-colors"
+          dir="ltr"
+        />
+      )}
     </div>
   );
 }
 
-function LevelButton({ active, onClick, title, subtitle, color }: { active: boolean; onClick: () => void; title: string; subtitle: string; color: "gold" | "danger" }) {
+function LevelButton({ active, onClick, title, subtitle, color, disabled }: { active: boolean; onClick: () => void; title: string; subtitle: string; color: "gold" | "danger"; disabled?: boolean }) {
   const isGold = color === "gold";
   return (
     <button onClick={onClick}
-      className={cn("relative p-5 border-2 text-left rtl:text-right transition-all duration-200 overflow-hidden group",
-        active ? isGold ? "bg-gold/10 border-gold/50 shadow-gold-sm" : "bg-danger/10 border-danger/40 shadow-red-sm" : "bg-white/[0.02] border-white/[0.08] hover:border-white/20"
+      className={cn("relative p-5 border-2 text-right transition-all duration-200 overflow-hidden group",
+        active ? isGold ? "bg-gold/10 border-gold/50 shadow-gold-sm" : "bg-danger/10 border-danger/40 shadow-red-sm" : "bg-white/[0.02] border-white/[0.08]",
+        !disabled && !active && "hover:border-white/20",
+        disabled && "cursor-default"
       )}>
-      <div className={cn("absolute top-0 right-0 rtl:right-auto rtl:left-0 w-8 h-8 transition-opacity duration-200", active ? "opacity-100" : "opacity-0")}>
-        <div className={cn("absolute top-0 right-0 rtl:right-auto rtl:left-0 w-0 h-0 border-t-[32px] border-l-[32px] border-l-transparent rtl:border-l-0 rtl:border-r-[32px] rtl:border-r-transparent", isGold ? "border-t-gold/30" : "border-t-danger/30")} />
-        <OxCheck size={12} className={cn("absolute top-1 right-1 rtl:right-auto rtl:left-1", isGold ? "text-gold" : "text-danger")} />
+      <div className={cn("absolute top-0 left-0 w-8 h-8 transition-opacity duration-200", active ? "opacity-100" : "opacity-0")}>
+        <div className={cn("absolute top-0 left-0 w-0 h-0 border-t-[32px] border-r-[32px] border-r-transparent", isGold ? "border-t-gold/30" : "border-t-danger/30")} />
+        <OxCheck size={12} className={cn("absolute top-1 left-1", isGold ? "text-gold" : "text-danger")} />
       </div>
       <p className={cn("font-display text-[22px] tracking-wider leading-none mb-1.5", active ? isGold ? "text-gold" : "text-danger" : "text-white/60")}>{title}</p>
       <p className={cn("text-[12px]", active ? "text-white/50" : "text-white/25")}>{subtitle}</p>
@@ -221,11 +323,13 @@ function LevelButton({ active, onClick, title, subtitle, color }: { active: bool
   );
 }
 
-function GoalButton({ active, onClick, title, subtitle, icon }: { active: boolean; onClick: () => void; title: string; subtitle: string; icon: React.ReactNode }) {
+function GoalButton({ active, onClick, title, subtitle, icon, disabled }: { active: boolean; onClick: () => void; title: string; subtitle: string; icon: React.ReactNode; disabled?: boolean }) {
   return (
     <button onClick={onClick}
       className={cn("flex flex-col items-center p-4 border-2 text-center transition-all duration-200",
-        active ? "bg-gold/10 border-gold/50 shadow-gold-sm" : "bg-white/[0.02] border-white/[0.08] hover:border-white/20"
+        active ? "bg-gold/10 border-gold/50 shadow-gold-sm" : "bg-white/[0.02] border-white/[0.08]",
+        !disabled && !active && "hover:border-white/20",
+        disabled && "cursor-default"
       )}>
       <div className={cn("mb-3 transition-colors duration-200", active ? "text-gold" : "text-white/25")}>{icon}</div>
       <p className={cn("font-display text-[16px] tracking-wider leading-none mb-1", active ? "text-gold" : "text-white/50")}>{title}</p>
@@ -234,11 +338,13 @@ function GoalButton({ active, onClick, title, subtitle, icon }: { active: boolea
   );
 }
 
-function OutcomeButton({ active, onClick, title, subtitle, icon }: { active: boolean; onClick: () => void; title: string; subtitle: string; icon: React.ReactNode }) {
+function OutcomeButton({ active, onClick, title, subtitle, icon, disabled }: { active: boolean; onClick: () => void; title: string; subtitle: string; icon: React.ReactNode; disabled?: boolean }) {
   return (
     <button onClick={onClick}
       className={cn("relative flex flex-col items-center p-6 border-2 text-center transition-all duration-200 overflow-hidden",
-        active ? "bg-gold/10 border-gold/50" : "bg-white/[0.02] border-white/[0.08] hover:border-white/20"
+        active ? "bg-gold/10 border-gold/50" : "bg-white/[0.02] border-white/[0.08]",
+        !disabled && !active && "hover:border-white/20",
+        disabled && "cursor-default"
       )}>
       {active && <div className="absolute top-0 left-0 right-0 h-1 bg-hazard-stripe" />}
       <div className={cn("w-14 h-14 flex items-center justify-center mb-4 border transition-all duration-200",

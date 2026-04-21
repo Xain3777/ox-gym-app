@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { SubscriptionGate } from "@/components/portal/SubscriptionGate";
-import { BackArrow } from "@/components/portal/BackArrow";
-import { OxCheck, OxChevronRight, OxPlay, OxInfo } from "@/components/icons/OxIcons";
+import { OxCheck, OxChevronRight, OxPlay, OxInfo, OxTrophy, OxDumbbell } from "@/components/icons/OxIcons";
+import { createBrowserSupabase } from "@/lib/supabase";
 
 // ── MOCK DATA ───────────────────────────────────────────────────
 const mockWorkoutDays = [
@@ -43,10 +44,45 @@ const mockWorkoutDays = [
   },
 ];
 
+// ── LOGGING ─────────────────────────────────────────────────────
+async function saveWorkoutLog(dayTitle: string, doneCount: number, totalCount: number, partial: boolean) {
+  const entry = {
+    workout_day: dayTitle,
+    exercises_done: doneCount,
+    total_exercises: totalCount,
+    partial,
+    logged_at: new Date().toISOString(),
+  };
+  // Persist locally as fallback
+  try {
+    const prev = JSON.parse(localStorage.getItem("ox-workout-logs") ?? "[]");
+    localStorage.setItem("ox-workout-logs", JSON.stringify([...prev, entry]));
+  } catch { /* ignore */ }
+  // Try Supabase (silent fail if table doesn't exist yet)
+  try {
+    const supabase = createBrowserSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data: member } = await supabase.from("members").select("id").eq("auth_id", user.id).single();
+    if (member) {
+      await supabase.from("workout_logs").insert({ member_id: member.id, ...entry });
+    }
+  } catch { /* silent — table may not exist yet */ }
+}
+
+// ── PAGE ─────────────────────────────────────────────────────────
 export default function WorkoutsPage() {
+  const router = useRouter();
   const [days, setDays] = useState(mockWorkoutDays);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [machineHelp, setMachineHelp] = useState<string | null>(null);
+
+  // Finish + quit modals
+  const [showFinishModal, setShowFinishModal] = useState(false);
+  const [showQuitModal, setShowQuitModal]   = useState(false);
+  const [finishShownFor, setFinishShownFor] = useState<number | null>(null); // prevent re-showing
+  const [logging, setLogging] = useState(false);
+  const [loggedSuccess, setLoggedSuccess] = useState(false);
 
   function toggleExercise(dayIdx: number, exIdx: number) {
     setDays((prev) =>
@@ -58,10 +94,54 @@ export default function WorkoutsPage() {
     );
   }
 
-  function getDoneCount(dayIdx: number) { return days[dayIdx].exercises.filter((e) => e.done).length; }
-  function isAllDone(dayIdx: number) { return getDoneCount(dayIdx) === days[dayIdx].exercises.length; }
+  const getDoneCount = useCallback((dayIdx: number) => days[dayIdx].exercises.filter((e) => e.done).length, [days]);
+  const isAllDone    = useCallback((dayIdx: number) => getDoneCount(dayIdx) === days[dayIdx].exercises.length, [days, getDoneCount]);
 
-  // ── Workout Detail View ────────────────────────────────────
+  // Auto-show finish modal when all exercises are ticked
+  useEffect(() => {
+    if (selectedDay === null) return;
+    if (isAllDone(selectedDay) && finishShownFor !== selectedDay) {
+      setFinishShownFor(selectedDay);
+      // Small delay so the last checkbox animation completes
+      const t = setTimeout(() => setShowFinishModal(true), 400);
+      return () => clearTimeout(t);
+    }
+  }, [days, selectedDay, isAllDone, finishShownFor]);
+
+  // ── Log + go back ──────────────────────────────────────────
+  async function handleLog(partial: boolean) {
+    if (selectedDay === null) return;
+    setLogging(true);
+    await saveWorkoutLog(
+      days[selectedDay].title,
+      getDoneCount(selectedDay),
+      days[selectedDay].exercises.length,
+      partial,
+    );
+    setLogging(false);
+    setLoggedSuccess(true);
+    setTimeout(() => {
+      setLoggedSuccess(false);
+      setShowFinishModal(false);
+      setShowQuitModal(false);
+      setSelectedDay(null);
+    }, 1200);
+  }
+
+  function handleBackPress() {
+    const doneCount = selectedDay !== null ? getDoneCount(selectedDay) : 0;
+    if (doneCount === 0) {
+      // Nothing done — exit silently
+      setSelectedDay(null);
+    } else if (selectedDay !== null && isAllDone(selectedDay)) {
+      // Already finished → re-show finish modal
+      setShowFinishModal(true);
+    } else {
+      setShowQuitModal(true);
+    }
+  }
+
+  // ── Workout Detail View ──────────────────────────────────────
   if (selectedDay !== null) {
     const day = days[selectedDay];
     const doneCount = getDoneCount(selectedDay);
@@ -76,7 +156,18 @@ export default function WorkoutsPage() {
         </div>
 
         <div className="relative z-10 max-w-lg mx-auto px-5 pt-14 lg:pt-10">
-          <BackArrow href="/portal/workouts" label="رجوع" />
+          {/* Custom back button — intercepts to show quit modal */}
+          <button
+            onClick={handleBackPress}
+            className="group flex items-center gap-2 mb-5 -mr-1 transition-all duration-200"
+          >
+            <div className="w-9 h-9 rounded-lg bg-gold/10 border border-gold/20 flex items-center justify-center group-hover:bg-gold/20 group-active:scale-95 transition-all duration-200">
+              <OxChevronRight size={20} className="text-gold" />
+            </div>
+            <span className="text-gold text-[14px] font-semibold tracking-wide group-hover:text-gold-high transition-colors">
+              رجوع
+            </span>
+          </button>
 
           <div className="relative mb-6">
             <p className="text-gold/60 text-[11px] font-bold uppercase tracking-[0.15em]">{day.label}</p>
@@ -86,14 +177,12 @@ export default function WorkoutsPage() {
             <div className="w-20 h-[4px] mt-3 danger-tape-thin" />
           </div>
 
-          {/* Progress bar card */}
+          {/* Progress bar */}
           <div className={cn(
             "relative bg-white/[0.04] border border-white/[0.06] p-4 mb-6 overflow-hidden",
             allDone && "burn-glow"
           )}>
-            {allDone && (
-              <div className="absolute top-0 left-0 right-0 h-[4px] danger-tape" />
-            )}
+            {allDone && <div className="absolute top-0 left-0 right-0 h-[4px] danger-tape" />}
             <div className="flex items-center justify-between mb-3">
               <p className="text-white/50 text-[13px]">التقدم</p>
               <p className={cn("text-[15px] font-semibold", allDone ? "text-gold" : "text-white")} dir="ltr">
@@ -101,14 +190,17 @@ export default function WorkoutsPage() {
               </p>
             </div>
             <div className="w-full h-2 bg-white/[0.06] overflow-hidden">
-              <div className={cn(
-                "h-full transition-all duration-500 ease-out",
-                allDone ? "bg-gradient-to-r from-[#FF5500] via-gold to-[#FF5500]" : "bg-gold"
-              )} style={{ width: `${progress}%` }} />
+              <div
+                className={cn(
+                  "h-full transition-all duration-500 ease-out",
+                  allDone ? "bg-gradient-to-r from-[#FF5500] via-gold to-[#FF5500]" : "bg-gold"
+                )}
+                style={{ width: `${progress}%` }}
+              />
             </div>
             {allDone && (
               <p className="text-gold text-[13px] font-bold mt-3 text-center uppercase tracking-wider">
-                اكتمل التمرين
+                اكتمل التمرين 🎉
               </p>
             )}
           </div>
@@ -120,9 +212,7 @@ export default function WorkoutsPage() {
                   "relative border p-4 transition-all duration-200 overflow-hidden",
                   ex.done ? "bg-gold/[0.06] border-gold/20" : "bg-white/[0.03] border-white/[0.06]"
                 )}>
-                  {ex.done && (
-                    <div className="absolute top-0 right-0 w-[3px] h-full bg-gold" />
-                  )}
+                  {ex.done && <div className="absolute top-0 right-0 w-[3px] h-full bg-gold" />}
                   <div className="flex items-start gap-4">
                     <button
                       onClick={() => toggleExercise(selectedDay, exIdx)}
@@ -160,10 +250,112 @@ export default function WorkoutsPage() {
           </SubscriptionGate>
         </div>
 
+        {/* ── Finish / Log modal ──────────────────────────────── */}
+        {showFinishModal && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div className="bg-iron w-full max-w-md p-6 pb-10 sm:pb-6 border border-white/[0.08]" dir="rtl">
+              <div className="w-10 h-1 bg-white/20 mx-auto mb-6 sm:hidden" />
+              {loggedSuccess ? (
+                <div className="flex flex-col items-center py-6">
+                  <div className="w-16 h-16 bg-gold/10 border border-gold/20 flex items-center justify-center mb-4">
+                    <OxCheck size={28} className="text-gold" />
+                  </div>
+                  <p className="text-gold font-display text-[22px] tracking-wider">تم الحفظ!</p>
+                  <p className="text-white/40 text-[14px] mt-2">تم تسجيل تمرينك بنجاح.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-col items-center mb-6">
+                    <div className="w-16 h-16 bg-gold/10 border border-gold/20 flex items-center justify-center mb-4">
+                      <OxTrophy size={28} className="text-gold" />
+                    </div>
+                    <h3 className="text-white font-display text-[24px] tracking-wider leading-none">
+                      أحسنت! 💪
+                    </h3>
+                    <p className="text-white/40 text-[14px] mt-2 text-center leading-relaxed">
+                      أكملت جميع تمارين {day.title}.<br />هل تريد تسجيل هذا التمرين؟
+                    </p>
+                  </div>
+
+                  {/* Workout summary */}
+                  <div className="bg-white/[0.03] border border-white/[0.06] p-4 mb-5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <OxDumbbell size={18} className="text-gold" />
+                      <div>
+                        <p className="text-white text-[14px] font-semibold">{day.title}</p>
+                        <p className="text-white/30 text-[12px]">{day.label}</p>
+                      </div>
+                    </div>
+                    <span className="text-gold font-bold text-[15px]" dir="ltr">{doneCount}/{totalCount}</span>
+                  </div>
+
+                  <button
+                    onClick={() => handleLog(false)}
+                    disabled={logging}
+                    className="w-full bg-gold hover:bg-gold-high text-void font-bold text-[16px] py-4 transition-all duration-200 flex items-center justify-center gap-2 mb-3"
+                    style={{ minHeight: "56px" }}
+                  >
+                    <OxCheck size={20} />
+                    {logging ? "جاري الحفظ..." : "نعم، سجّل التمرين"}
+                  </button>
+                  <button
+                    onClick={() => { setShowFinishModal(false); setSelectedDay(null); }}
+                    className="w-full bg-white/[0.04] hover:bg-white/[0.08] text-white/60 font-semibold text-[15px] py-3.5 transition-colors"
+                  >
+                    لا، خروج بدون تسجيل
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Quit confirmation modal ──────────────────────────── */}
+        {showQuitModal && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div className="bg-iron w-full max-w-md p-6 pb-10 sm:pb-6 border border-white/[0.08]" dir="rtl">
+              <div className="w-10 h-1 bg-white/20 mx-auto mb-6 sm:hidden" />
+              {loggedSuccess ? (
+                <div className="flex flex-col items-center py-6">
+                  <div className="w-16 h-16 bg-gold/10 border border-gold/20 flex items-center justify-center mb-4">
+                    <OxCheck size={28} className="text-gold" />
+                  </div>
+                  <p className="text-gold font-display text-[22px] tracking-wider">تم الحفظ!</p>
+                  <p className="text-white/40 text-[14px] mt-2">تم تسجيل تقدمك بنجاح.</p>
+                </div>
+              ) : (
+                <>
+                  <h3 className="text-white font-display text-[22px] tracking-wider leading-none mb-2">
+                    هل تريد حفظ تقدمك؟
+                  </h3>
+                  <p className="text-white/40 text-[14px] mb-6 leading-relaxed">
+                    أكملت {doneCount} من أصل {totalCount} تمارين. يمكننا حفظ ما أنجزته.
+                  </p>
+                  <button
+                    onClick={() => handleLog(true)}
+                    disabled={logging}
+                    className="w-full bg-gold hover:bg-gold-high text-void font-bold text-[16px] py-4 transition-all duration-200 flex items-center justify-center gap-2 mb-3"
+                    style={{ minHeight: "56px" }}
+                  >
+                    <OxCheck size={20} />
+                    {logging ? "جاري الحفظ..." : "نعم، احفظ التقدم"}
+                  </button>
+                  <button
+                    onClick={() => { setShowQuitModal(false); setSelectedDay(null); }}
+                    className="w-full bg-white/[0.04] hover:bg-white/[0.08] text-white/60 font-semibold text-[15px] py-3.5 transition-colors"
+                  >
+                    لا، خروج بدون حفظ
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Machine Help Modal */}
         {machineHelp && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setMachineHelp(null)}>
-            <div className="bg-iron w-full max-w-md p-6 pb-10 sm:pb-6 border border-white/[0.08]" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-iron w-full max-w-md p-6 pb-10 sm:pb-6 border border-white/[0.08]" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="w-10 h-1 bg-white/20 mx-auto mb-6 sm:hidden" />
               <div className="w-full h-40 bg-white/[0.04] flex items-center justify-center mb-5">
                 <OxPlay size={32} className="text-white/20" />
@@ -182,7 +374,7 @@ export default function WorkoutsPage() {
     );
   }
 
-  // ── Day List View ──────────────────────────────────────────
+  // ── Day List View ─────────────────────────────────────────────
   return (
     <div className="relative min-h-full pb-28 lg:pb-10" dir="rtl">
       <div className="absolute top-6 right-2 w-28 h-36 opacity-70 pointer-events-none select-none fig-fade-left z-0">
@@ -210,7 +402,6 @@ export default function WorkoutsPage() {
                 )}
                 style={{ minHeight: "80px" }}
               >
-                {/* Chevron arrows on top of each card */}
                 <div className="absolute top-0 left-0 right-0 flex justify-center">
                   <div className="flex gap-0 -mt-[0.5px]">
                     <MiniChevron className={day.isToday ? "text-gold/40" : "text-white/[0.06]"} />
@@ -219,7 +410,6 @@ export default function WorkoutsPage() {
                   </div>
                 </div>
 
-                {/* Gold right accent bar for today (RTL) */}
                 {day.isToday && (
                   <div className="absolute right-0 top-0 bottom-0 w-[3px] bg-gold" />
                 )}
@@ -245,7 +435,7 @@ export default function WorkoutsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {allDone ? (
-                    <span className="text-gold text-[12px] font-bold uppercase tracking-wider">تم</span>
+                    <span className="text-gold text-[12px] font-bold uppercase tracking-wider">تم ✓</span>
                   ) : (
                     <OxChevronRight size={18} className="text-white/20 rotate-180" />
                   )}
@@ -259,7 +449,6 @@ export default function WorkoutsPage() {
   );
 }
 
-// ── Mini chevron arrow for card tops ─────────────────────────
 function MiniChevron({ className }: { className?: string }) {
   return (
     <svg width="20" height="8" viewBox="0 0 20 8" fill="currentColor" className={className}>

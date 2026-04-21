@@ -7,15 +7,17 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { OxDumbbell, OxFork, OxBag, OxClock, OxAlert } from "@/components/icons/OxIcons";
-import { daysUntilExpiry, getSubscriptionStatus } from "@/lib/subscription";
+import { daysUntilExpiry, getDetailedStatus } from "@/lib/subscription";
+import type { DetailedSubStatus } from "@/lib/subscription";
 
 interface UserData {
   name: string;
   subscription: {
     plan: string;
-    status: "active" | "expiring" | "expired";
+    status: DetailedSubStatus;
     daysLeft: number;
     endDate: string;
+    rawDays: number;
   } | null;
   workout: {
     name: string;
@@ -28,6 +30,7 @@ export default function PortalHome() {
   const { t } = useTranslation();
   const [data, setData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -36,14 +39,12 @@ export default function PortalHome() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Get member profile
         const { data: member } = await supabase
           .from("members")
           .select("full_name, status")
           .eq("auth_id", user.id)
           .single();
 
-        // Get active subscription
         const { data: sub } = await supabase
           .from("subscriptions")
           .select("plan_type, end_date, status")
@@ -53,7 +54,6 @@ export default function PortalHome() {
           .limit(1)
           .single();
 
-        // Get latest assigned workout
         const memberId = (await supabase.from("members").select("id").eq("auth_id", user.id).single()).data?.id;
         let workout = null;
         if (memberId) {
@@ -83,21 +83,25 @@ export default function PortalHome() {
           }
         }
 
-        const daysLeft = sub ? daysUntilExpiry(sub.end_date) : 0;
-        const subStatus = sub ? getSubscriptionStatus(sub.end_date) : "expired";
+        const rawDays = sub ? daysUntilExpiry(sub.end_date) : -999;
+        const status = sub ? getDetailedStatus(sub.end_date) : "locked";
+
+        // Use the member's actual first name as entered (Arabic or Latin)
+        const firstName = member?.full_name?.split(" ")[0] ?? "";
 
         setData({
-          name: member?.full_name?.split(" ")[0] ?? "Player",
+          name: firstName,
           subscription: sub ? {
             plan: sub.plan_type,
-            status: subStatus as "active" | "expiring" | "expired",
-            daysLeft: Math.max(0, daysLeft),
+            status,
+            daysLeft: Math.max(0, rawDays),
+            rawDays,
             endDate: new Date(sub.end_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
           } : null,
           workout,
         });
       } catch {
-        // fallback
+        // fallback — show skeleton state
       } finally {
         setLoading(false);
       }
@@ -105,8 +109,11 @@ export default function PortalHome() {
     load();
   }, []);
 
-  const isExpiring = data?.subscription?.status === "expiring";
-  const isExpired = data?.subscription?.status === "expired" || !data?.subscription;
+  const subStatus = data?.subscription?.status ?? "locked";
+  const isExpiring = subStatus === "expiring";
+  const isGrace    = subStatus === "grace";
+  const isExpired  = subStatus === "locked" || (!data?.subscription);
+  const rawDays    = data?.subscription?.rawDays ?? -999;
 
   if (loading) {
     return (
@@ -117,23 +124,67 @@ export default function PortalHome() {
   }
 
   return (
-    <div className="relative min-h-full pb-28 lg:pb-10">
-      <div className="absolute top-6 -left-4 w-24 h-32 opacity-50 pointer-events-none select-none z-0" dir="ltr">
-        <Image src="/fig-charge.png" alt="" fill className="object-contain object-left-top" unoptimized />
+    <div className="relative min-h-full pb-28 lg:pb-10" dir="rtl">
+      <div className="absolute top-6 -right-4 w-24 h-32 opacity-50 pointer-events-none select-none z-0">
+        <Image src="/fig-charge.png" alt="" fill className="object-contain object-right-top" unoptimized />
       </div>
 
-      <div className="relative z-10 max-w-lg mx-auto px-5 pt-14 lg:pt-10 space-y-6">
+      <div className="relative z-10 max-w-lg mx-auto px-5 pt-14 lg:pt-10 space-y-5">
 
-        {/* Greeting */}
+        {/* ── 5-day expiry notice (dismissible) ── */}
+        {isExpiring && !noticeDismissed && (
+          <section className="relative bg-gold/[0.07] border border-gold/25 p-4 flex items-start gap-3 overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-[3px] danger-tape-thin opacity-50" />
+            <OxAlert size={18} className="text-gold flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-gold text-[14px] font-semibold leading-snug">
+                {data!.subscription!.daysLeft === 1
+                  ? "عضويتك ستنتهي غداً 🤝"
+                  : `عضويتك ستنتهي خلال ${data!.subscription!.daysLeft} أيام`}
+              </p>
+              <p className="text-white/40 text-[12px] mt-1 leading-relaxed">
+                ننصحك بالتجديد مسبقاً حتى لا تنقطع رحلتك معنا.
+              </p>
+            </div>
+            <button
+              onClick={() => setNoticeDismissed(true)}
+              className="text-white/20 hover:text-white/50 text-[18px] leading-none flex-shrink-0 transition-colors"
+              aria-label="إغلاق"
+            >
+              ×
+            </button>
+          </section>
+        )}
+
+        {/* ── Grace-period notice ── */}
+        {isGrace && (
+          <section className="relative bg-danger/[0.06] border border-danger/20 p-4 flex items-start gap-3 overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-[3px] bg-danger/30" />
+            <OxAlert size={18} className="text-danger flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-danger text-[14px] font-semibold leading-snug">
+                انتهى اشتراكك
+              </p>
+              <p className="text-white/40 text-[12px] mt-1 leading-relaxed">
+                {rawDays === -1
+                  ? "لا يزال بإمكانك الوصول لمدة يوم واحد إضافي — نتمنى لك استمرارية."
+                  : "لا يزال بإمكانك الوصول لمدة يومين إضافيين — نتمنى لك استمرارية."}
+                {" "}تفضّل بزيارة الاستقبال للتجديد.
+              </p>
+            </div>
+          </section>
+        )}
+
+        {/* ── Greeting ── */}
         <section className="relative flex items-center justify-between">
           <div>
             <p className="text-white/40 text-[11px] font-mono uppercase tracking-[0.16em] mb-0.5">
               {t("portal.from")} OX GYM
             </p>
             <h1 className="text-gold font-display text-[32px] tracking-wider leading-none mt-1">
-              {t("portal.welcome")}{data?.name ? `، ${data.name.toUpperCase()}` : ""}
+              {t("portal.welcome")}{data?.name ? `، ${data.name}` : ""}
             </h1>
-            {data?.subscription && (
+            {data?.subscription && !isGrace && !isExpired && (
               <p className="text-white/30 text-[12px] mt-1 font-mono">
                 {t("portal.subscriptionActive")} · {data.subscription.plan}
               </p>
@@ -142,11 +193,11 @@ export default function PortalHome() {
           <Image src="/ox-logo.png" alt="OX GYM" width={120} height={120} className="w-14 h-14 object-contain" unoptimized />
         </section>
 
-        {/* Plan End Card */}
+        {/* ── Plan End Card ── */}
         <section
           className={cn(
             "relative p-5 flex items-center justify-between border overflow-hidden",
-            isExpired ? "bg-danger/[0.08] border-danger/20"
+            (isGrace || isExpired) ? "bg-danger/[0.08] border-danger/20"
               : isExpiring ? "bg-gold/[0.06] border-gold/20"
               : "bg-white/[0.04] border-white/[0.06]"
           )}
@@ -156,38 +207,40 @@ export default function PortalHome() {
           </div>
 
           <div className="flex items-center gap-3">
-            {(isExpiring || isExpired) ? (
-              <OxAlert size={20} className={isExpired ? "text-danger" : "text-gold"} />
+            {(isExpiring || isGrace || isExpired) ? (
+              <OxAlert size={20} className={(isGrace || isExpired) ? "text-danger" : "text-gold"} />
             ) : (
               <OxClock size={20} className="text-gold" />
             )}
             <div>
               <p className={cn(
                 "text-[16px] font-semibold",
-                isExpired ? "text-danger" : isExpiring ? "text-gold" : "text-white"
+                (isGrace || isExpired) ? "text-danger" : isExpiring ? "text-gold" : "text-white"
               )}>
-                {isExpired
+                {isGrace
+                  ? "مهلة الوصول نشطة"
+                  : isExpired
                   ? t("portal.planExpired")
                   : `${t("portal.endsIn")} ${data?.subscription?.daysLeft ?? 0} ${t("portal.days")}`}
               </p>
               <p className="text-white/40 text-[13px] mt-0.5">
-                {isExpired
+                {isGrace || isExpired
                   ? t("portal.renewUnlock")
                   : `${data?.subscription?.plan ?? ""} · ${data?.subscription?.endDate ?? ""}`}
               </p>
             </div>
           </div>
-          {(isExpiring || isExpired) && (
+          {(isExpiring || isGrace || isExpired) && (
             <span className={cn(
               "text-[12px] font-bold px-3 py-1.5 uppercase tracking-wider",
-              isExpired ? "bg-danger/20 text-danger" : "bg-gold/20 text-gold"
+              (isGrace || isExpired) ? "bg-danger/20 text-danger" : "bg-gold/20 text-gold"
             )}>
               {t("common.renew")}
             </span>
           )}
         </section>
 
-        {/* Daily Workout Card */}
+        {/* ── Daily Workout Card ── */}
         <section className="relative bg-white/[0.04] border border-white/[0.06] overflow-hidden">
           <div className="flex items-center">
             <div className="flex-1 h-[6px] danger-tape" />
@@ -198,8 +251,8 @@ export default function PortalHome() {
             <ChevronDown className="text-gold/60" />
           </div>
 
-          <div className="absolute top-2 -left-2 w-16 h-24 opacity-40 pointer-events-none select-none z-0" dir="ltr">
-            <Image src="/fig-bicep.png" alt="" fill className="object-contain object-left-top" unoptimized />
+          <div className="absolute top-2 -right-2 w-16 h-24 opacity-40 pointer-events-none select-none z-0">
+            <Image src="/fig-bicep.png" alt="" fill className="object-contain object-right-top" unoptimized />
           </div>
 
           <div className="relative p-6 pb-4">
@@ -211,7 +264,7 @@ export default function PortalHome() {
             {data?.workout ? (
               <>
                 <h2 className="text-white font-display text-[28px] tracking-wider leading-none mt-2">
-                  {data.workout.name.toUpperCase()}
+                  {data.workout.name}
                 </h2>
                 <p className="text-white/40 text-[15px] mt-2">
                   {data.workout.subtitle} · {data.workout.exerciseCount} {t("portal.exercises")}
@@ -232,14 +285,7 @@ export default function PortalHome() {
               href="/portal/workouts"
               className="relative flex items-center justify-center gap-2 w-full bg-gold hover:bg-gold-high active:bg-gold-deep text-void font-bold text-[16px] py-4 transition-all duration-200 group overflow-visible"
               style={{ minHeight: "56px" }}
-              dir="ltr"
             >
-              <svg className="absolute -top-4 left-1 w-6 h-6 text-gold group-hover:text-gold-high transition-colors drop-shadow-lg" viewBox="0 0 32 32" fill="currentColor" style={{ transform: "scaleY(-1)" }}>
-                <path d="M2 2C2 2 0 10 4 18C6 22 10 26 16 30L14 22C12 16 12 10 14 5C14.5 3.5 15 2.5 15 2.5L2 2Z" />
-              </svg>
-              <svg className="absolute -top-4 right-1 w-6 h-6 text-gold group-hover:text-gold-high transition-colors drop-shadow-lg" viewBox="0 0 32 32" fill="currentColor" style={{ transform: "scaleY(-1)" }}>
-                <path d="M30 2C30 2 32 10 28 18C26 22 22 26 16 30L18 22C20 16 20 10 18 5C17.5 3.5 17 2.5 17 2.5L30 2Z" />
-              </svg>
               <OxDumbbell size={20} />
               {t("portal.startWorkout")}
             </Link>
@@ -247,7 +293,7 @@ export default function PortalHome() {
           <div className="h-[4px] danger-tape-thin" />
         </section>
 
-        {/* Quick Actions */}
+        {/* ── Quick Actions ── */}
         <section className="grid grid-cols-2 gap-3">
           <Link
             href="/portal/order-meal"

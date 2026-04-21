@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
@@ -85,6 +86,29 @@ export function PortalSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useTranslation();
+  const [playerName, setPlayerName] = useState<string>("");
+
+  useEffect(() => {
+    async function fetchName() {
+      try {
+        const supabase = createBrowserSupabase();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data: member } = await supabase
+          .from("members")
+          .select("full_name")
+          .eq("auth_id", user.id)
+          .single();
+        if (member?.full_name) {
+          // Show full name as the user typed it (Arabic or Latin)
+          setPlayerName(member.full_name);
+        }
+      } catch {
+        // silent — fallback to role label
+      }
+    }
+    fetchName();
+  }, []);
 
   const handleLogout = async () => {
     const supabase = createBrowserSupabase();
@@ -94,12 +118,14 @@ export function PortalSidebar() {
 
   return (
     <aside className="hidden lg:flex flex-col w-[260px] min-h-screen bg-[#0D0D0D] border-r border-white/[0.06] rtl:border-r-0 rtl:border-l rtl:border-white/[0.06]">
-      {/* Brand Header — OX Logo */}
+      {/* Brand Header — OX Logo + Player Name */}
       <div className="flex items-center gap-3 px-6 py-7">
         <Image src="/ox-logo.png" alt="OX GYM" width={100} height={100} className="w-11 h-11 object-contain" unoptimized />
-        <div>
+        <div className="min-w-0">
           <span className="text-gold font-display text-[22px] tracking-wider leading-none block">OX GYM</span>
-          <span className="text-[11px] text-white/40 mt-0.5 block">{t("roles.player")}</span>
+          <span className="text-[12px] text-white/50 mt-0.5 block truncate" title={playerName || t("roles.player")}>
+            {playerName || t("roles.player")}
+          </span>
         </div>
       </div>
       <div className="h-[2px] mx-4 mb-2" style={{ backgroundImage: "repeating-linear-gradient(90deg, #F5C100 0px, #F5C100 4px, transparent 4px, transparent 8px)", opacity: 0.3 }} />

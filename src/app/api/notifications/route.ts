@@ -35,7 +35,7 @@ export async function GET() {
 
 // POST — manager only
 export async function POST(request: Request) {
-  const { ctx, error } = await requireAuth(["manager"]);
+  const { ctx, error } = await requireAuth(["manager"], request);
   if (error) return error;
 
   let body: unknown;

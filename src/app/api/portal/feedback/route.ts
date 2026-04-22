@@ -12,7 +12,7 @@ const FeedbackSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const { ctx, error } = await requireAuth(["player"]);
+  const { ctx, error } = await requireAuth(["player"], request);
   if (error) return error;
 
   let body: unknown;

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { BackArrow } from "@/components/portal/BackArrow";
 import { OxStar, OxDumbbell, OxFork, OxTrainer, OxThumbUp, OxCheck } from "@/components/icons/OxIcons";
+import { useToast } from "@/components/ui/Toast";
 
 const sections = [
   { id: "workouts", label: "التمارين",    icon: OxDumbbell, description: "كيف تجد برامج التمارين؟" },
@@ -16,12 +17,12 @@ type Ratings = Record<string, number>;
 type Comments = Record<string, string>;
 
 export default function FeedbackPage() {
+  const { success, error: toastError } = useToast();
   const [ratings, setRatings] = useState<Ratings>({ workouts: 0, meals: 0, trainer: 0, overall: 0 });
   const [comments, setComments] = useState<Comments>({ workouts: "", meals: "", trainer: "", overall: "" });
   const [hoveredStar, setHoveredStar] = useState<Record<string, number>>({});
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const setRating = (section: string, value: number) => setRatings((prev) => ({ ...prev, [section]: value }));
   const setComment = (section: string, value: string) => setComments((prev) => ({ ...prev, [section]: value }));
@@ -31,7 +32,6 @@ export default function FeedbackPage() {
   async function handleSubmit() {
     if (!hasAnyRating || submitting) return;
     setSubmitting(true);
-    setSubmitError(null);
     try {
       const res = await fetch("/api/portal/feedback", {
         method: "POST",
@@ -39,12 +39,14 @@ export default function FeedbackPage() {
         body: JSON.stringify({ ratings, comments }),
       });
       if (res.ok) {
+        success("تم الإرسال", "شكراً لك! تم تسجيل تقييمك.");
         setSubmitted(true);
       } else {
-        setSubmitError("حدث خطأ. حاول مرة أخرى.");
+        const data = await res.json().catch(() => ({}));
+        toastError("خطأ", data?.error ?? "حدث خطأ. حاول مرة أخرى.");
       }
     } catch {
-      setSubmitError("حدث خطأ. حاول مرة أخرى.");
+      toastError("خطأ في الشبكة", "تحقق من اتصالك وحاول مرة أخرى.");
     } finally {
       setSubmitting(false);
     }
@@ -128,10 +130,6 @@ export default function FeedbackPage() {
             );
           })}
         </div>
-
-        {submitError && (
-          <p className="text-danger text-[13px] text-center mt-4">{submitError}</p>
-        )}
 
         <button
           disabled={!hasAnyRating || submitting}

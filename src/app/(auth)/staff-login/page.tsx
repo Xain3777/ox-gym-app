@@ -42,18 +42,8 @@ export default function StaffLoginPage() {
       return;
     }
 
-    // Fallback PIN-only mode (dev/demo)
-    if (pin === staff.pin) {
-      document.cookie = `test-role=${staff.role}; path=/; max-age=86400`;
-      const roleHomes: Record<string, string> = {
-        manager: "/dashboard",
-        reception: "/reception",
-      };
-      window.location.href = roleHomes[staff.role] ?? "/reception";
-    } else {
-      setError("رمز الدخول غير صحيح");
-      setLoading(false);
-    }
+    setError("رمز الدخول غير صحيح");
+    setLoading(false);
   }
 
   return (

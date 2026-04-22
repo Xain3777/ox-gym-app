@@ -22,7 +22,7 @@ const AddMemberSchema = z.object({
 
 // ── POST /api/members — manager + reception only ──────────────
 export async function POST(request: NextRequest) {
-  const { ctx, error } = await requireAuth(["manager", "reception"]);
+  const { ctx, error } = await requireAuth(["manager", "reception"], request);
   if (error) return error;
 
   let body: unknown;

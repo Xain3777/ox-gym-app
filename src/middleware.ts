@@ -8,25 +8,33 @@ const ROLE_HOME: Record<string, string> = {
   player:    "/portal",
 };
 
-const PUBLIC_ROUTES = ["/login", "/staff-login", "/signup", "/onboarding", "/api/auth", "/forgot-password", "/reset-password"];
-const SKIP_PREFIXES = ["/_next", "/favicon.ico", "/ox-logo.png", "/manifest.json", "/api/"];
+const PUBLIC_ROUTES  = ["/login", "/staff-login", "/signup", "/onboarding", "/api/auth", "/forgot-password", "/reset-password"];
+const SKIP_PREFIXES  = ["/_next", "/favicon.ico", "/ox-logo.png", "/manifest.json", "/api/"];
+const IS_PROD        = process.env.NODE_ENV === "production";
 
 function roleForRoute(pathname: string): string | null {
   if (
     pathname.startsWith("/dashboard") || pathname.startsWith("/members") ||
-    pathname.startsWith("/plans") || pathname.startsWith("/meal-plans") ||
+    pathname.startsWith("/plans")     || pathname.startsWith("/meal-plans") ||
     pathname.startsWith("/subscriptions") || pathname.startsWith("/reminders") ||
     pathname.startsWith("/notifications") || pathname.startsWith("/settings") ||
     pathname.startsWith("/finance")
   ) return "manager";
-  if (pathname.startsWith("/coach")) return "coach";
+  if (pathname.startsWith("/coach"))     return "coach";
   if (pathname.startsWith("/reception")) return "reception";
-  if (pathname.startsWith("/portal")) return "player";
+  if (pathname.startsWith("/portal"))    return "player";
   return null;
 }
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // ── HTTPS enforcement (production only) ──────────────────────
+  if (IS_PROD && request.headers.get("x-forwarded-proto") === "http") {
+    const httpsUrl = request.nextUrl.clone();
+    httpsUrl.protocol = "https:";
+    return NextResponse.redirect(httpsUrl, { status: 301 });
+  }
 
   if (SKIP_PREFIXES.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
@@ -35,7 +43,7 @@ export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: request.headers } });
 
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseUrl    = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!supabaseUrl || !supabaseAnonKey) return response;
 
@@ -54,7 +62,7 @@ export async function middleware(request: NextRequest) {
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    // Public routes: redirect authenticated users to their home
+    // Public routes — redirect authenticated users to their home
     if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) {
       if (user) {
         const role = await resolveRoleFromDB(supabase, user.id);
@@ -74,7 +82,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // Role-based route protection (DB-only — no cookie overrides)
-    const role = await resolveRoleFromDB(supabase, user.id);
+    const role       = await resolveRoleFromDB(supabase, user.id);
     const routeOwner = roleForRoute(pathname);
 
     if (routeOwner && routeOwner !== role) {

@@ -5,23 +5,21 @@ import type { MemberWithSub } from "@/types";
 
 // ── CRON: Daily Subscription Reminders ────────────────────────
 // Runs at 08:00 UTC every day via Vercel Cron.
-// Sends reminder emails at 7-day and 3-day thresholds.
-// Auto-marks expired members.
-//
-// Protected by CRON_SECRET — set this in Vercel env vars.
+// Protected by CRON_SECRET bearer token.
+
+const MAX_RETRIES   = 3;
+const RETRY_DELAY   = 1_500; // ms — doubles each attempt
 
 export async function GET(request: Request) {
-  // ── SECURITY: verify the cron secret ──
   const authHeader = request.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = createServiceClient();
-  const results  = { sent: 0, failed: 0, expired: 0 };
+  const results  = { sent: 0, failed: 0, expired: 0, errors: [] as string[] };
 
   try {
-    // ── 1. FETCH all members with active subscriptions ──
     const { data: members, error } = await supabase
       .from("members")
       .select("*, subscription:subscriptions(*)")
@@ -39,43 +37,44 @@ export async function GET(request: Request) {
 
       const days = daysUntil(member.subscription.end_date);
 
-      // ── 2. AUTO-EXPIRE lapsed members ──
+      // ── Auto-expire ──
       if (days < 0) {
-        await supabase
-          .from("members")
-          .update({ status: "expired" })
-          .eq("id", member.id);
-
-        await supabase.from("subscriptions").update({ status: "expired" }).eq(
-          "id",
-          member.subscription.id,
-        );
-
+        await supabase.from("members").update({ status: "expired" }).eq("id", member.id);
+        await supabase.from("subscriptions").update({ status: "expired" }).eq("id", member.subscription.id);
         await logReminder(supabase, member.id, "expired", member.email, "sent");
         results.expired++;
         continue;
       }
 
-      // ── 3. SEND 7-day reminder ──
+      // ── 7-day reminder ──
       if (days === 7) {
-        const ok = await sendReminderEmail(member, "7-day");
+        const ok = await sendWithRetry(member, "7-day");
         await logReminder(supabase, member.id, "7-day", member.email, ok ? "sent" : "failed");
-        ok ? results.sent++ : results.failed++;
+        if (ok) {
+          results.sent++;
+        } else {
+          results.failed++;
+          results.errors.push(`7-day reminder failed for ${member.email}`);
+          await sendAdminAlert(member.email, "7-day");
+        }
       }
 
-      // ── 4. SEND 3-day reminder ──
+      // ── 3-day reminder ──
       if (days === 3) {
-        const ok = await sendReminderEmail(member, "3-day");
+        const ok = await sendWithRetry(member, "3-day");
         await logReminder(supabase, member.id, "3-day", member.email, ok ? "sent" : "failed");
-        ok ? results.sent++ : results.failed++;
+        if (ok) {
+          results.sent++;
+        } else {
+          results.failed++;
+          results.errors.push(`3-day reminder failed for ${member.email}`);
+          await sendAdminAlert(member.email, "3-day");
+        }
       }
 
-      // ── 5. Update member status to "expiring" ──
+      // ── Mark expiring ──
       if (days >= 0 && days <= 7 && member.status !== "expiring") {
-        await supabase
-          .from("members")
-          .update({ status: "expiring" })
-          .eq("id", member.id);
+        await supabase.from("members").update({ status: "expiring" }).eq("id", member.id);
       }
     }
 
@@ -90,7 +89,46 @@ export async function GET(request: Request) {
   }
 }
 
-// ── HELPER: log reminder to DB ────────────────────────────────
+// ── Retry wrapper — exponential back-off ─────────────────────
+async function sendWithRetry(
+  member: MemberWithSub,
+  type: "7-day" | "3-day",
+): Promise<boolean> {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const ok = await sendReminderEmail(member, type);
+    if (ok) return true;
+    if (attempt < MAX_RETRIES) {
+      await sleep(RETRY_DELAY * attempt); // 1.5s, 3s
+    }
+  }
+  return false;
+}
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// ── Alert admin when all retries exhausted ───────────────────
+async function sendAdminAlert(failedEmail: string, type: string) {
+  const adminEmail = process.env.ADMIN_ALERT_EMAIL;
+  if (!adminEmail) return;
+
+  try {
+    const { Resend } = await import("resend");
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    await resend.emails.send({
+      from:    `OX Gym System <${process.env.EMAIL_FROM ?? "noreply@oxgym.com"}>`,
+      to:      adminEmail,
+      subject: `⚠️ Cron alert: ${type} reminder failed after ${MAX_RETRIES} retries`,
+      html: `<p>Failed to send <strong>${type}</strong> subscription reminder to <strong>${failedEmail}</strong> after ${MAX_RETRIES} attempts.</p>
+             <p>Please check Resend logs and manually follow up with the member.</p>`,
+    });
+  } catch {
+    // Best-effort alert — do not throw
+  }
+}
+
+// ── DB logger ────────────────────────────────────────────────
 async function logReminder(
   supabase: ReturnType<typeof createServiceClient>,
   memberId: string,
@@ -101,15 +139,13 @@ async function logReminder(
   await supabase.from("reminder_logs").insert({
     member_id: memberId,
     type,
-    email_to: emailTo,
+    email_to:  emailTo,
     status,
-    sent_at: new Date().toISOString(),
+    sent_at:   new Date().toISOString(),
   });
 }
 
-// ── HELPER: send email via Resend ─────────────────────────────
-// Full email template is in components/email/ReminderEmail.tsx
-// This is a placeholder — wired up in the email template PR.
+// ── Email sender ─────────────────────────────────────────────
 async function sendReminderEmail(
   member: MemberWithSub,
   type: "7-day" | "3-day",
@@ -118,14 +154,15 @@ async function sendReminderEmail(
     const { Resend } = await import("resend");
     const resend = new Resend(process.env.RESEND_API_KEY);
 
-    const days = type === "7-day" ? 7 : 3;
+    const days    = type === "7-day" ? 7 : 3;
     const endDate = member.subscription?.end_date
       ? new Date(member.subscription.end_date).toLocaleDateString("en-US", {
-          month: "long",
-          day:   "numeric",
-          year:  "numeric",
+          month: "long", day: "numeric", year: "numeric",
         })
       : "soon";
+
+    const safeName = (member.full_name ?? "").replace(/[<>&"']/g, "");
+    const appUrl   = process.env.NEXT_PUBLIC_APP_URL ?? "https://oxgym.com";
 
     const { error } = await resend.emails.send({
       from:    `OX Gym <${process.env.EMAIL_FROM ?? "noreply@oxgym.com"}>`,
@@ -141,10 +178,11 @@ async function sendReminderEmail(
             Membership Expiring in ${days} Days
           </h1>
           <p style="color:#AAAAAA;line-height:1.7;margin-bottom:24px;">
-            Hi ${member.full_name}, your OX Gym membership expires on <strong style="color:#F5C100;">${endDate}</strong>.
+            Hi ${safeName}, your OX Gym membership expires on
+            <strong style="color:#F5C100;">${endDate}</strong>.
             Renew now to keep your access uninterrupted.
           </p>
-          <a href="${process.env.NEXT_PUBLIC_APP_URL ?? "https://oxgym.com"}/renew"
+          <a href="${appUrl}/renew"
              style="display:inline-block;background:#F5C100;color:#0A0A0A;font-weight:700;
                     padding:14px 28px;text-decoration:none;letter-spacing:2px;font-size:13px;text-transform:uppercase;">
             RENEW MEMBERSHIP

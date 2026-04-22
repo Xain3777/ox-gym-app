@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { BackArrow } from "@/components/portal/BackArrow";
 import { OxCheck, OxShield, OxHeart, OxTarget, OxDumbbell, OxFlame } from "@/components/icons/OxIcons";
 import { createBrowserSupabase } from "@/lib/supabase";
+
+const WIZARD_DRAFT_KEY = "profile_wizard_draft";
 
 // ── CONDITIONS / INJURIES ──────────────────────────────────────
 const COMMON_CONDITIONS = [
@@ -68,8 +70,39 @@ function ProfileWizard({
   outcome: "muscle" | "health"; setOutcome: (v: "muscle" | "health") => void;
   onComplete: () => void;
 }) {
-  const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
+
+  // Restore step from draft on mount
+  const [step, setStep] = useState(() => {
+    try {
+      const draft = JSON.parse(localStorage.getItem(WIZARD_DRAFT_KEY) ?? "{}");
+      return typeof draft.step === "number" ? draft.step : 0;
+    } catch { return 0; }
+  });
+
+  // Restore selections from draft on mount (one-time via ref guard)
+  const draftRestored = useRef(false);
+  useEffect(() => {
+    if (draftRestored.current) return;
+    draftRestored.current = true;
+    try {
+      const draft = JSON.parse(localStorage.getItem(WIZARD_DRAFT_KEY) ?? "{}");
+      if (Array.isArray(draft.illnesses) && draft.illnesses.length) setSelectedIllnesses(draft.illnesses);
+      if (Array.isArray(draft.injuries)  && draft.injuries.length)  setSelectedInjuries(draft.injuries);
+      if (draft.level)   setLevel(draft.level);
+      if (draft.goal)    setGoal(draft.goal);
+      if (draft.outcome) setOutcome(draft.outcome);
+    } catch { /* ignore */ }
+  }, []);
+
+  // Persist draft whenever wizard state changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(WIZARD_DRAFT_KEY, JSON.stringify({
+        step, illnesses: selectedIllnesses, injuries: selectedInjuries, level, goal, outcome,
+      }));
+    } catch { /* ignore storage errors */ }
+  }, [step, selectedIllnesses, selectedInjuries, level, goal, outcome]);
 
   function toggleCondition(item: string) {
     if (item === "None") { setSelectedIllnesses(["None"]); return; }
@@ -109,7 +142,7 @@ function ProfileWizard({
           <div className="text-[11px] font-mono text-white/30 uppercase tracking-[0.2em]">OX GYM</div>
           {step > 0 && (
             <button
-              onClick={() => setStep((s) => s - 1)}
+              onClick={() => setStep((s: number) => s - 1)}
               className="text-white/30 text-[13px] hover:text-white/60 transition-colors"
             >
               السابق
@@ -374,7 +407,7 @@ function ProfileWizard({
         <button
           onClick={() => {
             if (isLast) { handleFinish(); }
-            else { setStep((s) => s + 1); }
+            else { setStep((s: number) => s + 1); }
           }}
           disabled={saving}
           className={cn(
@@ -397,7 +430,7 @@ function ProfileWizard({
           <button
             onClick={() => {
               localStorage.setItem("profile_onboarded", "1");
-              /* skip entirely — can edit later */
+              localStorage.removeItem(WIZARD_DRAFT_KEY);
               window.location.reload();
             }}
             className="w-full mt-3 text-white/25 text-[13px] hover:text-white/40 transition-colors py-2"
@@ -485,6 +518,7 @@ export default function ProfilePage() {
   async function handleWizardComplete() {
     await persistProfile();
     localStorage.setItem("profile_onboarded", "1");
+    localStorage.removeItem(WIZARD_DRAFT_KEY);
     setShowWizard(false);
   }
 

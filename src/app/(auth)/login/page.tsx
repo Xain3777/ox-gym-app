@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
@@ -11,9 +11,34 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [retryAfter, setRetryAfter] = useState(0); // seconds remaining in rate-limit countdown
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Countdown tick
+  useEffect(() => {
+    if (retryAfter <= 0) return;
+    timerRef.current = setInterval(() => {
+      setRetryAfter((s) => {
+        if (s <= 1) {
+          clearInterval(timerRef.current!);
+          setError("");
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timerRef.current!);
+  }, [retryAfter > 0]); // re-run only when blocked state toggles
+
+  function startCountdown(seconds: number) {
+    clearInterval(timerRef.current!);
+    setRetryAfter(seconds);
+    setError(`محاولات كثيرة. يرجى الانتظار ${seconds} ثانية.`);
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    if (retryAfter > 0) return;
     setError("");
 
     const digits = phone.replace(/\D/g, "");
@@ -36,7 +61,19 @@ export default function LoginPage() {
       password,
     });
 
-    if (authError || !authData.user) {
+    if (authError) {
+      // Supabase rate-limit: status 429
+      const status = (authError as { status?: number }).status;
+      if (status === 429) {
+        startCountdown(60);
+      } else {
+        setError("رقم الهاتف أو كلمة المرور غير صحيحة");
+      }
+      setLoading(false);
+      return;
+    }
+
+    if (!authData.user) {
       setError("رقم الهاتف أو كلمة المرور غير صحيحة");
       setLoading(false);
       return;
@@ -48,6 +85,14 @@ export default function LoginPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: authData.user.id }),
     });
+
+    if (res.status === 429) {
+      const retryHeader = res.headers.get("Retry-After");
+      startCountdown(retryHeader ? parseInt(retryHeader, 10) : 60);
+      setLoading(false);
+      return;
+    }
+
     const result = await res.json();
     const role = result?.data?.role ?? "player";
 
@@ -72,8 +117,13 @@ export default function LoginPage() {
 
       <form onSubmit={handleLogin} className="space-y-5">
         {error && (
-          <div className="bg-danger/10 border border-danger/30 text-danger text-[13px] px-4 py-3">
-            {error}
+          <div className="bg-danger/10 border border-danger/30 text-danger text-[13px] px-4 py-3 flex items-center justify-between gap-3">
+            <span>{error}</span>
+            {retryAfter > 0 && (
+              <span className="font-mono text-[12px] bg-danger/20 px-2 py-0.5 rounded tabular-nums flex-shrink-0">
+                {retryAfter}s
+              </span>
+            )}
           </div>
         )}
 
@@ -118,8 +168,8 @@ export default function LoginPage() {
         </div>
 
         <div className="pt-1">
-          <Button type="submit" fullWidth loading={loading}>
-            دخول
+          <Button type="submit" fullWidth loading={loading} disabled={retryAfter > 0}>
+            {retryAfter > 0 ? `انتظر ${retryAfter}s` : "دخول"}
           </Button>
         </div>
       </form>

@@ -92,8 +92,9 @@ export default function SignupPage() {
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
+            required
             className="w-full h-11 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
-            placeholder="+966 5XX XXX XXX"
+            placeholder="+964 7XX XXX XXXX"
           />
         </div>
 

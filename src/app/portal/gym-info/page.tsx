@@ -10,46 +10,48 @@ import {
 const plans = [
   {
     name: "شهري",
-    price: 150,
+    price: 35,
     period: "شهر",
+    discount: null,
     color: "border-white/20",
     accent: "text-white",
     badge: null,
-    features: [
-      "دخول كامل للجيم",
-      "برنامج تمارين مخصص",
-      "متابعة التقدم",
-      "دعم على التطبيق",
-    ],
   },
   {
-    name: "ربع سنوي",
-    price: 390,
+    name: "٣ أشهر",
+    price: 90,
     period: "٣ أشهر",
+    discount: "خصم ١٥٪",
+    color: "border-white/20",
+    accent: "text-white",
+    badge: null,
+  },
+  {
+    name: "٦ أشهر",
+    price: 170,
+    period: "٦ أشهر",
+    discount: "خصم ٢٠٪",
     color: "border-gold/40",
     accent: "text-gold",
     badge: "الأكثر شيوعاً",
-    features: [
-      "كل مزايا الشهري",
-      "فحص InBody مجاني",
-      "خطة وجبات مخصصة",
-      "جلسة مع مدرب شخصي",
-    ],
   },
   {
-    name: "سنوي",
-    price: 1200,
+    name: "٩ أشهر",
+    price: 235,
+    period: "٩ أشهر",
+    discount: "خصم ٢٥٪",
+    color: "border-white/20",
+    accent: "text-white",
+    badge: null,
+  },
+  {
+    name: "١٢ شهر",
+    price: 300,
     period: "١٢ شهر",
+    discount: "خصم ٣٠٪",
     color: "border-gold/25",
     accent: "text-gold",
     badge: "الأوفر",
-    features: [
-      "كل مزايا الربع سنوي",
-      "فحوصات InBody شهرية",
-      "جلستان مع مدرب شهرياً",
-      "خصم ١٠٪ على المتجر",
-      "دخول لجميع الفعاليات",
-    ],
   },
 ];
 
@@ -70,16 +72,13 @@ export default function GymInfoPage() {
       <div className="relative w-full overflow-hidden bg-[#0a0a0a]" style={{ height: 200 }}>
         <div className="absolute top-0 left-0 right-0 h-[6px] z-10"
           style={{ backgroundImage: "repeating-linear-gradient(90deg,#F5C100 0,#F5C100 14px,#0a0a0a 14px,#0a0a0a 28px)", opacity: 0.9 }} />
-
         <div className="absolute inset-0 pointer-events-none"
           style={{ backgroundImage: "repeating-linear-gradient(45deg,transparent 0,transparent 28px,rgba(245,193,0,0.03) 28px,rgba(245,193,0,0.03) 30px)" }} />
-
         <div className="absolute bottom-8 left-0 right-0 z-10 px-5" dir="rtl">
           <BackArrow href="/portal/more" className="mb-2" />
           <p className="font-display text-[38px] leading-none tracking-wider text-gold">OX GYM</p>
           <p className="text-white/40 text-[13px] mt-1">معلومات الاشتراكات والخدمات</p>
         </div>
-
         <div className="absolute bottom-0 left-0 right-0 h-[5px] z-10"
           style={{ backgroundImage: "repeating-linear-gradient(90deg,#F5C100 0,#F5C100 14px,transparent 14px,transparent 28px)", opacity: 0.4 }} />
       </div>
@@ -100,7 +99,6 @@ export default function GymInfoPage() {
                   plan.color
                 )}
               >
-                {/* Badge in normal flow — no overlap */}
                 {plan.badge && (
                   <div className="mb-3">
                     <span className="inline-block text-[10px] font-bold px-2.5 py-1 bg-gold/20 text-gold border border-gold/20">
@@ -108,35 +106,123 @@ export default function GymInfoPage() {
                     </span>
                   </div>
                 )}
-
-                <div className="flex items-end justify-between mb-4">
+                <div className="flex items-end justify-between">
                   <div>
                     <p className={cn("font-display text-[24px] tracking-wider leading-none", plan.accent)}>
                       {plan.name}
                     </p>
                     <p className="text-white/30 text-[13px] mt-1">{plan.period}</p>
                   </div>
-                  <div className="text-left">
-                    <p className={cn("text-[26px] font-bold leading-none", plan.accent)} dir="ltr">
-                      {plan.price} <span className="text-[13px] font-normal text-white/40">ر.س</span>
+                  <div className="text-left" dir="ltr">
+                    <p className={cn("text-[28px] font-bold leading-none", plan.accent)}>
+                      ${plan.price}
                     </p>
+                    {plan.discount && (
+                      <p className="text-[12px] text-green-400 font-semibold mt-0.5 text-right">{plan.discount}</p>
+                    )}
                   </div>
                 </div>
-
-                <div className="space-y-2">
-                  {plan.features.map((f) => (
-                    <div key={f} className="flex items-center gap-2.5">
-                      <OxCheck size={14} className="text-gold shrink-0" />
-                      <span className="text-white/60 text-[14px]">{f}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <button className="mt-5 w-full bg-gold/[0.08] border border-gold/20 text-gold font-semibold text-[14px] py-3 hover:bg-gold/15 transition-colors">
-                  استفسر عن هذه الخطة
-                </button>
               </div>
             ))}
+          </div>
+        </section>
+
+        {/* ── Special Offers ───────────────────────────── */}
+        <section>
+          <p className="text-gold/50 text-[10px] font-bold uppercase tracking-[0.15em] mb-1">عروض خاصة</p>
+          <p className="text-white font-display text-[22px] tracking-wider leading-none mb-5">عروض مميزة</p>
+
+          <div className="space-y-3">
+            {/* Group offers */}
+            <div className="border border-white/10 bg-white/[0.02] p-4">
+              <p className="text-gold text-[13px] font-bold mb-2">عروض المجموعات</p>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <OxCheck size={14} className="text-gold shrink-0 mt-0.5" />
+                  <p className="text-white/70 text-[14px]">
+                    أنت + <span className="text-white font-semibold">٥ أصدقاء</span> يسجلون ← <span className="text-gold font-bold">شهر مجاناً</span>
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <OxCheck size={14} className="text-gold shrink-0 mt-0.5" />
+                  <p className="text-white/70 text-[14px]">
+                    أنت + <span className="text-white font-semibold">٩ أصدقاء</span> يسجلون ← <span className="text-gold font-bold">شهرين مجاناً</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Couples offer */}
+            <div className="border border-white/10 bg-white/[0.02] p-4">
+              <p className="text-gold text-[13px] font-bold mb-2">عرض الزوجين</p>
+              <div className="flex items-start gap-3">
+                <OxCheck size={14} className="text-gold shrink-0 mt-0.5" />
+                <p className="text-white/70 text-[14px]">
+                  أنت والزوجة <span className="text-white font-semibold">٦٠$</span>{" "}
+                  <span className="line-through text-white/30">٧٠$</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Company / Bank discounts */}
+            <div className="border border-white/10 bg-white/[0.02] p-4">
+              <p className="text-gold text-[13px] font-bold mb-2">عروض الشركات والبنوك</p>
+              <div className="flex items-start gap-3">
+                <OxCheck size={14} className="text-gold shrink-0 mt-0.5" />
+                <p className="text-white/70 text-[14px]">
+                  خصم <span className="text-gold font-bold">١٥٪</span> على الاشتراك الشهري لموظفي الشركات والبنوك
+                </p>
+              </div>
+            </div>
+
+            {/* Daily */}
+            <div className="border border-white/10 bg-white/[0.02] p-4">
+              <p className="text-gold text-[13px] font-bold mb-2">الاشتراك اليومي</p>
+              <div className="flex items-center justify-between">
+                <p className="text-white/70 text-[14px]">دخول ليوم واحد</p>
+                <p className="text-white font-bold text-[20px]" dir="ltr">$5</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── We Swim ──────────────────────────────────── */}
+        <section>
+          <p className="text-gold/50 text-[10px] font-bold uppercase tracking-[0.15em] mb-1">مدرسة السباحة</p>
+          <p className="text-white font-display text-[22px] tracking-wider leading-none mb-5">WE SWIM</p>
+
+          <div className="border border-blue-500/30 bg-blue-500/[0.04] p-5 space-y-4">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 bg-blue-500/20 flex items-center justify-center shrink-0">
+                <span className="text-blue-400 text-[18px]">🌊</span>
+              </div>
+              <div>
+                <p className="text-white font-display text-[18px] tracking-wider">WE SWIM</p>
+                <p className="text-blue-400/70 text-[12px]">مدرسة السباحة — بإدارة كوتش أدهم زيدان</p>
+              </div>
+            </div>
+
+            <div className="space-y-2.5">
+              {[
+                "تدريس السباحة لجميع الأعمار",
+                "تدريب احترافي ومتقدم",
+                "علاج الإصابات داخل الماء (Hydrotherapy)",
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-2.5">
+                  <OxCheck size={14} className="text-blue-400 shrink-0 mt-0.5" />
+                  <span className="text-white/60 text-[14px]">{item}</span>
+                </div>
+              ))}
+            </div>
+
+            <a
+              href="https://www.instagram.com/weswim"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full text-center border border-blue-500/30 text-blue-400 text-[13px] font-semibold py-3 hover:bg-blue-500/10 transition-colors mt-2"
+            >
+              زيارة صفحة WE SWIM
+            </a>
           </div>
         </section>
 
@@ -157,6 +243,28 @@ export default function GymInfoPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+
+        {/* ── Team ─────────────────────────────────────── */}
+        <section>
+          <p className="text-gold/50 text-[10px] font-bold uppercase tracking-[0.15em] mb-1">الفريق</p>
+          <p className="text-white font-display text-[22px] tracking-wider leading-none mb-5">عن الجيم</p>
+
+          <div className="space-y-3">
+            {/* Owner */}
+            <div className="border border-gold/20 bg-gold/[0.03] p-5">
+              <p className="text-gold/50 text-[10px] font-bold uppercase tracking-[0.12em] mb-2">المالك والمدير</p>
+              <p className="text-white text-[18px] font-bold">كوتش أدهم زيدان</p>
+              <p className="text-white/40 text-[13px] mt-1">مالك OX GYM و WE SWIM — مدرب متخصص في التدريب الرياضي وإعادة التأهيل</p>
+            </div>
+
+            {/* Designer */}
+            <div className="border border-white/10 bg-white/[0.02] p-5">
+              <p className="text-white/40 text-[10px] font-bold uppercase tracking-[0.12em] mb-2">التصميم والهندسة المعمارية</p>
+              <p className="text-white text-[18px] font-bold">جولي لؤي صقور</p>
+              <p className="text-white/40 text-[13px] mt-1">المهندسة المعمارية المصممة للجيم</p>
+            </div>
           </div>
         </section>
 

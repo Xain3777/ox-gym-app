@@ -1,50 +1,26 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { requireAuth } from "@/lib/api-auth";
 
-// GET — fetch the logged-in user's member profile + subscription
+// GET — logged-in member's profile + subscription
 export async function GET() {
-  // Get the authenticated user from cookies
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {
-          // read-only in GET route handlers
-        },
-      },
-    },
-  );
+  const { ctx, error } = await requireAuth();
+  if (error) return error;
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });
-  }
-
-  // Use service client to bypass RLS
   const service = createServiceClient();
-
-  const { data: member, error } = await service
+  const { data: member, error: dbError } = await service
     .from("members")
     .select("*, subscription:subscriptions(*)")
-    .eq("auth_id", user.id)
+    .eq("id", ctx.memberId)
     .single();
 
-  if (error || !member) {
-    return NextResponse.json({ success: false, error: error?.message ?? "Member not found" }, { status: 404 });
+  if (dbError || !member) {
+    return NextResponse.json({ success: false, error: "Member not found" }, { status: 404 });
   }
 
-  // Flatten subscription
-  const sub = Array.isArray(member.subscription) ? member.subscription[0] ?? null : member.subscription;
+  const sub = Array.isArray(member.subscription)
+    ? member.subscription[0] ?? null
+    : member.subscription;
 
-  return NextResponse.json({
-    success: true,
-    data: { ...member, subscription: sub },
-  });
+  return NextResponse.json({ success: true, data: { ...member, subscription: sub } });
 }

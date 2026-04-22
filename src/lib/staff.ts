@@ -1,14 +1,13 @@
-// Staff accounts — update phone numbers to match Supabase auth accounts
-// PIN is the staff member's login password
-export const STAFF_ACCOUNTS = [
+// Staff display metadata only — NO secrets here.
+// Authentication is handled entirely by Supabase Auth (phone → email mapping).
+// To add/remove staff: update Supabase Auth users + the members table role column.
+export const STAFF_ACCOUNTS: StaffAccount[] = [
   {
     id: "adham",
     name: "كوتش ادهم",
     title: "المالك",
     role: "manager" as const,
-    // phone number registered in Supabase (digits only)
     phone: "0000000001",
-    pin: "1234",
   },
   {
     id: "mohammad",
@@ -16,9 +15,8 @@ export const STAFF_ACCOUNTS = [
     title: "موظف استقبال",
     role: "reception" as const,
     phone: "0000000002",
-    pin: "1234",
   },
-] satisfies StaffAccount[];
+];
 
 export interface StaffAccount {
   id: string;
@@ -26,9 +24,9 @@ export interface StaffAccount {
   title: string;
   role: "manager" | "reception";
   phone: string;
-  pin: string;
 }
 
+/** Convert a phone number to the internal Supabase auth email format. */
 export function getStaffEmail(phone: string): string {
   const digits = phone.replace(/\D/g, "");
   return `${digits}@member.oxgym.app`;

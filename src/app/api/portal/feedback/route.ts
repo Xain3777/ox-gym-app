@@ -1,47 +1,39 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { requireAuth } from "@/lib/api-auth";
+
+const RatingSchema = z.record(z.number().int().min(1).max(5));
+const CommentSchema = z.record(z.string().max(1000));
+
+const FeedbackSchema = z.object({
+  ratings:  RatingSchema,
+  comments: CommentSchema.optional(),
+});
 
 export async function POST(request: Request) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {},
-      },
-    },
-  );
+  const { ctx, error } = await requireAuth(["player"]);
+  if (error) return error;
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });
+  let body: unknown;
+  try { body = await request.json(); }
+  catch { return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 }); }
+
+  const result = FeedbackSchema.safeParse(body);
+  if (!result.success) {
+    return NextResponse.json(
+      { success: false, error: result.error.errors[0]?.message ?? "Validation failed" },
+      { status: 400 },
+    );
   }
-
-  const body = await request.json();
-  const { ratings, comments } = body;
 
   const service = createServiceClient();
-
-  const { data: member } = await service
-    .from("members")
-    .select("id")
-    .eq("auth_id", user.id)
-    .single();
-
-  if (!member) {
-    return NextResponse.json({ success: false, error: "Member not found" }, { status: 404 });
-  }
-
-  const { error } = await service
+  const { error: dbError } = await service
     .from("feedback")
-    .insert({ member_id: member.id, ratings, comments });
+    .insert({ member_id: ctx.memberId, ...result.data });
 
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  if (dbError) {
+    return NextResponse.json({ success: false, error: "Failed to submit feedback" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

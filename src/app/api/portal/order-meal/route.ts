@@ -1,85 +1,57 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { requireAuth } from "@/lib/api-auth";
 
-async function getAuthUser() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } },
-  );
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
+const OrderSchema = z.object({
+  item_id:   z.string().min(1).max(50),
+  item_name: z.string().min(1).max(200),
+  price:     z.number().min(0).max(10_000),
+  calories:  z.number().int().min(0).max(5_000),
+});
 
-// GET — return today's orders for the member (so UI state persists across visits)
 export async function GET() {
-  const user = await getAuthUser();
-  if (!user) return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });
+  const { ctx, error } = await requireAuth(["player"]);
+  if (error) return error;
 
   const service = createServiceClient();
-  const { data: member } = await service.from("members").select("id").eq("auth_id", user.id).single();
-  if (!member) return NextResponse.json({ success: true, data: [] });
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const { data } = await service
     .from("meal_orders")
     .select("item_id")
-    .eq("member_id", member.id)
+    .eq("member_id", ctx.memberId)
     .gte("ordered_at", today.toISOString());
 
   return NextResponse.json({ success: true, data: data ?? [] });
 }
 
 export async function POST(request: Request) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {},
-      },
-    },
-  );
+  const { ctx, error } = await requireAuth(["player"]);
+  if (error) return error;
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });
-  }
+  let body: unknown;
+  try { body = await request.json(); }
+  catch { return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 }); }
 
-  const body = await request.json();
-  const { item_id, item_name, price, calories } = body;
-
-  if (!item_id || !item_name || price == null || calories == null) {
-    return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
+  const result = OrderSchema.safeParse(body);
+  if (!result.success) {
+    return NextResponse.json(
+      { success: false, error: result.error.errors[0]?.message ?? "Validation failed" },
+      { status: 400 },
+    );
   }
 
   const service = createServiceClient();
-
-  const { data: member } = await service
-    .from("members")
-    .select("id")
-    .eq("auth_id", user.id)
-    .single();
-
-  if (!member) {
-    return NextResponse.json({ success: false, error: "Member not found" }, { status: 404 });
-  }
-
-  const { data, error } = await service
+  const { data, error: dbError } = await service
     .from("meal_orders")
-    .insert({ member_id: member.id, item_id, item_name, price, calories, status: "pending" })
+    .insert({ member_id: ctx.memberId, ...result.data, status: "pending" })
     .select("id")
     .single();
 
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  if (dbError) {
+    return NextResponse.json({ success: false, error: "Failed to place order" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, data: { order_id: data.id } });

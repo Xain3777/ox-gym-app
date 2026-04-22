@@ -1,67 +1,100 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
-// POST — handle signup server-side using service client (bypasses RLS)
+const SignupSchema = z.object({
+  full_name: z.string().min(2, "Name must be at least 2 characters").max(100),
+  phone: z
+    .string()
+    .min(7, "Phone number too short")
+    .max(20, "Phone number too long")
+    .regex(/^\+?[\d\s\-()]+$/, "Invalid phone number format"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(128, "Password too long"),
+});
+
 export async function POST(request: Request) {
-  const body = await request.json();
-  const { password, full_name, phone } = body;
-
-  if (!password || !full_name || !phone) {
+  // Rate limit: 5 signups per IP per 15 minutes
+  const ip = getClientIp(request);
+  const rl = checkRateLimit(`signup:${ip}`, 5, 15 * 60_000);
+  if (!rl.allowed) {
     return NextResponse.json(
-      { success: false, error: "Full name, phone, and password are required" },
+      { success: false, error: "Too many requests. Please try again later." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) },
+      },
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ success: false, error: "Invalid request body" }, { status: 400 });
+  }
+
+  const result = SignupSchema.safeParse(body);
+  if (!result.success) {
+    return NextResponse.json(
+      { success: false, error: result.error.errors[0]?.message ?? "Validation failed" },
       { status: 400 },
     );
   }
 
-  // Generate a unique internal email from the phone number (never shown to user)
+  const { full_name, phone, password } = result.data;
   const digits = phone.replace(/\D/g, "");
   const email = `${digits}@member.oxgym.app`;
 
   const supabase = createServiceClient();
 
-  // 1. Create auth user
+  // Check for duplicate phone
+  const { data: existing } = await supabase
+    .from("members")
+    .select("id")
+    .eq("phone", phone)
+    .maybeSingle();
+
+  if (existing) {
+    return NextResponse.json(
+      { success: false, error: "An account with this phone number already exists" },
+      { status: 409 },
+    );
+  }
+
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email,
     password,
-    email_confirm: true, // auto-confirm so they can log in immediately
+    email_confirm: true,
     user_metadata: { full_name },
   });
 
-  if (authError) {
+  if (authError || !authData.user) {
     return NextResponse.json(
-      { success: false, error: authError.message },
+      { success: false, error: authError?.message ?? "Failed to create account" },
       { status: 400 },
     );
   }
 
-  if (!authData.user) {
-    return NextResponse.json(
-      { success: false, error: "Failed to create user" },
-      { status: 500 },
-    );
-  }
-
-  // 2. Create member record (service client bypasses RLS)
   const { error: memberError } = await supabase.from("members").insert({
     auth_id: authData.user.id,
     role: "player",
     full_name,
     email,
-    phone: phone || null,
+    phone,
     status: "active",
   });
 
   if (memberError) {
-    // Clean up: delete the auth user if member creation fails
     await supabase.auth.admin.deleteUser(authData.user.id);
     return NextResponse.json(
-      { success: false, error: memberError.message },
+      { success: false, error: "Failed to create member profile" },
       { status: 500 },
     );
   }
 
-  return NextResponse.json({
-    success: true,
-    data: { user_id: authData.user.id, generated_email: email },
-  });
+  return NextResponse.json({ success: true, data: { user_id: authData.user.id } });
 }

@@ -92,9 +92,15 @@ export async function POST(request: Request) {
     created_by: ctx.memberId,
   }));
 
-  const { error: insertError } = await supabase.from("notifications").insert(rows);
-  if (insertError) {
-    return NextResponse.json({ success: false, error: "Failed to insert notifications" }, { status: 500 });
+  // Insert in batches of 500 to avoid request timeouts on large member lists
+  const BATCH = 500;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const { error: insertError } = await supabase
+      .from("notifications")
+      .insert(rows.slice(i, i + BATCH));
+    if (insertError) {
+      return NextResponse.json({ success: false, error: "Failed to insert notifications" }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ success: true, data: { count: members.length } });

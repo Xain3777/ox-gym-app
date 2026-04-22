@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { LanguageSwitch } from "@/components/ui/LanguageSwitch";
 import { LogoutButton } from "@/components/ui/LogoutConfirm";
-import { RoleToggle } from "@/components/client/RoleToggle";
 import { ToastProvider } from "@/components/ui/Toast";
 import {
   LayoutDashboard,
@@ -112,7 +111,6 @@ export default function ReceptionLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        <RoleToggle />
       </div>
     </ToastProvider>
   );

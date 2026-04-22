@@ -4,11 +4,30 @@ import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import type { ApiResponse } from "@/types";
 
+const MealItemSchema = z.object({
+  name:     z.string().min(1).max(100),
+  portion:  z.string().min(1).max(100),
+  calories: z.number().int().min(0).max(5_000),
+  protein:  z.number().min(0).max(500),
+  carbs:    z.number().min(0).max(500),
+  fat:      z.number().min(0).max(500),
+});
+
+const MealSlotSchema = z.object({
+  name:  z.string().min(1).max(100),
+  items: z.array(MealItemSchema).max(20),
+});
+
+const MealDaySchema = z.object({
+  day:   z.string().min(1).max(100),
+  meals: z.array(MealSlotSchema).max(10),
+});
+
 const MealPlanSchema = z.object({
   name:           z.string().min(1).max(100),
   goal:           z.string().min(1).max(200),
   calories_daily: z.number().int().min(500).max(10_000),
-  content:        z.array(z.record(z.unknown())).max(30),
+  content:        z.array(MealDaySchema).min(1).max(30),
 });
 
 // POST — manager + coach only

@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 import { daysUntil } from "@/lib/utils";
+import { logInfo, logError, logWarn } from "@/lib/log";
 import type { MemberWithSub } from "@/types";
 
 // ── CRON: Daily Subscription Reminders ────────────────────────
 // Runs at 08:00 UTC every day via Vercel Cron.
 // Protected by CRON_SECRET bearer token.
 
-const MAX_RETRIES   = 3;
-const RETRY_DELAY   = 1_500; // ms — doubles each attempt
+const MAX_RETRIES  = 3;
+const RETRY_DELAY  = 1_500; // ms — doubles each attempt
+const PAGE_SIZE    = 100;   // members per DB page
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -16,75 +18,91 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = createServiceClient();
-  const results  = { sent: 0, failed: 0, expired: 0, errors: [] as string[] };
+  const supabase  = createServiceClient();
+  const results   = { sent: 0, failed: 0, expired: 0, pages: 0, errors: [] as string[] };
+  const startedAt = Date.now();
 
   try {
-    const { data: members, error } = await supabase
-      .from("members")
-      .select("*, subscription:subscriptions(*)")
-      .neq("status", "expired");
+    let offset = 0;
 
-    if (error) throw error;
+    // Paginate through all non-expired members in batches of PAGE_SIZE
+    while (true) {
+      const { data: page, error } = await supabase
+        .from("members")
+        .select("*, subscription:subscriptions(*)")
+        .neq("status", "expired")
+        .range(offset, offset + PAGE_SIZE - 1);
 
-    const withSubs = (members ?? []).map((m: any) => ({
-      ...m,
-      subscription: Array.isArray(m.subscription) ? m.subscription[0] ?? null : m.subscription,
-    })) as MemberWithSub[];
+      if (error) throw error;
+      if (!page?.length) break;
 
-    for (const member of withSubs) {
-      if (!member.subscription?.end_date) continue;
+      results.pages++;
 
-      const days = daysUntil(member.subscription.end_date);
+      const withSubs = page.map((m: any) => ({
+        ...m,
+        subscription: Array.isArray(m.subscription) ? m.subscription[0] ?? null : m.subscription,
+      })) as MemberWithSub[];
 
-      // ── Auto-expire ──
-      if (days < 0) {
-        await supabase.from("members").update({ status: "expired" }).eq("id", member.id);
-        await supabase.from("subscriptions").update({ status: "expired" }).eq("id", member.subscription.id);
-        await logReminder(supabase, member.id, "expired", member.email, "sent");
-        results.expired++;
-        continue;
-      }
+      for (const member of withSubs) {
+        if (!member.subscription?.end_date) continue;
 
-      // ── 7-day reminder ──
-      if (days === 7) {
-        const ok = await sendWithRetry(member, "7-day");
-        await logReminder(supabase, member.id, "7-day", member.email, ok ? "sent" : "failed");
-        if (ok) {
-          results.sent++;
-        } else {
-          results.failed++;
-          results.errors.push(`7-day reminder failed for ${member.email}`);
-          await sendAdminAlert(member.email, "7-day");
+        const days = daysUntil(member.subscription.end_date);
+
+        // ── Auto-expire ──
+        if (days < 0) {
+          await supabase.from("members").update({ status: "expired" }).eq("id", member.id);
+          await supabase.from("subscriptions").update({ status: "expired" }).eq("id", member.subscription.id);
+          await logReminder(supabase, member.id, "expired", member.email, "sent");
+          results.expired++;
+          continue;
+        }
+
+        // ── 7-day reminder ──
+        if (days === 7) {
+          const ok = await sendWithRetry(member, "7-day");
+          await logReminder(supabase, member.id, "7-day", member.email, ok ? "sent" : "failed");
+          if (ok) {
+            results.sent++;
+          } else {
+            results.failed++;
+            results.errors.push(`7-day reminder failed for ${member.email}`);
+            await sendAdminAlert(member.email, "7-day");
+          }
+        }
+
+        // ── 3-day reminder ──
+        if (days === 3) {
+          const ok = await sendWithRetry(member, "3-day");
+          await logReminder(supabase, member.id, "3-day", member.email, ok ? "sent" : "failed");
+          if (ok) {
+            results.sent++;
+          } else {
+            results.failed++;
+            results.errors.push(`3-day reminder failed for ${member.email}`);
+            await sendAdminAlert(member.email, "3-day");
+          }
+        }
+
+        // ── Mark expiring ──
+        if (days >= 0 && days <= 7 && member.status !== "expiring") {
+          await supabase.from("members").update({ status: "expiring" }).eq("id", member.id);
         }
       }
 
-      // ── 3-day reminder ──
-      if (days === 3) {
-        const ok = await sendWithRetry(member, "3-day");
-        await logReminder(supabase, member.id, "3-day", member.email, ok ? "sent" : "failed");
-        if (ok) {
-          results.sent++;
-        } else {
-          results.failed++;
-          results.errors.push(`3-day reminder failed for ${member.email}`);
-          await sendAdminAlert(member.email, "3-day");
-        }
-      }
-
-      // ── Mark expiring ──
-      if (days >= 0 && days <= 7 && member.status !== "expiring") {
-        await supabase.from("members").update({ status: "expiring" }).eq("id", member.id);
-      }
+      offset += PAGE_SIZE;
     }
+
+    const duration = Date.now() - startedAt;
+    logInfo("cron", "Daily reminders complete", { results, durationMs: duration });
 
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
+      durationMs: duration,
       results,
     });
   } catch (err) {
-    console.error("Cron error:", err);
+    logError("cron", err, { durationMs: Date.now() - startedAt });
     return NextResponse.json({ success: false, error: String(err) }, { status: 500 });
   }
 }
@@ -98,9 +116,10 @@ async function sendWithRetry(
     const ok = await sendReminderEmail(member, type);
     if (ok) return true;
     if (attempt < MAX_RETRIES) {
-      await sleep(RETRY_DELAY * attempt); // 1.5s, 3s
+      await sleep(RETRY_DELAY * attempt); // 1.5s → 3s
     }
   }
+  logWarn("cron", `All retries exhausted for ${type} reminder`, { email: member.email });
   return false;
 }
 
@@ -123,8 +142,8 @@ async function sendAdminAlert(failedEmail: string, type: string) {
       html: `<p>Failed to send <strong>${type}</strong> subscription reminder to <strong>${failedEmail}</strong> after ${MAX_RETRIES} attempts.</p>
              <p>Please check Resend logs and manually follow up with the member.</p>`,
     });
-  } catch {
-    // Best-effort alert — do not throw
+  } catch (err) {
+    logError("cron.adminAlert", err);
   }
 }
 

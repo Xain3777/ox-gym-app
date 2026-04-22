@@ -1,7 +1,6 @@
 import { Sidebar, BottomNav } from "@/components/layout/Sidebar";
 import { ToastProvider } from "@/components/ui/Toast";
 import { LogoWatermark } from "@/components/ui/BullDecor";
-import { RoleToggle } from "@/components/client/RoleToggle";
 
 // This layout wraps all routes inside (admin)/
 // It renders the persistent sidebar on desktop
@@ -35,8 +34,6 @@ export default function AdminLayout({
       {/* ── MOBILE BOTTOM NAV ── shown only on mobile */}
       <BottomNav />
 
-      {/* Role toggle — temporary dev tool */}
-      <RoleToggle />
     </div>
     </ToastProvider>
   );

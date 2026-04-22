@@ -19,7 +19,6 @@ export function LogoutButton({ className, label = "تسجيل الخروج" }: L
     setLoading(true);
     const supabase = createBrowserSupabase();
     await supabase.auth.signOut();
-    document.cookie = "test-role=; path=/; max-age=0";
     router.push("/login");
   }
 

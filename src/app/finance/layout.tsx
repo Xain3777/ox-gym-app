@@ -1,7 +1,5 @@
 import { Sidebar, BottomNav } from "@/components/layout/Sidebar";
 import { ToastProvider } from "@/components/ui/Toast";
-import { RoleToggle } from "@/components/client/RoleToggle";
-
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {
   return (
     <ToastProvider>
@@ -15,7 +13,6 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
           </div>
         </main>
         <BottomNav />
-        <RoleToggle />
       </div>
     </ToastProvider>
   );

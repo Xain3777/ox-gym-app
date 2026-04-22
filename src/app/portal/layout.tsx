@@ -1,5 +1,4 @@
 import { PortalSidebar, PortalBottomNav } from "@/components/client/PortalNav";
-import { RoleToggle } from "@/components/client/RoleToggle";
 import { ToastProvider } from "@/components/ui/Toast";
 import { SubscriptionBlocker } from "@/components/portal/SubscriptionBlocker";
 
@@ -27,9 +26,6 @@ export default function PortalLayout({
 
           {/* Mobile bottom nav — 4 tabs */}
           <PortalBottomNav />
-
-          {/* Role toggle — temporary dev tool */}
-          <RoleToggle />
         </div>
       </SubscriptionBlocker>
     </ToastProvider>

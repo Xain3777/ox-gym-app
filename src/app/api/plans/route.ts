@@ -4,12 +4,27 @@ import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import type { ApiResponse } from "@/types";
 
+const ExerciseSchema = z.object({
+  name:  z.string().min(1).max(100),
+  sets:  z.number().int().min(1).max(20),
+  reps:  z.string().min(1).max(50),   // "8-12" | "AMRAP" | "30s"
+  notes: z.string().max(300).optional(),
+});
+
+const WorkoutDaySchema = z.object({
+  day:              z.string().min(1).max(100),
+  exercises:        z.array(ExerciseSchema).max(30),
+  workoutDuration:  z.number().int().min(0).max(300).optional(),
+  cardioDuration:   z.number().int().min(0).max(120).optional(),
+});
+
 const PlanSchema = z.object({
   name:           z.string().min(1).max(100),
   category:       z.string().min(1).max(100),
   level:          z.enum(["beginner", "intermediate", "advanced"]),
   duration_weeks: z.number().int().min(1).max(52),
-  content:        z.array(z.record(z.unknown())).max(30),
+  split_type:     z.string().max(20).optional(),
+  content:        z.array(WorkoutDaySchema).min(1).max(30),
 });
 
 // POST — manager + coach only

@@ -86,15 +86,15 @@ export async function PATCH(request: Request) {
   const { password, access_token } = result.data;
   const supabase = createServiceClient();
 
-  // Verify the token and update the password
-  const { error } = await supabase.auth.admin.updateUserById(
-    // Decode user ID from the access token
-    JSON.parse(Buffer.from(access_token.split(".")[1], "base64").toString()).sub,
-    { password },
-  );
-
-  if (error) {
+  // Verify token signature + expiry via Supabase — never decode manually
+  const { data: { user }, error: tokenError } = await supabase.auth.getUser(access_token);
+  if (tokenError || !user) {
     return NextResponse.json({ success: false, error: "Invalid or expired reset link" }, { status: 400 });
+  }
+
+  const { error } = await supabase.auth.admin.updateUserById(user.id, { password });
+  if (error) {
+    return NextResponse.json({ success: false, error: "Failed to update password" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

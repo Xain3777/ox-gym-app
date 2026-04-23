@@ -4,16 +4,15 @@ import { useState } from "react";
 import Link from "next/link";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
-import { useTranslation } from "@/lib/i18n";
+import { phoneToEmail } from "@/lib/phone";
 
 export default function SignupPage() {
-  const { t } = useTranslation();
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
+  const [username,     setUsername]     = useState("");
+  const [phone,        setPhone]        = useState("");
+  const [password,     setPassword]     = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [error,        setError]        = useState("");
+  const [loading,      setLoading]      = useState(false);
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -23,7 +22,7 @@ export default function SignupPage() {
     const res = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password, full_name: fullName, phone }),
+      body: JSON.stringify({ username, phone, password }),
     });
 
     const result = await res.json();
@@ -34,13 +33,9 @@ export default function SignupPage() {
       return;
     }
 
-    // Derive internal email from phone (same formula as server)
-    const digits = phone.replace(/\D/g, "");
-    const generatedEmail = `${digits}@member.oxgym.app`;
-
     const supabase = createBrowserSupabase();
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: generatedEmail,
+      email: phoneToEmail(phone),
       password,
     });
 
@@ -56,10 +51,10 @@ export default function SignupPage() {
   return (
     <div className="p-6">
       <h2 className="font-display text-[28px] tracking-[0.04em] text-white leading-none mb-1">
-        {t("auth.signUp")}
+        إنشاء حساب
       </h2>
       <p className="text-[13px] text-muted mb-6">
-        {t("auth.signUpDesc")}
+        انضم إلى OX GYM وابدأ رحلتك الرياضية.
       </p>
 
       <form onSubmit={handleSignup} className="space-y-4">
@@ -69,37 +64,46 @@ export default function SignupPage() {
           </div>
         )}
 
+        {/* Username */}
         <div>
           <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-1.5">
-            {t("auth.fullName")}
+            اسم المستخدم
           </label>
           <input
             type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             required
+            autoComplete="username"
             className="w-full h-11 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
-            placeholder="Ahmed Khalil"
+            placeholder="ahmed_khalil"
+            dir="ltr"
           />
+          <p className="text-white/30 text-[11px] mt-1">حروف وأرقام وشرطة سفلية فقط</p>
         </div>
 
+        {/* Phone */}
         <div>
           <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-1.5">
-            {t("common.phone")}
+            رقم الهاتف
           </label>
           <input
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             required
+            autoComplete="tel"
             className="w-full h-11 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
-            placeholder="+964 7XX XXX XXXX"
+            placeholder="0912345678"
+            dir="ltr"
           />
+          <p className="text-white/30 text-[11px] mt-1">مثال: 0912345678 أو +963912345678</p>
         </div>
 
+        {/* Password */}
         <div>
           <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-1.5">
-            {t("auth.password")}
+            كلمة المرور
           </label>
           <div className="relative">
             <input
@@ -107,9 +111,11 @@ export default function SignupPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={8}
+              autoComplete="new-password"
               className="w-full h-11 px-4 pr-12 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
-              placeholder="••••••"
+              placeholder="••••••••"
+              dir="ltr"
             />
             <button
               type="button"
@@ -119,17 +125,18 @@ export default function SignupPage() {
               {showPassword ? "◉" : "◎"}
             </button>
           </div>
+          <p className="text-white/30 text-[11px] mt-1">8 أحرف على الأقل، حرف كبير ورقم</p>
         </div>
 
         <Button type="submit" fullWidth loading={loading}>
-          {t("auth.signUp")}
+          إنشاء حساب
         </Button>
       </form>
 
       <p className="text-[13px] text-muted mt-6 text-center">
-        {t("auth.hasAccount")}{" "}
+        لديك حساب بالفعل؟{" "}
         <Link href="/login" className="text-gold hover:text-gold-high transition-colors">
-          {t("auth.signInLink")}
+          تسجيل الدخول
         </Link>
       </p>
     </div>

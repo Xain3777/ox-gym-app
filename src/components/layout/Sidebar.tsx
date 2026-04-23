@@ -16,6 +16,7 @@ import {
   Package,
   Activity,
   DollarSign,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
@@ -48,6 +49,7 @@ const navSections = [
     items: [
       { label: "الإشعارات",       href: "/notifications",  icon: MessageSquare },
       { label: "التذكيرات",       href: "/reminders",      icon: Bell },
+      { label: "إدارة الأدوار",   href: "/roles",          icon: ShieldCheck },
       { label: "الإعدادات",       href: "/settings",       icon: Settings },
     ],
   },

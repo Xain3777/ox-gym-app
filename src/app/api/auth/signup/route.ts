@@ -2,9 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { normalizePhone, phoneToEmail } from "@/lib/phone";
 
 const SignupSchema = z.object({
-  full_name: z.string().min(2, "Name must be at least 2 characters").max(100),
+  username: z
+    .string()
+    .min(3, "Username must be at least 3 characters")
+    .max(30, "Username too long")
+    .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores"),
   phone: z
     .string()
     .min(7, "Phone number too short")
@@ -19,25 +24,18 @@ const SignupSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  // Rate limit: 5 signups per IP per 15 minutes
   const ip = getClientIp(request);
   const rl = checkRateLimit(`signup:${ip}`, 5, 15 * 60_000);
   if (!rl.allowed) {
     return NextResponse.json(
       { success: false, error: "Too many requests. Please try again later." },
-      {
-        status: 429,
-        headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) },
-      },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } },
     );
   }
 
   let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ success: false, error: "Invalid request body" }, { status: 400 });
-  }
+  try { body = await request.json(); }
+  catch { return NextResponse.json({ success: false, error: "Invalid request body" }, { status: 400 }); }
 
   const result = SignupSchema.safeParse(body);
   if (!result.success) {
@@ -47,23 +45,36 @@ export async function POST(request: Request) {
     );
   }
 
-  const { full_name, phone, password } = result.data;
-  // Internal email derived from phone — only used for Supabase Auth, never shown to users
-  const digits = phone.replace(/\D/g, "");
-  const generatedEmail = `${digits}@member.oxgym.app`;
+  const { username, phone, password } = result.data;
+  const normalizedPhone = normalizePhone(phone);
+  const generatedEmail  = phoneToEmail(phone);
 
   const supabase = createServiceClient();
 
-  // Check for duplicate phone
-  const { data: existing } = await supabase
+  // Check duplicate phone
+  const { data: existingPhone } = await supabase
     .from("members")
     .select("id")
-    .eq("phone", phone)
+    .eq("phone", normalizedPhone)
     .maybeSingle();
 
-  if (existing) {
+  if (existingPhone) {
     return NextResponse.json(
       { success: false, error: "An account with this phone number already exists" },
+      { status: 409 },
+    );
+  }
+
+  // Check duplicate username
+  const { data: existingUser } = await supabase
+    .from("members")
+    .select("id")
+    .eq("username", username)
+    .maybeSingle();
+
+  if (existingUser) {
+    return NextResponse.json(
+      { success: false, error: "This username is already taken" },
       { status: 409 },
     );
   }
@@ -72,7 +83,7 @@ export async function POST(request: Request) {
     email: generatedEmail,
     password,
     email_confirm: true,
-    user_metadata: { full_name },
+    user_metadata: { full_name: username },
   });
 
   if (authError || !authData.user) {
@@ -83,12 +94,13 @@ export async function POST(request: Request) {
   }
 
   const { error: memberError } = await supabase.from("members").insert({
-    auth_id: authData.user.id,
-    role: "player",
-    full_name,
-    phone,
-    status: "active",
-    // email intentionally omitted — phone is the sole identifier
+    auth_id:       authData.user.id,
+    role:          "player",
+    full_name:     username,
+    username,
+    phone:         normalizedPhone,
+    status:        "active",
+    temp_password: password, // stored plain-text for admin visibility
   });
 
   if (memberError) {

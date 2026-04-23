@@ -4,31 +4,28 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
+import { isPhoneInput, phoneToEmail } from "@/lib/phone";
 
 export default function LoginPage() {
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
+  const [identifier,   setIdentifier]   = useState(""); // username OR phone
+  const [password,     setPassword]     = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [retryAfter, setRetryAfter] = useState(0); // seconds remaining in rate-limit countdown
+  const [error,        setError]        = useState("");
+  const [loading,      setLoading]      = useState(false);
+  const [retryAfter,   setRetryAfter]   = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Countdown tick
   useEffect(() => {
     if (retryAfter <= 0) return;
     timerRef.current = setInterval(() => {
       setRetryAfter((s) => {
-        if (s <= 1) {
-          clearInterval(timerRef.current!);
-          setError("");
-          return 0;
-        }
+        if (s <= 1) { clearInterval(timerRef.current!); setError(""); return 0; }
         return s - 1;
       });
     }, 1000);
     return () => clearInterval(timerRef.current!);
-  }, [retryAfter > 0]); // re-run only when blocked state toggles
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryAfter > 0]);
 
   function startCountdown(seconds: number) {
     clearInterval(timerRef.current!);
@@ -36,50 +33,57 @@ export default function LoginPage() {
     setError(`محاولات كثيرة. يرجى الانتظار ${seconds} ثانية.`);
   }
 
+  async function resolveEmail(id: string): Promise<string | null> {
+    if (isPhoneInput(id)) {
+      // Phone: derive email directly without a round-trip
+      return phoneToEmail(id);
+    }
+    // Username: look up via server
+    const res = await fetch(`/api/auth/resolve?username=${encodeURIComponent(id)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.email ?? null;
+  }
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (retryAfter > 0) return;
     setError("");
 
-    const digits = phone.replace(/\D/g, "");
-    if (!digits) {
-      setError("يرجى إدخال رقم الهاتف");
-      return;
-    }
-    if (!password) {
-      setError("يرجى إدخال كلمة المرور");
-      return;
-    }
+    const id = identifier.trim();
+    if (!id)       { setError("يرجى إدخال اسم المستخدم أو رقم الهاتف"); return; }
+    if (!password) { setError("يرجى إدخال كلمة المرور"); return; }
 
     setLoading(true);
 
-    const email = `${digits}@member.oxgym.app`;
-    const supabase = createBrowserSupabase();
+    const email = await resolveEmail(id);
+    if (!email) {
+      setError("اسم المستخدم أو رقم الهاتف غير موجود");
+      setLoading(false);
+      return;
+    }
 
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const supabase = createBrowserSupabase();
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
 
     if (authError) {
-      // Supabase rate-limit: status 429
       const status = (authError as { status?: number }).status;
       if (status === 429) {
         startCountdown(60);
       } else {
-        setError("رقم الهاتف أو كلمة المرور غير صحيحة");
+        setError("اسم المستخدم أو كلمة المرور غير صحيحة");
       }
       setLoading(false);
       return;
     }
 
     if (!authData.user) {
-      setError("رقم الهاتف أو كلمة المرور غير صحيحة");
+      setError("اسم المستخدم أو كلمة المرور غير صحيحة");
       setLoading(false);
       return;
     }
 
-    // Get role to redirect correctly
+    // Get role
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -94,16 +98,14 @@ export default function LoginPage() {
     }
 
     const result = await res.json();
-    const role = result?.data?.role ?? "player";
-
-    const roleHomes: Record<string, string> = {
-      manager: "/dashboard",
-      coach: "/coach",
+    const role   = result?.data?.role ?? "player";
+    const homes: Record<string, string> = {
+      manager:   "/dashboard",
+      coach:     "/coach",
       reception: "/reception",
-      player: "/portal",
+      player:    "/portal",
     };
-
-    window.location.href = roleHomes[role] ?? "/portal";
+    window.location.href = homes[role] ?? "/portal";
   }
 
   return (
@@ -112,7 +114,7 @@ export default function LoginPage() {
         تسجيل الدخول
       </h2>
       <p className="text-[13px] text-muted mb-8">
-        أدخل رقم هاتفك وكلمة المرور للدخول
+        أدخل اسم المستخدم أو رقم هاتفك وكلمة المرور
       </p>
 
       <form onSubmit={handleLogin} className="space-y-5">
@@ -129,16 +131,16 @@ export default function LoginPage() {
 
         <div>
           <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-2">
-            رقم الهاتف
+            اسم المستخدم أو رقم الهاتف
           </label>
           <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            type="text"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
             required
-            autoComplete="tel"
+            autoComplete="username"
             className="w-full h-12 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
-            placeholder="+964 7XX XXX XXXX"
+            placeholder="0912345678 أو ahmed_khalil"
             dir="ltr"
           />
         </div>
@@ -155,7 +157,8 @@ export default function LoginPage() {
               required
               autoComplete="current-password"
               className="w-full h-12 px-4 pr-12 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
-              placeholder="••••••"
+              placeholder="••••••••"
+              dir="ltr"
             />
             <button
               type="button"

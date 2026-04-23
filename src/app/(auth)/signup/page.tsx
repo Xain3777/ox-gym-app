@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/Button";
 import { phoneToEmail } from "@/lib/phone";
 
 export default function SignupPage() {
-  const [username,     setUsername]     = useState("");
+  const [firstName,    setFirstName]    = useState("");
+  const [lastName,     setLastName]     = useState("");
   const [phone,        setPhone]        = useState("");
   const [password,     setPassword]     = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -22,7 +23,7 @@ export default function SignupPage() {
     const res = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, phone, password }),
+      body: JSON.stringify({ first_name: firstName, last_name: lastName, phone, password }),
     });
 
     const result = await res.json();
@@ -64,22 +65,36 @@ export default function SignupPage() {
           </div>
         )}
 
-        {/* Username */}
-        <div>
-          <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-1.5">
-            اسم المستخدم
-          </label>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            autoComplete="username"
-            className="w-full h-11 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
-            placeholder="ahmed_khalil"
-            dir="ltr"
-          />
-          <p className="text-white/30 text-[11px] mt-1">حروف وأرقام وشرطة سفلية فقط</p>
+        {/* First + Last Name */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-1.5">
+              الاسم الأول
+            </label>
+            <input
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              required
+              autoComplete="given-name"
+              className="w-full h-11 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
+              placeholder="أحمد"
+            />
+          </div>
+          <div>
+            <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-1.5">
+              الكنية
+            </label>
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              required
+              autoComplete="family-name"
+              className="w-full h-11 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
+              placeholder="خليل"
+            />
+          </div>
         </div>
 
         {/* Phone */}
@@ -97,7 +112,6 @@ export default function SignupPage() {
             placeholder="0912345678"
             dir="ltr"
           />
-          <p className="text-white/30 text-[11px] mt-1">مثال: 0912345678 أو +963912345678</p>
         </div>
 
         {/* Password */}

@@ -5,11 +5,8 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { normalizePhone, phoneToEmail } from "@/lib/phone";
 
 const SignupSchema = z.object({
-  username: z
-    .string()
-    .min(3, "Username must be at least 3 characters")
-    .max(30, "Username too long")
-    .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores"),
+  first_name: z.string().min(1, "First name is required").max(40),
+  last_name:  z.string().min(1, "Last name is required").max(40),
   phone: z
     .string()
     .min(7, "Phone number too short")
@@ -45,13 +42,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const { username, phone, password } = result.data;
+  const { first_name, last_name, phone, password } = result.data;
+  const fullName        = `${first_name.trim()} ${last_name.trim()}`.trim();
+  const username        = fullName; // username = "First Last" (spaces allowed)
   const normalizedPhone = normalizePhone(phone);
   const generatedEmail  = phoneToEmail(phone);
 
   const supabase = createServiceClient();
 
-  // Check duplicate phone
+  // Check duplicate phone (normalized)
   const { data: existingPhone } = await supabase
     .from("members")
     .select("id")
@@ -60,56 +59,108 @@ export async function POST(request: Request) {
 
   if (existingPhone) {
     return NextResponse.json(
-      { success: false, error: "An account with this phone number already exists" },
+      { success: false, error: "هذا الرقم مسجّل مسبقاً" },
       { status: 409 },
     );
   }
 
-  // Check duplicate username
+  // Check duplicate username (case-insensitive)
   const { data: existingUser } = await supabase
     .from("members")
     .select("id")
-    .eq("username", username)
+    .ilike("username", username)
     .maybeSingle();
 
   if (existingUser) {
     return NextResponse.json(
-      { success: false, error: "This username is already taken" },
+      { success: false, error: "هذا الاسم مستخدم من قبل. استخدم اسماً مختلفاً." },
       { status: 409 },
     );
   }
 
+  // Create auth user. If there is an orphaned auth user from a prior failed attempt
+  // (same phone), remove it first so the new signup can proceed cleanly.
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email: generatedEmail,
     password,
     email_confirm: true,
-    user_metadata: { full_name: username },
+    user_metadata: { full_name: fullName },
   });
 
   if (authError || !authData.user) {
+    const msg = (authError?.message ?? "").toLowerCase();
+    const isDup = msg.includes("already") || msg.includes("registered") || msg.includes("exists");
+
+    if (isDup) {
+      // Clean up orphaned auth user (auth exists but no members row)
+      try {
+        const { data: listData } = await supabase.auth.admin.listUsers();
+        const orphan = listData?.users?.find((u) => u.email === generatedEmail);
+        if (orphan) {
+          const { data: hasMember } = await supabase
+            .from("members")
+            .select("id")
+            .eq("auth_id", orphan.id)
+            .maybeSingle();
+
+          if (!hasMember) {
+            await supabase.auth.admin.deleteUser(orphan.id);
+            // Retry signup after cleanup
+            const retry = await supabase.auth.admin.createUser({
+              email: generatedEmail,
+              password,
+              email_confirm: true,
+              user_metadata: { full_name: fullName },
+            });
+            if (retry.data?.user) {
+              return await finalizeSignup(retry.data.user.id, fullName, username, normalizedPhone, password);
+            }
+          }
+        }
+      } catch {
+        // fall through to phone-exists error
+      }
+      return NextResponse.json(
+        { success: false, error: "هذا الرقم مسجّل مسبقاً" },
+        { status: 409 },
+      );
+    }
+
     return NextResponse.json(
-      { success: false, error: authError?.message ?? "Failed to create account" },
+      { success: false, error: "تعذّر إنشاء الحساب. حاول مرة أخرى." },
       { status: 400 },
     );
   }
 
+  return await finalizeSignup(authData.user.id, fullName, username, normalizedPhone, password);
+}
+
+async function finalizeSignup(
+  authId: string,
+  fullName: string,
+  username: string,
+  phone: string,
+  password: string,
+) {
+  const supabase = createServiceClient();
+
   const { error: memberError } = await supabase.from("members").insert({
-    auth_id:       authData.user.id,
+    auth_id:       authId,
     role:          "player",
-    full_name:     username,
+    full_name:     fullName,
     username,
-    phone:         normalizedPhone,
+    phone,
     status:        "active",
-    temp_password: password, // stored plain-text for admin visibility
+    temp_password: password,
   });
 
   if (memberError) {
-    await supabase.auth.admin.deleteUser(authData.user.id);
+    await supabase.auth.admin.deleteUser(authId);
     return NextResponse.json(
-      { success: false, error: "Failed to create member profile" },
+      { success: false, error: "تعذّر إنشاء الملف الشخصي" },
       { status: 500 },
     );
   }
 
-  return NextResponse.json({ success: true, data: { user_id: authData.user.id, generated_email: generatedEmail } });
+  return NextResponse.json({ success: true, data: { user_id: authId } });
 }

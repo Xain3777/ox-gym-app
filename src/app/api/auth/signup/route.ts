@@ -48,8 +48,9 @@ export async function POST(request: Request) {
   }
 
   const { full_name, phone, password } = result.data;
+  // Internal email derived from phone — only used for Supabase Auth, never shown to users
   const digits = phone.replace(/\D/g, "");
-  const email = `${digits}@member.oxgym.app`;
+  const generatedEmail = `${digits}@member.oxgym.app`;
 
   const supabase = createServiceClient();
 
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
   }
 
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email,
+    email: generatedEmail,
     password,
     email_confirm: true,
     user_metadata: { full_name },
@@ -85,9 +86,9 @@ export async function POST(request: Request) {
     auth_id: authData.user.id,
     role: "player",
     full_name,
-    email,
     phone,
     status: "active",
+    // email intentionally omitted — phone is the sole identifier
   });
 
   if (memberError) {
@@ -98,5 +99,5 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ success: true, data: { user_id: authData.user.id } });
+  return NextResponse.json({ success: true, data: { user_id: authData.user.id, generated_email: generatedEmail } });
 }

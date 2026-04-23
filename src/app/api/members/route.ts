@@ -4,12 +4,11 @@ import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import type { ApiResponse } from "@/types";
 
-const MIN_PRICE = 1; // SAR — prevent $0 abuse
+const MIN_PRICE = 1;
 
 const AddMemberSchema = z.object({
   full_name:  z.string().min(2, "Name must be at least 2 characters").max(100),
-  email:      z.string().email("Invalid email address").max(254),
-  phone:      z.string().max(20).optional(),
+  phone:      z.string().min(7, "Phone number too short").max(20).regex(/^\+?[\d\s\-()]+$/, "Invalid phone number"),
   goals:      z.string().max(500).optional(),
   plan_type:  z.enum(["monthly", "quarterly", "annual"]),
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format"),
@@ -37,25 +36,26 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { full_name, email, phone, goals, plan_type, start_date, end_date, price } = result.data;
+  const { full_name, phone, goals, plan_type, start_date, end_date, price } = result.data;
   const supabase = createServiceClient();
 
+  // Deduplicate by phone
   const { data: existing } = await supabase
     .from("members")
     .select("id")
-    .eq("email", email)
+    .eq("phone", phone)
     .maybeSingle();
 
   if (existing) {
     return NextResponse.json<ApiResponse>(
-      { success: false, error: "A member with this email already exists" },
+      { success: false, error: "A member with this phone number already exists" },
       { status: 409 },
     );
   }
 
   const { data: member, error: memberError } = await supabase
     .from("members")
-    .insert({ full_name, email, phone: phone ?? null, goals: goals ?? null, status: "active" })
+    .insert({ full_name, phone, goals: goals ?? null, status: "active" })
     .select()
     .single();
 
@@ -77,13 +77,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json<ApiResponse>({ success: false, error: "Failed to create subscription" }, { status: 500 });
   }
 
-  // Audit log
   await supabase.from("audit_logs").insert({
-    actor_id:   ctx.memberId,
-    action:     "member.create",
-    target_id:  member.id,
+    actor_id:    ctx.memberId,
+    action:      "member.create",
+    target_id:   member.id,
     target_type: "member",
-    meta: { full_name, email, plan_type },
+    meta: { full_name, phone, plan_type },
   }).then(() => {});
 
   return NextResponse.json<ApiResponse<{ id: string }>>(

@@ -23,11 +23,7 @@ export default function SignupPage() {
     const res = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        password,
-        full_name: fullName,
-        phone: phone || null,
-      }),
+      body: JSON.stringify({ password, full_name: fullName, phone }),
     });
 
     const result = await res.json();
@@ -38,9 +34,13 @@ export default function SignupPage() {
       return;
     }
 
+    // Derive internal email from phone (same formula as server)
+    const digits = phone.replace(/\D/g, "");
+    const generatedEmail = `${digits}@member.oxgym.app`;
+
     const supabase = createBrowserSupabase();
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: result.data.generated_email,
+      email: generatedEmail,
       password,
     });
 
@@ -51,7 +51,6 @@ export default function SignupPage() {
     }
 
     window.location.href = "/onboarding";
-    return;
   }
 
   return (
@@ -86,7 +85,7 @@ export default function SignupPage() {
 
         <div>
           <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-1.5">
-            {t("auth.phone")}
+            {t("common.phone")}
           </label>
           <input
             type="tel"

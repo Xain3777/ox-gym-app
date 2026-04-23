@@ -8,7 +8,7 @@ const ROLE_HOME: Record<string, string> = {
   player:    "/portal",
 };
 
-const PUBLIC_ROUTES  = ["/login", "/staff-login", "/signup", "/onboarding", "/api/auth", "/forgot-password", "/reset-password"];
+const PUBLIC_ROUTES  = ["/login", "/staff-login", "/signup", "/api/auth", "/forgot-password", "/reset-password"];
 const SKIP_PREFIXES  = ["/_next", "/favicon.ico", "/ox-logo.png", "/manifest.json", "/api/"];
 const IS_PROD        = process.env.NODE_ENV === "production";
 

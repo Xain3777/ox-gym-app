@@ -21,7 +21,7 @@ export function SendNotificationForm({ onSent }: Props) {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [memberId, setMemberId] = useState("");
-  const [members, setMembers] = useState<Pick<Member, "id" | "full_name" | "email">[]>([]);
+  const [members, setMembers] = useState<Pick<Member, "id" | "full_name" | "phone">[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -31,7 +31,7 @@ export function SendNotificationForm({ onSent }: Props) {
     const supabase = createBrowserSupabase();
     supabase
       .from("members")
-      .select("id, full_name, email")
+      .select("id, full_name, phone")
       .order("full_name")
       .then(({ data }) => {
         if (data) setMembers(data);
@@ -129,7 +129,7 @@ export function SendNotificationForm({ onSent }: Props) {
             <option value="">--</option>
             {members.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.full_name} ({m.email})
+                {m.full_name} ({m.phone})
               </option>
             ))}
           </select>

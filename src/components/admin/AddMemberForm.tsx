@@ -9,7 +9,7 @@ import { StripeDivider } from "@/components/layout/TopBar";
 
 interface FormState {
   full_name:  string;
-  email:      string;
+  username:   string;
   phone:      string;
   goals:      string;
   plan_type:  "monthly" | "quarterly" | "annual";
@@ -20,7 +20,7 @@ interface FormState {
 
 interface FormErrors {
   full_name?:  string;
-  email?:      string;
+  username?:   string;
   start_date?: string;
   end_date?:   string;
 }
@@ -53,7 +53,7 @@ export function AddMemberForm({ onSuccess }: { onSuccess?: () => void }) {
 
   const [form, setForm] = useState<FormState>({
     full_name:  "",
-    email:      "",
+    username:   "",
     phone:      "",
     goals:      "",
     plan_type:  "monthly",
@@ -95,9 +95,7 @@ export function AddMemberForm({ onSuccess }: { onSuccess?: () => void }) {
   function validate(): boolean {
     const e: FormErrors = {};
     if (!form.full_name.trim())   e.full_name  = "Full name is required";
-    if (!form.email.trim())       e.email      = "Email is required";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
-                                  e.email      = "Invalid email address";
+    if (!form.username.trim())    e.username   = "Username is required";
     if (!form.start_date)         e.start_date = "Start date is required";
     if (!form.end_date)           e.end_date   = "End date is required";
     setErrors(e);
@@ -156,13 +154,12 @@ export function AddMemberForm({ onSuccess }: { onSuccess?: () => void }) {
             error={errors.full_name}
           />
           <Input
-            label="Email Address"
+            label="Username"
             required
-            type="email"
-            placeholder="ahmed@example.com"
-            value={form.email}
-            onChange={(e) => handleChange("email", e.target.value)}
-            error={errors.email}
+            placeholder="ahmed khalil"
+            value={form.username}
+            onChange={(e) => handleChange("username", e.target.value)}
+            error={errors.username}
           />
         </div>
         <div className="mt-4">

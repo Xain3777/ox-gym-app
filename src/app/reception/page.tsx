@@ -17,7 +17,7 @@ export default function ReceptionDashboard() {
   const [stats, setStats] = useState<Stats>({ todayCheckIns: 0, activeSubscriptions: 0, expiringSoon: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [searchResults, setSearchResults] = useState<Array<{ id: string; full_name: string; email: string; status: string }>>([]);
+  const [searchResults, setSearchResults] = useState<Array<{ id: string; full_name: string; phone: string | null; status: string }>>([]);
 
   useEffect(() => {
     async function load() {
@@ -57,10 +57,10 @@ export default function ReceptionDashboard() {
       const supabase = createBrowserSupabase();
       const { data } = await supabase
         .from("members")
-        .select("id, full_name, email, status")
-        .or(`full_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`)
+        .select("id, full_name, phone, status")
+        .or(`full_name.ilike.%${search}%,username.ilike.%${search}%,phone.ilike.%${search}%`)
         .limit(5);
-      setSearchResults((data ?? []) as Array<{ id: string; full_name: string; email: string; status: string }>);
+      setSearchResults((data ?? []) as Array<{ id: string; full_name: string; phone: string | null; status: string }>);
     }, 300);
     return () => clearTimeout(timeout);
   }, [search]);
@@ -102,7 +102,7 @@ export default function ReceptionDashboard() {
                 </div>
                 <div>
                   <p className="text-white text-[13px] font-medium">{m.full_name}</p>
-                  <p className="text-white/40 text-[11px]">{m.email}</p>
+                  <p className="text-white/40 text-[11px]">{m.phone}</p>
                 </div>
               </Link>
             ))}

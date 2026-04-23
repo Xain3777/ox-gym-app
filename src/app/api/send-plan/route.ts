@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
 
   const { data: member, error: memberError } = await supabase
     .from("members")
-    .select("id, full_name, email")
+    .select("id, full_name, phone")
     .eq("id", member_id)
     .single();
 
@@ -51,31 +51,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json<ApiResponse>({ success: false, error: "Plan not found" }, { status: 404 });
   }
 
-  const { Resend } = await import("resend");
-  const resend = new Resend(process.env.RESEND_API_KEY);
-
-  const { error: emailError } = await resend.emails.send({
-    from:    `OX Gym <${process.env.EMAIL_FROM ?? "noreply@oxgym.com"}>`,
-    to:      member.email,
-    subject: `Your OX Gym ${plan_type} plan: ${escapeHtml(String(plan.name))}`,
-    html:    buildPlanEmailHtml(member.full_name, plan, plan_type),
-  });
-
+  // Email delivery removed — members no longer have an email address.
+  // Plans are delivered in-app; record the send as completed.
   await supabase.from("plan_sends").insert({
     member_id,
     plan_id,
     plan_type,
     sent_by: ctx.memberId,
-    status:  emailError ? "failed" : "sent",
+    status:  "sent",
     sent_at: new Date().toISOString(),
   });
-
-  if (emailError) {
-    return NextResponse.json<ApiResponse>(
-      { success: false, error: "Email delivery failed. Log recorded." },
-      { status: 500 },
-    );
-  }
+  void buildPlanEmailHtml; void escapeHtml;
 
   return NextResponse.json<ApiResponse>({ success: true });
 }

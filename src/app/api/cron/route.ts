@@ -52,7 +52,7 @@ export async function GET(request: Request) {
         if (days < 0) {
           await supabase.from("members").update({ status: "expired" }).eq("id", member.id);
           await supabase.from("subscriptions").update({ status: "expired" }).eq("id", member.subscription.id);
-          await logReminder(supabase, member.id, "expired", member.email, "sent");
+          await logReminder(supabase, member.id, "expired", (member.phone ?? ""), "sent");
           results.expired++;
           continue;
         }
@@ -60,26 +60,26 @@ export async function GET(request: Request) {
         // ── 7-day reminder ──
         if (days === 7) {
           const ok = await sendWithRetry(member, "7-day");
-          await logReminder(supabase, member.id, "7-day", member.email, ok ? "sent" : "failed");
+          await logReminder(supabase, member.id, "7-day", (member.phone ?? ""), ok ? "sent" : "failed");
           if (ok) {
             results.sent++;
           } else {
             results.failed++;
-            results.errors.push(`7-day reminder failed for ${member.email}`);
-            await sendAdminAlert(member.email, "7-day");
+            results.errors.push(`7-day reminder failed for ${(member.phone ?? "")}`);
+            await sendAdminAlert((member.phone ?? ""), "7-day");
           }
         }
 
         // ── 3-day reminder ──
         if (days === 3) {
           const ok = await sendWithRetry(member, "3-day");
-          await logReminder(supabase, member.id, "3-day", member.email, ok ? "sent" : "failed");
+          await logReminder(supabase, member.id, "3-day", (member.phone ?? ""), ok ? "sent" : "failed");
           if (ok) {
             results.sent++;
           } else {
             results.failed++;
-            results.errors.push(`3-day reminder failed for ${member.email}`);
-            await sendAdminAlert(member.email, "3-day");
+            results.errors.push(`3-day reminder failed for ${(member.phone ?? "")}`);
+            await sendAdminAlert((member.phone ?? ""), "3-day");
           }
         }
 
@@ -119,7 +119,7 @@ async function sendWithRetry(
       await sleep(RETRY_DELAY * attempt); // 1.5s → 3s
     }
   }
-  logWarn("cron", `All retries exhausted for ${type} reminder`, { email: member.email });
+  logWarn("cron", `All retries exhausted for ${type} reminder`, { member_id: member.id });
   return false;
 }
 
@@ -185,7 +185,7 @@ async function sendReminderEmail(
 
     const { error } = await resend.emails.send({
       from:    `OX Gym <${process.env.EMAIL_FROM ?? "noreply@oxgym.com"}>`,
-      to:      member.email,
+      to:      (member.phone ?? ""),
       subject: `Your OX Gym membership expires in ${days} days`,
       html: `
         <div style="background:#0A0A0A;color:#F0EDE6;font-family:sans-serif;padding:40px;max-width:600px;margin:0 auto;">

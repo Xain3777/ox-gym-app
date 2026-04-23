@@ -14,7 +14,7 @@ interface SubWithMember {
   end_date: string;
   status: string;
   price: number | null;
-  member: { full_name: string; email: string } | null;
+  member: { full_name: string; phone: string | null } | null;
 }
 
 export default function ReceptionSubscriptionsPage() {
@@ -29,7 +29,7 @@ export default function ReceptionSubscriptionsPage() {
         const supabase = createBrowserSupabase();
         const { data } = await supabase
           .from("subscriptions")
-          .select("*, member:members(full_name, email)")
+          .select("*, member:members(full_name, phone)")
           .order("end_date", { ascending: true });
 
         if (data) setSubs(data as SubWithMember[]);

@@ -25,7 +25,7 @@ export interface Member {
   auth_id:    string | null;
   role:       UserRole;
   full_name:  string;
-  email:      string;
+  username:   string | null;
   phone:      string | null;
   photo_url:  string | null;
   goals:      string | null;
@@ -218,7 +218,7 @@ export interface SendNotificationRequest {
 
 export interface AddMemberForm {
   full_name:  string;
-  email:      string;
+  username:   string;
   phone:      string;
   goals:      string;
   plan_type:  SubPlanType;

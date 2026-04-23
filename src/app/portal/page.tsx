@@ -6,6 +6,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/Toast";
 import {
   OxDumbbell, OxFork, OxBag, OxClock, OxAlert,
   OxTarget, OxFlame, OxHeart, OxShield,
@@ -127,6 +128,7 @@ function buildSuggestions(data: UserData): Suggestion[] {
 
 export default function PortalHome() {
   const { t } = useTranslation();
+  const toast = useToast();
   const [data, setData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [noticeDismissed, setNoticeDismissed] = useState(false);
@@ -324,9 +326,9 @@ export default function PortalHome() {
               {/* Pricing hint */}
               <div className="mt-4 grid grid-cols-3 gap-2">
                 {[
-                  { label: "شهري", price: "250 ر.س" },
-                  { label: "ربع سنوي", price: "650 ر.س" },
-                  { label: "سنوي", price: "2,200 ر.س" },
+                  { label: "شهري", price: "250,000 ل.س" },
+                  { label: "ربع سنوي", price: "650,000 ل.س" },
+                  { label: "سنوي", price: "2,200,000 ل.س" },
                 ].map(({ label, price }) => (
                   <div key={label} className="bg-white/[0.03] border border-white/[0.06] p-3 text-center">
                     <p className="text-white/50 text-[11px] font-mono uppercase tracking-wider">{label}</p>
@@ -335,15 +337,21 @@ export default function PortalHome() {
                 ))}
               </div>
 
-              <Link
-                href="/renew"
+              <button
+                type="button"
+                onClick={() =>
+                  toast.warning(
+                    "يرجى زيارة الاستقبال",
+                    "للاشتراك، تواصل مع موظف الاستقبال في النادي.",
+                  )
+                }
                 className="mt-4 flex items-center justify-center gap-2 w-full bg-gold hover:bg-yellow-400 text-[#0A0A0A] font-bold text-[15px] py-3.5 transition-all duration-200 uppercase tracking-widest"
               >
                 اشترك الآن
-              </Link>
+              </button>
 
               <p className="text-white/20 text-[12px] text-center mt-3">
-                تواصل مع الاستقبال أو اضغط الزر أعلاه لاختيار خطتك
+                للاشتراك، تواصل مع موظف الاستقبال في النادي.
               </p>
             </div>
           </section>

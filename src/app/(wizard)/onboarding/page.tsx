@@ -15,9 +15,8 @@ const MONTHS = [
 ];
 const DAYS = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0"));
 const YEARS = Array.from({ length: 66 }, (_, i) => String(2010 - i));
-const KG_INT = Array.from({ length: 171 }, (_, i) => String(i + 30));
-const KG_DEC = ["0","1","2","3","4","5","6","7","8","9"];
-const LB_INT = Array.from({ length: 331 }, (_, i) => String(i + 66));
+const KG_INT = Array.from({ length: 141 }, (_, i) => String(i + 30));
+const LB_INT = Array.from({ length: 311 }, (_, i) => String(i + 66));
 const CM_VAL = Array.from({ length: 151 }, (_, i) => String(i + 100));
 const FT_VAL = Array.from({ length: 36 }, (_, i) => {
   const totalIn = i + 48;
@@ -250,7 +249,6 @@ export default function OnboardingPage() {
   // Step 6 – Weight
   const [weightUnit, setWeightUnit] = useState<"kg" | "lb">("kg");
   const [weightInt,  setWeightInt]  = useState("70");
-  const [weightDec,  setWeightDec]  = useState("0");
 
   // Step 7 – Height
   const [heightUnit, setHeightUnit] = useState<"cm" | "ft/in">("cm");
@@ -282,7 +280,7 @@ export default function OnboardingPage() {
 
     const weightKg =
       weightUnit === "kg"
-        ? parseFloat(`${weightInt}.${weightDec}`)
+        ? parseFloat(weightInt)
         : parseFloat(weightInt) / 2.20462;
 
     const heightCm =
@@ -499,19 +497,15 @@ export default function OnboardingPage() {
               />
             </div>
 
-            {weightUnit === "kg" ? (
-              <div className="flex items-center gap-3">
-                <ScrollPicker items={KG_INT} value={weightInt} onChange={setWeightInt} width="flex-1" />
-                <span className="text-white/30 text-[28px] font-bold pb-1">.</span>
-                <ScrollPicker items={KG_DEC} value={weightDec} onChange={setWeightDec} width="w-16" />
-                <span className="text-white/50 text-[16px] font-mono pb-1">kg</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <ScrollPicker items={LB_INT} value={weightInt} onChange={setWeightInt} width="flex-1" />
-                <span className="text-white/50 text-[16px] font-mono pb-1">lb</span>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              <ScrollPicker
+                items={weightUnit === "kg" ? KG_INT : LB_INT}
+                value={weightInt}
+                onChange={setWeightInt}
+                width="flex-1"
+              />
+              <span className="text-white/50 text-[16px] font-mono pb-1">{weightUnit}</span>
+            </div>
           </div>
         )}
 

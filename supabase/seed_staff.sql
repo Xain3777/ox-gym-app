@@ -39,7 +39,10 @@ ins_auth AS (
   INSERT INTO auth.users (
     instance_id, id, aud, role, email, encrypted_password,
     email_confirmed_at, created_at, updated_at,
-    raw_app_meta_data, raw_user_meta_data, is_super_admin
+    raw_app_meta_data, raw_user_meta_data, is_super_admin,
+    confirmation_token, email_change, email_change_token_new,
+    email_change_token_current, recovery_token,
+    phone_change, phone_change_token, reauthentication_token
   )
   SELECT
     '00000000-0000-0000-0000-000000000000',
@@ -48,7 +51,8 @@ ins_auth AS (
     now(), now(), now(),
     jsonb_build_object('provider','email','providers',ARRAY['email']),
     jsonb_build_object('full_name', full_name),
-    false
+    false,
+    '', '', '', '', '', '', '', ''
   FROM prepared
   RETURNING id
 ),

@@ -98,14 +98,13 @@ export async function middleware(request: NextRequest) {
 
 async function resolveRoleFromDB(
   supabase: ReturnType<typeof createServerClient>,
-  userId: string,
+  _userId: string,
 ): Promise<string> {
-  const { data: member } = await supabase
-    .from("members")
-    .select("role")
-    .eq("auth_id", userId)
-    .single();
-  return member?.role ?? "player";
+  // Use SECURITY DEFINER RPC — avoids the recursive RLS policy on
+  // public.members that prevents a user's own session from reading
+  // their own role (and defaults every staff login to "player").
+  const { data } = await supabase.rpc("current_user_role");
+  return (data as string | null) ?? "player";
 }
 
 export const config = {

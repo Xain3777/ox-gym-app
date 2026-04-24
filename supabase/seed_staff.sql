@@ -58,7 +58,7 @@ ins_identity AS (
   )
   SELECT gen_random_uuid(), p.auth_id,
          jsonb_build_object('sub', p.auth_id::text, 'email', p.email_internal),
-         'email', p.auth_id::text, now(), now(), now()
+         'email', p.email_internal, now(), now(), now()
   FROM prepared p
   RETURNING user_id
 )

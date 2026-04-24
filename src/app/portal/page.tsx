@@ -285,9 +285,9 @@ export default function PortalHome() {
             <p className="text-white/40 text-[11px] font-mono uppercase tracking-[0.16em] mb-0.5">
               {t("portal.from")} OX GYM
             </p>
-            <h1 className="text-gold font-display text-[32px] tracking-wider leading-none mt-1">
+            <h1 className="text-gold font-display text-[28px] tracking-wider leading-tight mt-1">
               {t("portal.welcome")}
-              {data?.firstName ? `، ${data.firstName}` : ""}
+              {data?.firstName ? ` ${data.firstName}` : ""}
             </h1>
             {data?.subscription && !isGrace && !isExpired && (
               <p className="text-white/30 text-[12px] mt-1 font-mono">

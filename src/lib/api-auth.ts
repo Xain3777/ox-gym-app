@@ -41,7 +41,12 @@ export function validateOrigin(request: Request): boolean {
   return allowed.some((o) => origin.startsWith(o));
 }
 
-/** Build a Supabase client scoped to the request's session cookies. */
+/** Build a Supabase client scoped to the request's session cookies.
+ *
+ * setAll must actually write back the refreshed tokens — otherwise the
+ * Supabase SDK silently fails to refresh expiring sessions on API calls
+ * and the user appears "stuck" after the access token TTL elapses.
+ */
 async function buildUserClient() {
   const cookieStore = await cookies();
   return createServerClient(
@@ -49,8 +54,19 @@ async function buildUserClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {},
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            for (const { name, value, options } of cookiesToSet) {
+              cookieStore.set(name, value, options);
+            }
+          } catch {
+            // Calling set from a Server Component throws; safe to ignore
+            // because the middleware refresh path will write the cookies.
+          }
+        },
       },
     },
   );

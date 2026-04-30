@@ -1,8 +1,17 @@
 // ═══════════════════════════════════════════════════════════════
 // OX GYM — SUBSCRIPTION UTILITIES
+//
+// Canonical expiry thresholds (used everywhere — dashboard, portal,
+// cron, members list). Keep these aligned with the cron reminder
+// cadence (7-day + 3-day reminders in /api/cron).
 // ═══════════════════════════════════════════════════════════════
 
 import type { MemberStatus } from "@/types";
+
+/** "expiring" window — last N days before expiry. */
+export const EXPIRING_WINDOW_DAYS = 7;
+/** Grace period — N days after expiry where the member can still use the app. */
+export const GRACE_PERIOD_DAYS    = 2;
 
 /**
  * Calculate days until a subscription expires.
@@ -18,29 +27,30 @@ export function daysUntilExpiry(endDate: string | null): number {
 
 /**
  * Determine subscription status from end date.
- * "expiring" triggers at 5 days so a notification can be shown.
+ * "expiring" triggers within EXPIRING_WINDOW_DAYS so dashboard + cron
+ * agree on what counts as "expiring soon".
  */
 export function getSubscriptionStatus(endDate: string | null): MemberStatus {
   const days = daysUntilExpiry(endDate);
   if (days < 0) return "expired";
-  if (days <= 5) return "expiring";
+  if (days <= EXPIRING_WINDOW_DAYS) return "expiring";
   return "active";
 }
 
 /**
  * Granular status including grace period and hard lock.
- *   active   — more than 5 days remaining
- *   expiring — 0–5 days remaining (show polite reminder)
- *   grace    — 0 to 2 days past expiry (still allowed in, gentle warning)
- *   locked   — more than 2 days past expiry (app blocked)
+ *   active   — more than EXPIRING_WINDOW_DAYS remaining
+ *   expiring — 0–EXPIRING_WINDOW_DAYS remaining (show polite reminder)
+ *   grace    — within GRACE_PERIOD_DAYS past expiry (still allowed in)
+ *   locked   — beyond grace period (app blocked)
  */
 export type DetailedSubStatus = "active" | "expiring" | "grace" | "locked";
 
 export function getDetailedStatus(endDate: string | null): DetailedSubStatus {
   const days = daysUntilExpiry(endDate);
-  if (days > 5)  return "active";
-  if (days >= 0) return "expiring";
-  if (days >= -2) return "grace";
+  if (days > EXPIRING_WINDOW_DAYS) return "active";
+  if (days >= 0)                   return "expiring";
+  if (days >= -GRACE_PERIOD_DAYS)  return "grace";
   return "locked";
 }
 

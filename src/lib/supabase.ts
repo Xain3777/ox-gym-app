@@ -4,18 +4,17 @@ import { createServerClient as createSSRServerClient } from "@supabase/ssr";
 import type { CookieMethodsServer } from "@supabase/ssr/dist/main/types";
 
 // ── ENVIRONMENT VARIABLES ─────────────────────────────────────
-const supabaseUrl        = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey    = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseUrl     = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 // ── BROWSER CLIENT ──────────────────────────────────────────
 // Use in Client Components. Handles cookies automatically.
+// Do NOT add a parallel `createClient(...)` export here — a plain client
+// uses localStorage by default and ends up racing the cookie-based session
+// (the "must use incognito" symptom).
 export function createBrowserSupabase() {
   return createBrowserClient(supabaseUrl, supabaseAnonKey);
 }
-
-// Legacy export — used in existing client components
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // ── SERVER CLIENT (with cookies) ────────────────────────────
 // Use in Server Components, Server Actions, and Route Handlers.

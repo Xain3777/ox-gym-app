@@ -88,7 +88,7 @@ export default async function SubscriptionsPage() {
                     >
                       <td className="px-4 py-3">
                         <p className="text-[13px] font-medium text-white">{m.full_name}</p>
-                        <p className="text-[11px] text-muted">{m.email}</p>
+                        <p className="text-[11px] text-muted">{m.phone ?? m.username ?? ""}</p>
                       </td>
                       <td className="px-4 py-3 text-[13px] text-offwhite capitalize">
                         {sub?.plan_type ?? "—"}

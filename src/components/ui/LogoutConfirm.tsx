@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { createBrowserSupabase } from "@/lib/supabase";
 
@@ -13,13 +12,14 @@ interface LogoutConfirmProps {
 export function LogoutButton({ className, label = "تسجيل الخروج" }: LogoutConfirmProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   async function doLogout() {
     setLoading(true);
     const supabase = createBrowserSupabase();
     await supabase.auth.signOut();
-    router.push("/login");
+    // Hard navigate so the cleared cookies are guaranteed in place before
+    // the next render — router.push is a soft transition that can race.
+    window.location.href = "/login";
   }
 
   return (

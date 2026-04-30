@@ -27,6 +27,12 @@ yarn-error.log*
 *.swp
 *.swo
 
+# Claude Code per-machine permissions (can accumulate secrets accidentally)
+.claude/settings.local.json
+
+# Supabase CLI cache
+supabase/.temp/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -37,3 +43,4 @@ Thumbs.db
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+.env.local

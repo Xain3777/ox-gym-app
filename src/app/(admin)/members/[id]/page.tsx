@@ -179,9 +179,11 @@ export default async function MemberDetailPage({
 
               {/* Contact info */}
               <div className="mt-4 space-y-1.5">
-                <ContactRow icon={<Mail size={12} />} value={member.email} />
                 {member.phone && (
                   <ContactRow icon={<Phone size={12} />} value={member.phone} />
+                )}
+                {member.username && (
+                  <ContactRow icon={<Mail size={12} />} value={member.username} />
                 )}
                 <ContactRow
                   icon={<Calendar size={12} />}

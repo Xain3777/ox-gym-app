@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
@@ -84,7 +84,6 @@ function isActive(pathname: string, href: string, exact?: boolean): boolean {
 // ── PORTAL SIDEBAR (desktop) ────────────────────────────────────
 export function PortalSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { t } = useTranslation();
   const [playerName, setPlayerName] = useState<string>("");
 
@@ -113,7 +112,7 @@ export function PortalSidebar() {
   const handleLogout = async () => {
     const supabase = createBrowserSupabase();
     await supabase.auth.signOut();
-    router.push("/");
+    window.location.href = "/login";
   };
 
   return (

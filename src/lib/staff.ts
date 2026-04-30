@@ -1,22 +1,8 @@
-// Staff display metadata only — NO secrets here.
-// Authentication is handled entirely by Supabase Auth (phone → email mapping).
-// To add/remove staff: update Supabase Auth users + the members table role column.
-export const STAFF_ACCOUNTS: StaffAccount[] = [
-  {
-    id: "adham",
-    name: "كوتش ادهم",
-    title: "المالك",
-    role: "manager" as const,
-    phone: "0000000001",
-  },
-  {
-    id: "mohammad",
-    name: "محمد",
-    title: "موظف استقبال",
-    role: "reception" as const,
-    phone: "0000000002",
-  },
-];
+// Staff display metadata + email derivation.
+// The actual staff roster lives in the `members` table (role IN
+// 'manager','reception'). The staff-login page fetches it via
+// /api/auth/staff. This file only owns shared types + the phone→email
+// helper used on both client and server.
 
 export interface StaffAccount {
   id: string;

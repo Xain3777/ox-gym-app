@@ -7,45 +7,29 @@ import { createBrowserSupabase } from "@/lib/supabase";
 import { UserPlus, Users, CreditCard, ShoppingBag, Search } from "lucide-react";
 
 interface Stats {
-  todayCheckIns: number;
+  totalMembers: number;
   activeSubscriptions: number;
   expiringSoon: number;
 }
 
 export default function ReceptionDashboard() {
   const { t } = useTranslation();
-  const [stats, setStats] = useState<Stats>({ todayCheckIns: 0, activeSubscriptions: 0, expiringSoon: 0 });
+  const [stats, setStats] = useState<Stats>({ totalMembers: 0, activeSubscriptions: 0, expiringSoon: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState<Array<{ id: string; full_name: string; phone: string | null; status: string }>>([]);
 
   useEffect(() => {
-    async function load() {
-      try {
-        const supabase = createBrowserSupabase();
-
-        const { count: activeCount } = await supabase
-          .from("members")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "active");
-
-        const { count: expiringCount } = await supabase
-          .from("members")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "expiring");
-
-        setStats({
-          todayCheckIns: 0,
-          activeSubscriptions: activeCount ?? 0,
-          expiringSoon: expiringCount ?? 0,
-        });
-      } catch {
-        // empty
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
+    let cancelled = false;
+    fetch("/api/reception/stats")
+      .then((r) => r.json())
+      .then((res) => {
+        if (cancelled || !res?.success) return;
+        setStats(res.data as Stats);
+      })
+      .catch(() => { /* leave defaults */ })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -66,9 +50,9 @@ export default function ReceptionDashboard() {
   }, [search]);
 
   const cards = [
-    { labelKey: "reception.todayCheckIns",      value: stats.todayCheckIns,      icon: Users, color: "text-[#4ECDC4]", bg: "bg-[#4ECDC4]/10" },
-    { labelKey: "reception.activeSubscriptions", value: stats.activeSubscriptions, icon: CreditCard, color: "text-green-400", bg: "bg-green-400/10" },
-    { labelKey: "reception.expiringSoon",        value: stats.expiringSoon,        icon: CreditCard, color: "text-gold", bg: "bg-gold/10" },
+    { labelKey: "reception.totalMembers",        value: stats.totalMembers,        icon: Users,      color: "text-[#4ECDC4]", bg: "bg-[#4ECDC4]/10" },
+    { labelKey: "reception.activeSubscriptions", value: stats.activeSubscriptions, icon: CreditCard, color: "text-green-400",  bg: "bg-green-400/10" },
+    { labelKey: "reception.expiringSoon",        value: stats.expiringSoon,        icon: CreditCard, color: "text-gold",       bg: "bg-gold/10" },
   ];
 
   return (

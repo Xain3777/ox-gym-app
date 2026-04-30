@@ -46,10 +46,12 @@ export function SendPlanFlow({
   }, [searchParams, members]);
 
   // ── FILTERED LISTS ────────────────────────────────────────
-  const filteredMembers = members.filter((m) =>
-    m.full_name.toLowerCase().includes(memberSearch.toLowerCase()) ||
-    m.email.toLowerCase().includes(memberSearch.toLowerCase()),
-  );
+  const filteredMembers = members.filter((m) => {
+    const q = memberSearch.toLowerCase();
+    return m.full_name.toLowerCase().includes(q)
+      || (m.username?.toLowerCase().includes(q) ?? false)
+      || (m.phone?.toLowerCase().includes(q) ?? false);
+  });
 
   const filteredPlans = plans.filter((p) =>
     p.name.toLowerCase().includes(planSearch.toLowerCase()) ||
@@ -200,7 +202,7 @@ export function SendPlanFlow({
                     <Avatar name={m.full_name} photoUrl={m.photo_url} size="md" />
                     <div className="flex-1 min-w-0">
                       <p className="text-[14px] font-medium text-white truncate">{m.full_name}</p>
-                      <p className="text-[12px] text-muted truncate">{m.email}</p>
+                      <p className="text-[12px] text-muted truncate">{m.phone ?? m.username ?? ""}</p>
                     </div>
                     <StatusBadge status={getMemberStatus(m.subscription?.end_date ?? null)} />
                     <ChevronRight size={14} className="text-steel group-hover:text-gold transition-colors flex-shrink-0" />
@@ -220,7 +222,7 @@ export function SendPlanFlow({
                 <Avatar name={selectedMember.full_name} size="sm" />
                 <div>
                   <p className="text-[13px] font-medium text-white">{selectedMember.full_name}</p>
-                  <p className="text-[11px] text-muted">{selectedMember.email}</p>
+                  <p className="text-[11px] text-muted">{selectedMember.phone ?? selectedMember.username ?? ""}</p>
                 </div>
                 <button
                   onClick={() => { setMember(null); setStep(1); }}
@@ -301,7 +303,7 @@ export function SendPlanFlow({
                   <Avatar name={selectedMember.full_name} size="md" />
                   <div>
                     <p className="font-semibold text-[14px] text-white">{selectedMember.full_name}</p>
-                    <p className="text-[12px] text-muted">{selectedMember.email}</p>
+                    <p className="text-[12px] text-muted">{selectedMember.phone ?? selectedMember.username ?? ""}</p>
                   </div>
                 </div>
               </div>
@@ -323,11 +325,12 @@ export function SendPlanFlow({
 
               <div className="border-t border-steel" />
 
-              {/* Email preview note */}
+              {/* Delivery note — outbound channel pending */}
               <div className="text-[12px] text-muted bg-charcoal p-3 border border-steel/50">
-                A branded OX Gym email will be sent to{" "}
-                <span className="text-gold">{selectedMember.email}</span> with
-                the full plan details and a link to their member portal.
+                The plan will be saved to{" "}
+                <span className="text-gold">{selectedMember.full_name}</span>&rsquo;s
+                portal. Outbound notifications will go out once the SMS / email
+                channel is wired up.
               </div>
             </div>
 

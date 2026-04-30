@@ -12,6 +12,10 @@ const PUBLIC_ROUTES  = ["/login", "/staff-login", "/signup", "/api/auth", "/forg
 const SKIP_PREFIXES  = ["/_next", "/favicon.ico", "/ox-logo.png", "/manifest.json", "/api/"];
 const IS_PROD        = process.env.NODE_ENV === "production";
 
+// If the role lookup hangs, don't take the whole page down — fall back to
+// the most-restrictive default. 1.5s is plenty for a SECURITY DEFINER RPC.
+const ROLE_LOOKUP_TIMEOUT_MS = 1500;
+
 function roleForRoute(pathname: string): string | null {
   if (
     pathname.startsWith("/dashboard") || pathname.startsWith("/members") ||
@@ -42,69 +46,102 @@ export async function middleware(request: NextRequest) {
 
   let response = NextResponse.next({ request: { headers: request.headers } });
 
-  try {
-    const supabaseUrl    = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!supabaseUrl || !supabaseAnonKey) return response;
+  const supabaseUrl     = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnonKey) return response;
 
-    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-      cookies: {
-        getAll() { return request.cookies.getAll(); },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request: { headers: request.headers } });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          );
-        },
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() { return request.cookies.getAll(); },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request: { headers: request.headers } });
+        cookiesToSet.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, options),
+        );
       },
-    });
+    },
+  });
 
-    const { data: { user } } = await supabase.auth.getUser();
+  let user: { id: string } | null = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user ?? null;
+  } catch (err) {
+    console.error("[middleware] auth.getUser failed:", err);
+    // Treat as unauthenticated rather than hanging the request.
+    user = null;
+  }
 
-    // Public routes — redirect authenticated users to their home
-    if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) {
-      if (user) {
-        const role = await resolveRoleFromDB(supabase, user.id);
-        const home = ROLE_HOME[role] ?? "/portal";
-        if (!pathname.startsWith(home)) {
-          return NextResponse.redirect(new URL(home, request.url));
-        }
-      }
-      return response;
+  const isPublic   = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
+  const routeOwner = roleForRoute(pathname);
+
+  // ── Public routes ──────────────────────────────────────────────
+  // Anonymous → let through.
+  // Authenticated → bounce to their role home, but only if we can resolve
+  // the role; if the lookup fails we let them stay on the public page
+  // rather than redirect-loop.
+  if (isPublic) {
+    if (!user) return response;
+    const role = await resolveRoleSafely(supabase);
+    if (!role) return response;
+    const home = ROLE_HOME[role] ?? "/portal";
+    if (!pathname.startsWith(home)) {
+      return NextResponse.redirect(new URL(home, request.url));
     }
-
-    // Unauthenticated → login
-    if (!user) {
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("next", pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    // Role-based route protection (DB-only — no cookie overrides)
-    const role       = await resolveRoleFromDB(supabase, user.id);
-    const routeOwner = roleForRoute(pathname);
-
-    if (routeOwner && routeOwner !== role) {
-      return NextResponse.redirect(new URL(ROLE_HOME[role] ?? "/portal", request.url));
-    }
-
-    return response;
-  } catch (error) {
-    console.error("Middleware error:", error);
     return response;
   }
+
+  // ── Protected routes ───────────────────────────────────────────
+  if (!user) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("next", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Only resolve role when the route actually has an owner. Pages like
+  // /renew or /onboarding don't restrict by role and don't need the RPC.
+  if (!routeOwner) return response;
+
+  const role = await resolveRoleSafely(supabase);
+  if (!role) {
+    // Couldn't resolve — let the page render rather than hang. The page's
+    // own data fetching will handle auth-derived state.
+    return response;
+  }
+
+  if (routeOwner !== role) {
+    return NextResponse.redirect(new URL(ROLE_HOME[role] ?? "/portal", request.url));
+  }
+
+  return response;
 }
 
-async function resolveRoleFromDB(
+/** Look up the caller's role via the SECURITY DEFINER RPC.
+ *  Returns null on timeout, RPC error, or null result — caller decides
+ *  whether to redirect-fallback or continue. */
+async function resolveRoleSafely(
   supabase: ReturnType<typeof createServerClient>,
-  _userId: string,
-): Promise<string> {
-  // Use SECURITY DEFINER RPC — avoids the recursive RLS policy on
-  // public.members that prevents a user's own session from reading
-  // their own role (and defaults every staff login to "player").
-  const { data } = await supabase.rpc("current_user_role");
-  return (data as string | null) ?? "player";
+): Promise<string | null> {
+  try {
+    const rpc = supabase.rpc("current_user_role");
+    const timeout = new Promise<{ data: null; error: Error }>((resolve) =>
+      setTimeout(
+        () => resolve({ data: null, error: new Error("role lookup timed out") }),
+        ROLE_LOOKUP_TIMEOUT_MS,
+      ),
+    );
+    const { data, error } = await Promise.race([rpc, timeout]) as
+      { data: string | null; error: { message: string } | null };
+    if (error) {
+      console.error("[middleware] role lookup error:", error.message);
+      return null;
+    }
+    return data ?? null;
+  } catch (err) {
+    console.error("[middleware] role lookup threw:", err);
+    return null;
+  }
 }
 
 export const config = {

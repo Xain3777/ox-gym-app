@@ -43,7 +43,9 @@ export default function CoachPlayersPage() {
     if (filter !== "all" && p.status !== filter) return false;
     if (search) {
       const q = search.toLowerCase();
-      return p.full_name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q);
+      return p.full_name.toLowerCase().includes(q)
+        || (p.username?.toLowerCase().includes(q) ?? false)
+        || (p.phone?.toLowerCase().includes(q) ?? false);
     }
     return true;
   });
@@ -103,7 +105,7 @@ export default function CoachPlayersPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-white text-[14px] font-medium truncate">{player.full_name}</p>
-                <p className="text-white/40 text-[12px] truncate">{player.email}</p>
+                <p className="text-white/40 text-[12px] truncate">{player.phone ?? player.username ?? ""}</p>
               </div>
               <span className={cn(
                 "text-[11px] font-bold uppercase px-2 py-1",

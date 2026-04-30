@@ -1,22 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
-import { STAFF_ACCOUNTS, getStaffEmail } from "@/lib/staff";
+import { getStaffEmail, type StaffAccount } from "@/lib/staff";
 
 export default function StaffLoginPage() {
+  const [staffList, setStaffList] = useState<StaffAccount[]>([]);
+  const [staffLoading, setStaffLoading] = useState(true);
   const [selectedId, setSelectedId] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/staff")
+      .then((r) => r.json())
+      .then((res) => {
+        if (cancelled) return;
+        if (res?.success) setStaffList(res.data as StaffAccount[]);
+      })
+      .catch(() => { /* leave list empty; UI shows the empty state */ })
+      .finally(() => { if (!cancelled) setStaffLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError("");
 
-    const staff = STAFF_ACCOUNTS.find((s) => s.id === selectedId);
+    const staff = staffList.find((s) => s.id === selectedId);
     if (!staff) {
       setError("يرجى اختيار موظف");
       return;
@@ -70,10 +85,17 @@ export default function StaffLoginPage() {
             <select
               value={selectedId}
               onChange={(e) => setSelectedId(e.target.value)}
-              className="w-full h-12 px-4 bg-iron border border-steel text-offwhite text-[14px] focus:border-gold focus:outline-none transition-colors appearance-none cursor-pointer"
+              disabled={staffLoading}
+              className="w-full h-12 px-4 bg-iron border border-steel text-offwhite text-[14px] focus:border-gold focus:outline-none transition-colors appearance-none cursor-pointer disabled:opacity-50"
             >
-              <option value="" disabled>— اختر —</option>
-              {STAFF_ACCOUNTS.map((s) => (
+              <option value="" disabled>
+                {staffLoading
+                  ? "جاري التحميل…"
+                  : staffList.length === 0
+                    ? "لا يوجد موظفون"
+                    : "— اختر —"}
+              </option>
+              {staffList.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} — {s.title}
                 </option>

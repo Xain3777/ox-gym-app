@@ -282,13 +282,35 @@ async function getDashboardData(): Promise<DashboardData> {
     .filter((m) => getMemberStatus(m.subscription?.end_date ?? null) === "expired")
     .slice(0, 5);
 
-  // ── Feedback (mock data — ready for DB table) ──
-  const recentFeedback = [
-    { id: "fb-1", memberName: "Ahmed K.", rating: 5, comment: "Great coaching and workout plans!", created_at: new Date(Date.now() - 86400000).toISOString() },
-    { id: "fb-2", memberName: "Sara M.",  rating: 4, comment: "Love the meal plans. Would like more variety.", created_at: new Date(Date.now() - 172800000).toISOString() },
-    { id: "fb-3", memberName: "Omar H.",  rating: 5, comment: "Best gym experience. Clean and well organized.", created_at: new Date(Date.now() - 259200000).toISOString() },
-    { id: "fb-4", memberName: "Lina R.",  rating: 4, comment: "Solid equipment and good atmosphere.", created_at: new Date(Date.now() - 345600000).toISOString() },
-  ];
+  // ── Feedback (live) ──
+  // The feedback table stores ratings + comments as JSONB maps
+  // (e.g. ratings: { coach: 5, equipment: 4 }). Average each row's
+  // ratings, pick the first non-empty comment as the representative one.
+  const { data: feedbackRows } = await supabase
+    .from("feedback")
+    .select("id, submitted_at, ratings, comments, member:members(full_name)")
+    .order("submitted_at", { ascending: false })
+    .limit(8);
+
+  const recentFeedback = (feedbackRows ?? []).map((fb: any) => {
+    const ratingValues = Object.values(fb.ratings ?? {}).filter(
+      (v): v is number => typeof v === "number",
+    );
+    const avg = ratingValues.length
+      ? ratingValues.reduce((s, n) => s + n, 0) / ratingValues.length
+      : 0;
+    const commentValues = Object.values(fb.comments ?? {}).filter(
+      (v): v is string => typeof v === "string" && v.trim().length > 0,
+    );
+    return {
+      id:         fb.id as string,
+      memberName: (fb.member?.full_name as string | undefined) ?? "Member",
+      rating:     Math.round(avg),
+      comment:    commentValues[0] ?? "",
+      created_at: fb.submitted_at as string,
+    };
+  });
+
   const avgRating = recentFeedback.length > 0
     ? Math.round((recentFeedback.reduce((sum, f) => sum + f.rating, 0) / recentFeedback.length) * 10) / 10
     : 0;

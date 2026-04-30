@@ -4,50 +4,49 @@ import { useState } from "react";
 import Link from "next/link";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
-import { phoneToEmail, normalizePhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
-type Step = 0 | 1 | 2 | 3;
-const TOTAL = 4;
+type Step = 0 | 1;
+const TOTAL = 2;
 
 export default function SignupPage() {
-  const [step, setStep] = useState<Step>(0);
-  const [firstName, setFirstName] = useState("");
-  const [lastName,  setLastName]  = useState("");
-  const [phone,     setPhone]     = useState("");
-  const [password,  setPassword]  = useState("");
-  const [showPass,  setShowPass]  = useState(false);
-  const [error,     setError]     = useState("");
-  const [loading,   setLoading]   = useState(false);
+  const [step, setStep]         = useState<Step>(0);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [error, setError]       = useState("");
+  const [loading, setLoading]   = useState(false);
 
   function next() {
     setError("");
-    if (step === 0 && !firstName.trim())      { setError("أدخل اسمك الأول"); return; }
-    if (step === 1 && !lastName.trim())       { setError("أدخل الكنية"); return; }
-    if (step === 2) {
-      const p = normalizePhone(phone);
-      if (!/^963\d{9}$/.test(p))              { setError("رقم الهاتف غير صالح"); return; }
+    if (step === 0) {
+      const u = username.trim();
+      if (u.length < 3) { setError("اسم المستخدم يجب أن يكون 3 أحرف على الأقل"); return; }
+      if (u.length > 40) { setError("اسم المستخدم طويل جداً"); return; }
+      setStep(1);
+      return;
     }
-    if (step === 3) { submit(); return; }
-    setStep((s) => (s + 1) as Step);
+    submit();
   }
 
   function back() {
     setError("");
     if (step === 0) return;
-    setStep((s) => (s - 1) as Step);
+    setStep(0);
   }
 
   async function submit() {
-    if (password.length < 8)                       { setError("كلمة المرور يجب أن تكون 8 أحرف على الأقل"); return; }
-    if (!/[A-Z]/.test(password))                   { setError("كلمة المرور يجب أن تحتوي على حرف كبير"); return; }
-    if (!/[0-9]/.test(password))                   { setError("كلمة المرور يجب أن تحتوي على رقم"); return; }
+    if (password.length < 8)     { setError("كلمة المرور يجب أن تكون 8 أحرف على الأقل"); return; }
+    if (!/[A-Z]/.test(password)) { setError("كلمة المرور يجب أن تحتوي على حرف كبير"); return; }
+    if (!/[0-9]/.test(password)) { setError("كلمة المرور يجب أن تحتوي على رقم"); return; }
 
     setLoading(true);
+
+    // 1. Create the account server-side
     const res = await fetch("/api/auth/signup", {
-      method: "POST",
+      method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ first_name: firstName, last_name: lastName, phone, password }),
+      body:    JSON.stringify({ username: username.trim(), password }),
     });
     const result = await res.json();
 
@@ -57,9 +56,21 @@ export default function SignupPage() {
       return;
     }
 
+    // 2. Resolve the synthetic email and sign in to set the session cookies
+    const resolveRes = await fetch(
+      `/api/auth/resolve?username=${encodeURIComponent(username.trim())}`,
+    );
+    const resolveData = await resolveRes.json();
+
+    if (!resolveData?.success || !resolveData.email) {
+      setError("تم إنشاء الحساب، لكن تعذّر تسجيل الدخول. حاول الدخول يدوياً.");
+      setLoading(false);
+      return;
+    }
+
     const supabase = createBrowserSupabase();
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: phoneToEmail(phone),
+      email:    resolveData.email,
       password,
     });
 
@@ -69,12 +80,13 @@ export default function SignupPage() {
       return;
     }
 
+    // Hard navigate so middleware sees the freshly-set session cookies
     window.location.href = "/onboarding";
   }
 
   return (
     <div className="min-h-screen flex flex-col px-6 py-6" dir="rtl">
-      {/* Top bar: back + title */}
+      {/* Top bar */}
       <div className="flex items-center justify-between mb-6">
         <button
           onClick={back}
@@ -109,42 +121,10 @@ export default function SignupPage() {
       {/* Body */}
       <div className="flex-1 flex flex-col">
         {step === 0 && (
-          <Step
-            title="ما هو اسمك الأول؟"
-            value={firstName}
-            onChange={setFirstName}
-            placeholder="أحمد"
-            autoComplete="given-name"
-          />
+          <UsernameStep value={username} onChange={setUsername} />
         )}
         {step === 1 && (
-          <Step
-            title="ما هي الكنية؟"
-            value={lastName}
-            onChange={setLastName}
-            placeholder="خليل"
-            autoComplete="family-name"
-          />
-        )}
-        {step === 2 && (
-          <Step
-            title="ما هو رقم هاتفك؟"
-            value={phone}
-            onChange={setPhone}
-            placeholder="0912345678"
-            type="tel"
-            autoComplete="tel"
-            ltr
-          />
-        )}
-        {step === 3 && (
-          <PasswordStep
-            title="أنشئ كلمة مرور"
-            value={password}
-            onChange={setPassword}
-            show={showPass}
-            toggleShow={() => setShowPass((v) => !v)}
-          />
+          <PasswordStep value={password} onChange={setPassword} show={showPass} toggleShow={() => setShowPass((v) => !v)} />
         )}
 
         {error && (
@@ -172,50 +152,32 @@ export default function SignupPage() {
   );
 }
 
-// ── Single-field step ──────────────────────────────────────────
-function Step({
-  title,
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-  autoComplete,
-  ltr = false,
-}: {
-  title: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  type?: string;
-  autoComplete?: string;
-  ltr?: boolean;
-}) {
+function UsernameStep({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <h1 className="font-display text-[26px] leading-tight text-white mb-8">{title}</h1>
+      <h1 className="font-display text-[26px] leading-tight text-white mb-2">اختر اسم مستخدم</h1>
+      <p className="text-[13px] text-muted mb-8">3 أحرف على الأقل. هذا الاسم ستستخدمه لتسجيل الدخول.</p>
       <input
-        type={type}
+        type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoFocus
-        autoComplete={autoComplete}
+        autoComplete="username"
+        spellCheck={false}
         className="w-full h-14 px-4 bg-iron border border-steel text-offwhite text-[18px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
-        placeholder={placeholder}
-        dir={ltr ? "ltr" : undefined}
+        placeholder="ahmed_khalil"
+        dir="ltr"
       />
     </div>
   );
 }
 
-// ── Password step ──────────────────────────────────────────────
 function PasswordStep({
-  title,
   value,
   onChange,
   show,
   toggleShow,
 }: {
-  title: string;
   value: string;
   onChange: (v: string) => void;
   show: boolean;
@@ -223,7 +185,7 @@ function PasswordStep({
 }) {
   return (
     <div>
-      <h1 className="font-display text-[26px] leading-tight text-white mb-2">{title}</h1>
+      <h1 className="font-display text-[26px] leading-tight text-white mb-2">أنشئ كلمة مرور</h1>
       <p className="text-[13px] text-muted mb-8">8 أحرف على الأقل، حرف كبير ورقم</p>
       <div className="relative">
         <input

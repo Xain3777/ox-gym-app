@@ -706,6 +706,7 @@
     "store": "Store",
     "manageStore": "Manage Store",
     "todayCheckIns": "Today's Check-Ins",
+    "totalMembers": "Total Members",
     "activeSubscriptions": "Active Subscriptions",
     "expiringSoon": "Expiring Soon",
     "quickSearch": "Quick Search",

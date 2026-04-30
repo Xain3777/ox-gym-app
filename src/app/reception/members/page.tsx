@@ -42,7 +42,9 @@ export default function ReceptionMembersPage() {
     if (filter !== "all" && m.status !== filter) return false;
     if (search) {
       const q = search.toLowerCase();
-      return m.full_name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q) || (m.phone?.toLowerCase().includes(q) ?? false);
+      return m.full_name.toLowerCase().includes(q)
+        || (m.username?.toLowerCase().includes(q) ?? false)
+        || (m.phone?.toLowerCase().includes(q) ?? false);
     }
     return true;
   });
@@ -102,7 +104,7 @@ export default function ReceptionMembersPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-white text-[14px] font-medium truncate">{member.full_name}</p>
                 <p className="text-white/40 text-[12px] truncate">
-                  {member.email}{member.phone ? ` · ${member.phone}` : ""}
+                  {member.phone ?? ""}{member.username ? ` · ${member.username}` : ""}
                 </p>
               </div>
               <div className="text-right flex-shrink-0">

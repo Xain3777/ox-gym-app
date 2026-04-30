@@ -1,23 +1,27 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
-import { normalizePhone, phoneToEmail } from "@/lib/phone";
+
+// Player self-signup: username + password only.
+// Supabase Auth still requires an email under the hood, so we mint a
+// synthetic one anchored to a fresh UUID. The user never sees it; login
+// resolves it back via /api/auth/resolve.
+const SYNTHETIC_EMAIL_DOMAIN = "user.oxgym.app";
 
 const SignupSchema = z.object({
-  first_name: z.string().min(1, "First name is required").max(40),
-  last_name:  z.string().min(1, "Last name is required").max(40),
-  phone: z
+  username: z
     .string()
-    .min(7, "Phone number too short")
-    .max(20, "Phone number too long")
-    .regex(/^\+?[\d\s\-()]+$/, "Invalid phone number format"),
+    .trim()
+    .min(3, "اسم المستخدم يجب أن يكون 3 أحرف على الأقل")
+    .max(40, "اسم المستخدم طويل جداً"),
   password: z
     .string()
-    .min(8, "Password must be at least 8 characters")
-    .max(128, "Password too long")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number"),
+    .min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل")
+    .max(128, "كلمة المرور طويلة جداً")
+    .regex(/[A-Z]/, "كلمة المرور يجب أن تحتوي على حرف كبير")
+    .regex(/[0-9]/, "كلمة المرور يجب أن تحتوي على رقم"),
 });
 
 export async function POST(request: Request) {
@@ -34,127 +38,62 @@ export async function POST(request: Request) {
   try { body = await request.json(); }
   catch { return NextResponse.json({ success: false, error: "Invalid request body" }, { status: 400 }); }
 
-  const result = SignupSchema.safeParse(body);
-  if (!result.success) {
+  const parsed = SignupSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { success: false, error: result.error.errors[0]?.message ?? "Validation failed" },
+      { success: false, error: parsed.error.errors[0]?.message ?? "Validation failed" },
       { status: 400 },
     );
   }
 
-  const { first_name, last_name, phone, password } = result.data;
-  const fullName        = `${first_name.trim()} ${last_name.trim()}`.trim();
-  const username        = fullName; // username = "First Last" (spaces allowed)
-  const normalizedPhone = normalizePhone(phone);
-  const generatedEmail  = phoneToEmail(phone);
-
+  const { username, password } = parsed.data;
   const supabase = createServiceClient();
 
-  // Check duplicate phone (normalized)
-  const { data: existingPhone } = await supabase
-    .from("members")
-    .select("id")
-    .eq("phone", normalizedPhone)
-    .maybeSingle();
-
-  if (existingPhone) {
-    return NextResponse.json(
-      { success: false, error: "هذا الرقم مسجّل مسبقاً" },
-      { status: 409 },
-    );
-  }
-
-  // Check duplicate username (case-insensitive)
-  const { data: existingUser } = await supabase
+  // Duplicate username check (case-insensitive)
+  const { data: existing } = await supabase
     .from("members")
     .select("id")
     .ilike("username", username)
     .maybeSingle();
 
-  if (existingUser) {
+  if (existing) {
     return NextResponse.json(
-      { success: false, error: "هذا الاسم مستخدم من قبل. استخدم اسماً مختلفاً." },
+      { success: false, error: "هذا الاسم مستخدم من قبل. اختر اسماً مختلفاً." },
       { status: 409 },
     );
   }
 
-  // Create auth user. If there is an orphaned auth user from a prior failed attempt
-  // (same phone), remove it first so the new signup can proceed cleanly.
-  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email: generatedEmail,
+  // Mint a UUID up-front so we control both auth.users.id and the
+  // synthetic email — no two-phase create/update dance needed.
+  const authId = randomUUID();
+  const syntheticEmail = `${authId}@${SYNTHETIC_EMAIL_DOMAIN}`;
+
+  const { error: authError } = await supabase.auth.admin.createUser({
+    id:            authId,
+    email:         syntheticEmail,
     password,
     email_confirm: true,
-    user_metadata: { full_name: fullName },
+    user_metadata: { username },
   });
 
-  if (authError || !authData.user) {
-    const msg = (authError?.message ?? "").toLowerCase();
-    const isDup = msg.includes("already") || msg.includes("registered") || msg.includes("exists");
-
-    if (isDup) {
-      // Clean up orphaned auth user (auth exists but no members row)
-      try {
-        const { data: listData } = await supabase.auth.admin.listUsers();
-        const orphan = listData?.users?.find((u) => u.email === generatedEmail);
-        if (orphan) {
-          const { data: hasMember } = await supabase
-            .from("members")
-            .select("id")
-            .eq("auth_id", orphan.id)
-            .maybeSingle();
-
-          if (!hasMember) {
-            await supabase.auth.admin.deleteUser(orphan.id);
-            // Retry signup after cleanup
-            const retry = await supabase.auth.admin.createUser({
-              email: generatedEmail,
-              password,
-              email_confirm: true,
-              user_metadata: { full_name: fullName },
-            });
-            if (retry.data?.user) {
-              return await finalizeSignup(retry.data.user.id, fullName, username, normalizedPhone, password);
-            }
-          }
-        }
-      } catch {
-        // fall through to phone-exists error
-      }
-      return NextResponse.json(
-        { success: false, error: "هذا الرقم مسجّل مسبقاً" },
-        { status: 409 },
-      );
-    }
-
+  if (authError) {
     return NextResponse.json(
       { success: false, error: "تعذّر إنشاء الحساب. حاول مرة أخرى." },
       { status: 400 },
     );
   }
 
-  return await finalizeSignup(authData.user.id, fullName, username, normalizedPhone, password);
-}
-
-async function finalizeSignup(
-  authId: string,
-  fullName: string,
-  username: string,
-  phone: string,
-  password: string,
-) {
-  const supabase = createServiceClient();
-
   const { error: memberError } = await supabase.from("members").insert({
     auth_id:       authId,
     role:          "player",
-    full_name:     fullName,
+    full_name:     username,         // user can rename in onboarding/profile
     username,
-    phone,
     status:        "active",
-    temp_password: password,
+    temp_password: password,         // mirrored for admin visibility (per existing convention)
   });
 
   if (memberError) {
+    // Roll back the auth user so the username isn't orphaned
     await supabase.auth.admin.deleteUser(authId);
     return NextResponse.json(
       { success: false, error: "تعذّر إنشاء الملف الشخصي" },

@@ -49,7 +49,8 @@ export default async function MembersPage({
     const matchesQuery  =
       !query ||
       m.full_name.toLowerCase().includes(query) ||
-      m.email.toLowerCase().includes(query);
+      (m.username?.toLowerCase().includes(query) ?? false) ||
+      (m.phone?.toLowerCase().includes(query) ?? false);
     return matchesFilter && matchesQuery;
   });
 

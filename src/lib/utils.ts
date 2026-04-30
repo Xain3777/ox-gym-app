@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { formatDistanceToNow, differenceInDays, format } from "date-fns";
+import { getSubscriptionStatus } from "@/lib/subscription";
 
 // ── CN HELPER ─────────────────────────────────────────────────
 // Merges Tailwind classes safely, resolving conflicts.
@@ -37,16 +38,11 @@ export type MemberStatus = "active" | "expiring" | "expired";
 
 /**
  * Derives display status from subscription end date.
- * - expired:  end_date in the past
- * - expiring: end_date within 7 days
- * - active:   more than 7 days remaining
+ * Delegates to the canonical implementation in lib/subscription so
+ * the dashboard, portal, and cron all agree on the threshold.
  */
 export function getMemberStatus(endDate: string | null): MemberStatus {
-  if (!endDate) return "expired";
-  const days = daysUntil(endDate);
-  if (days < 0)  return "expired";
-  if (days <= 7) return "expiring";
-  return "active";
+  return getSubscriptionStatus(endDate);
 }
 
 /** Returns label + color class for a status badge */

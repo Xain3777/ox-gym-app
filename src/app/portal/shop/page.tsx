@@ -62,9 +62,6 @@ function ProductModal({ product, accent, onClose }: { product: Product; accent: 
             )}
           </div>
           <p className="text-white/40 text-[14px] leading-relaxed">{product.desc}</p>
-          <div className="pt-2">
-            <span className={cn("text-[26px] font-bold", accent.text)}>${product.price}</span>
-          </div>
           <button onClick={onClose} className="w-full py-3 text-white/30 text-[13px] hover:text-white/50 transition-colors">
             إغلاق
           </button>
@@ -93,8 +90,7 @@ function ProductCard({ product, accent, onClick }: { product: Product; accent: t
           </span>
         )}
         <p className="text-white text-[13px] font-semibold leading-snug line-clamp-2">{product.name}</p>
-        <div className="flex items-center justify-between mt-2">
-          <span className={cn("text-[17px] font-bold", accent.text)}>${product.price}</span>
+        <div className="flex items-center justify-end mt-2">
           <span className="text-white/25 text-[12px]">عرض</span>
         </div>
       </div>

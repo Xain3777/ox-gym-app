@@ -265,6 +265,13 @@ export default function GymInfoPage() {
               <p className="text-white text-[18px] font-bold">جولي لؤي صقور</p>
               <p className="text-white/40 text-[13px] mt-1">المهندسة المعمارية المصممة للجيم</p>
             </div>
+
+            {/* Software / Computer engineer */}
+            <div className="border border-white/10 bg-white/[0.02] p-5">
+              <p className="text-white/40 text-[10px] font-bold uppercase tracking-[0.12em] mb-2">هندسة الحاسوب والتطبيق</p>
+              <p className="text-white text-[18px] font-bold">زين حيدر</p>
+              <p className="text-white/40 text-[13px] mt-1">مهندس الحاسوب الذي طوّر تطبيق OX GYM</p>
+            </div>
           </div>
         </section>
 
@@ -277,8 +284,8 @@ export default function GymInfoPage() {
             {[
               { label: "الهاتف",        value: "+966 XX XXX XXXX", ltr: true },
               { label: "واتساب",        value: "+966 XX XXX XXXX", ltr: true },
-              { label: "العنوان",       value: "الرياض، المملكة العربية السعودية" },
-              { label: "مواعيد العمل", value: "٦ ص – ١٢ م يومياً" },
+              { label: "العنوان",       value: "اللاذقية — مشروع الأوقاف" },
+              { label: "مواعيد العمل", value: "من السادسة صباحاً حتى الثانية عشرة مساءً" },
             ].map(({ label, value, ltr }) => (
               <div key={label} className="flex items-start justify-between gap-4">
                 <span className="text-white/40 text-[14px] shrink-0">{label}</span>

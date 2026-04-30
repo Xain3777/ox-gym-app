@@ -22,7 +22,7 @@ function roleForRoute(pathname: string): string | null {
     pathname.startsWith("/plans")     || pathname.startsWith("/meal-plans") ||
     pathname.startsWith("/subscriptions") || pathname.startsWith("/reminders") ||
     pathname.startsWith("/notifications") || pathname.startsWith("/settings") ||
-    pathname.startsWith("/finance")
+    pathname.startsWith("/finance")   || pathname.startsWith("/roles")
   ) return "manager";
   if (pathname.startsWith("/coach"))     return "coach";
   if (pathname.startsWith("/reception")) return "reception";

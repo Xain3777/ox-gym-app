@@ -1,0 +1,85 @@
+first thing 
+whne pressingsubscruibe now gives you a new page for the info page about the prices and offer and at the head of the page go the reception so he can pay there 
+and theres is the prices 
+Subscription Plans
+#PlanDurationPrice1يوم واحد1 day$52١٥ يوم15 days$203شهر واحد30 days$354٣ أشهر90 days$905٦ أشهر180 days$1706٩ أشهر270 days$2357١٢ شهر365 days$300
+Offers
+#OfferEffectNotes1بدون عرض noneFull priceDefault option2عرض الزوجين couple$60 flat for 2 people1-month plan only3شركات / بنك corporate15% discountCorporate / bank members4خصم طلاب college20% discountCollege students5جيران البناء neighbors20% discountBuilding neighbors6مجموعة ٥ group_55 people pay for 4Per member = base price × 4 / 5; shared group_id7مجموعة ٩ group_99 people pay for 7Per member = base price × 7 / 9; shared group_id
+Removed Offers
+#Removed Offer14 friends referral +30 days24 friends referral +60 days
+Rules
+
+
+Each subscription can use only one offer.
+
+
+A member cannot combine multiple offers on the same subscription.
+
+
+Group members must share the same group_id.
+
+
+Group of 5 means 5 members total, but only 4 memberships are paid.
+
+
+Group of 9 means 9 members total, but only 7 memberships are paid.
+
+
+Daily and 15-day plans are normal plans and should follow the same offer rules unless restricted later.
+
+
+
+
+
+for the inbody page at the left 
+input the info here for how to use it 
+and then make the reqeust 
+شروط الفحص جهاز inbody 
+قبل الفحص مباشرة:
+عدم ممارسة الرياضة أو التمرين.
+ عدم شرب الماء أو أي مشروبات.طاقه 
+عدم تناول الطعام.
+دخول الحمام وإفراغ المثانة.
+إزالة الأحذية والجوارب.
+إزالة الساعة والإكسسوارات والمعادن.
+الوقوف بهدوء عدة دقائق قبل القياس.
+
+يفضل التالي: 
+الصيام لمدة 3–4 ساعات قبل الفحص
+إجراء الفحص صباحًا.
+عمل الفحص بنفس الوقت في كل مرة للمقارنة.
+عدم إجراء الفحص أثناء الدورة الشهرية ((للنساء)) من أجل المتابعه الدقيقه 
+
+موانع الفحص
+1-يمنع إجراء الفحص  لمن لديهم منظم ضربات القلب أو أجهزة إلكترونية مزروعة إلا بعد استشارة طبية.
+2- يُفضّل عدم إجراء الفحص إلا بعد استشارة الطبيب
+
+
+
+and the store 
+have the same items fetched form the data abse for the store with the same catagories 
+
+
+and for the meals section in the store 
+تكلفه الوجبه  
+اجور دجاج ١٠٠ غ.                 ٤٨٠٠ ل.س
+اجور رز. ١٠٠ غ قبل الطبخ.      ٢٥٠٠ ل.س
+سلطه ٢٠٠٠ ل س (خيار ـخس -بندوره - زيتون اسود -ذره ـ دبس رمان  )
+مجموع ١٤.١٠٠ ل.س
+اجور أخرى 
+بلاستيك ٢٣٠٠ ل .ش
+ربح + اجور تشغيل + غاز + صوصات دايت 
+التكلفه النهائيه      ٢٩ الف ل.س  
+المضمون :
+٢٨٥ غ  ارز بعد الطبخ
+١٥٠ غ دجاج بعد. الطبخ
+
+the cost price is only for the manager and let it be stored in the same section i nthe database that is shared iwth the dashboard so its there if someone wants to order 
+and the ordering mechanic of the meals in the app is go to the reciption too you cant order form the app 
+
+
+the ingeym stuff or our stuf fis the water small and big from the database its stored for the dashboard and the the prewrokout cup and the BCAA cup 
+the rest make it coming soon for the clothes 
+
+
+remove the machine names they are wrong

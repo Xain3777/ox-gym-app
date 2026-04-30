@@ -20,8 +20,8 @@ type MainCat = (typeof mainCategories)[number]["id"];
 
 const subCategoryMap: Record<MainCat, string[]> = {
   "supplements": ["الكل", "واي بروتين", "كرياتين", "BCAA", "ما قبل التمرين", "فيتامينات"],
-  "wearables":   ["الكل", "تيشيرتات", "سراويل", "إكسسوارات"],
-  "our-store":   ["الكل", "بروتين OX", "منتجات حصرية"],
+  "wearables":   ["الكل"],
+  "our-store":   ["الكل"],
 };
 
 const productsByMain: Record<MainCat, Product[]> = {
@@ -212,7 +212,16 @@ export default function StorePage() {
 
       {/* ── Products grid ─────────────────────────────────── */}
       <div className="max-w-lg mx-auto px-4 pt-5 pb-6">
-        {visibleProducts.length === 0 ? (
+        {mainCat === "wearables" ? (
+          <div className="text-center py-20 px-6">
+            <p className={cn("font-display text-[36px] tracking-[0.06em] leading-none mb-3", accent.text)}>
+              قريباً
+            </p>
+            <p className="text-white/40 text-[14px] leading-relaxed">
+              قسم الملابس الرياضية والإكسسوارات في طريقه — ترقبوه قريباً.
+            </p>
+          </div>
+        ) : visibleProducts.length === 0 ? (
           <div className="text-center py-16 text-white/25 text-[14px]">لا توجد منتجات في هذه الفئة</div>
         ) : (
           <div className="grid grid-cols-2 gap-3">

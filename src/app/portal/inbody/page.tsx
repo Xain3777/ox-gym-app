@@ -3,13 +3,37 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { BackArrow } from "@/components/portal/BackArrow";
-import { OxPulse, OxFile, OxHeart, OxHelp, OxCheck, OxClock } from "@/components/icons/OxIcons";
+import { OxPulse, OxFile, OxHeart, OxHelp, OxCheck, OxClock, OxAlert } from "@/components/icons/OxIcons";
 
 const reasons = [
   { id: "progress",  label: "متابعة التقدم",       icon: OxPulse, description: "قياس التغيرات في تكوين الجسم" },
   { id: "program",   label: "برنامج جديد",          icon: OxFile,  description: "بدء برنامج تدريبي جديد" },
   { id: "health",    label: "فحص صحي دوري",        icon: OxHeart, description: "تقييم صحي روتيني" },
   { id: "other",     label: "سبب آخر",             icon: OxHelp,  description: "شيء آخر" },
+];
+
+// InBody pre-test conditions, preferences, and contraindications.
+// Shown on the request page so the user can read them before booking.
+const PRE_TEST_RULES = [
+  "عدم ممارسة الرياضة أو التمرين.",
+  "عدم شرب الماء أو أي مشروبات (بما فيها مشروبات الطاقة).",
+  "عدم تناول الطعام.",
+  "دخول الحمام وإفراغ المثانة.",
+  "إزالة الأحذية والجوارب.",
+  "إزالة الساعة والإكسسوارات والمعادن.",
+  "الوقوف بهدوء عدة دقائق قبل القياس.",
+];
+
+const PREFERENCES = [
+  "الصيام لمدة ٣–٤ ساعات قبل الفحص.",
+  "إجراء الفحص صباحاً.",
+  "عمل الفحص في نفس الوقت كل مرة للمقارنة.",
+  "للسيدات: عدم إجراء الفحص أثناء الدورة الشهرية لضمان دقّة المتابعة.",
+];
+
+const CONTRAINDICATIONS = [
+  "يُمنع إجراء الفحص لمن لديهم منظّم ضربات القلب أو أجهزة إلكترونية مزروعة إلا بعد استشارة طبية.",
+  "يُفضَّل عدم إجراء الفحص إلا بعد استشارة الطبيب في الحالات الخاصة.",
 ];
 
 const previousRequests = [
@@ -33,6 +57,9 @@ export default function InbodyPage() {
         <BackArrow href="/portal/more" />
         <h1 className="text-white font-display text-[32px] tracking-wider leading-none mb-1">طلب InBody</h1>
         <p className="text-white/35 text-[14px] mb-6">اطلب فحص تكوين الجسم</p>
+
+        {/* Pre-test conditions panel */}
+        <PreTestConditions />
 
         {/* Step indicator */}
         <div className="flex items-center gap-3 mb-8">
@@ -172,6 +199,66 @@ export default function InbodyPage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PreTestConditions() {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <div className="bg-white/[0.03] border border-white/[0.06] mb-6 overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-right hover:bg-white/[0.02] transition-colors"
+      >
+        <div className="w-9 h-9 bg-gold/10 border border-gold/20 flex items-center justify-center flex-shrink-0">
+          <OxAlert size={16} className="text-gold" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-white text-[15px] font-semibold">شروط فحص جهاز InBody</p>
+          <p className="text-white/40 text-[12px] mt-0.5">اقرأ التعليمات قبل تقديم الطلب</p>
+        </div>
+        <span className={cn("text-white/40 text-[14px] transition-transform", open && "rotate-180")}>▾</span>
+      </button>
+
+      {open && (
+        <div className="px-5 pb-5 space-y-5 text-right">
+          <RuleSection title="قبل الفحص مباشرة" items={PRE_TEST_RULES} accent="gold" />
+          <RuleSection title="يُفضَّل التالي"     items={PREFERENCES}     accent="emerald" />
+          <RuleSection title="موانع الفحص"      items={CONTRAINDICATIONS} accent="danger" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RuleSection({
+  title,
+  items,
+  accent,
+}: {
+  title: string;
+  items: readonly string[];
+  accent: "gold" | "emerald" | "danger";
+}) {
+  const accentClass = {
+    gold:    "text-gold",
+    emerald: "text-emerald-400",
+    danger:  "text-danger",
+  }[accent];
+
+  return (
+    <div>
+      <p className={cn("text-[11px] font-bold uppercase tracking-[0.14em] mb-2", accentClass)}>{title}</p>
+      <ul className="text-white/70 text-[13px] leading-relaxed space-y-1.5">
+        {items.map((item, i) => (
+          <li key={i} className="flex gap-2">
+            <span className={cn("flex-shrink-0", accentClass)}>•</span>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

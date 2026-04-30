@@ -1,14 +1,11 @@
 import type { Product } from "./supplements";
 
-/** OX GYM branded products. Add / edit items here. */
+// In-gym items the gym actually sells from its own counter. Edit here.
+// The wider "our store" idea (clothing, branded gear) is parked behind a
+// "coming soon" placeholder until inventory is ready.
 export const ourProducts: Product[] = [
-  // ── بروتين OX ─────────────────────────────────────────────
-  { id: 201, name: "بروتين OX — شوكولاتة", desc: "بروتين حصري من OX GYM. ٢٥ غ بروتين، بنكهة الشوكولاتة الداكنة الفاخرة. بدون سكر مضاف.", price: 45, image: "🍫", badge: "OX حصري", subCategory: "بروتين OX" },
-  { id: 202, name: "بروتين OX — فانيليا", desc: "بروتين حصري من OX GYM. ٢٥ غ بروتين، بنكهة الفانيليا الكريمية. بدون سكر مضاف.", price: 45, image: "🍦", badge: "OX حصري", subCategory: "بروتين OX" },
-  { id: 203, name: "بروتين OX — كلوريا", desc: "بروتين حصري من OX GYM. ٢٥ غ بروتين، بنكهة الكلوريا المنعشة. بدون سكر مضاف.", price: 45, image: "🍓", subCategory: "بروتين OX" },
-  // ── منتجات حصرية ──────────────────────────────────────────
-  { id: 210, name: "شيكر OX الاحترافي", desc: "شيكر ٧٠٠ مل مصنوع من البلاستيك الخالي من BPA. غطاء آمن ومقياس دقيق. بشعار OX GYM.", price: 15, image: "🥛", subCategory: "منتجات حصرية" },
-  { id: 211, name: "قارورة OX الذكية", desc: "قارورة ١٢٠٠ مل من الستيل المقاوم. تحافظ على برودة المشروب ٢٤ ساعة بشعار OX.", price: 28, image: "🍶", badge: "جديد", subCategory: "منتجات حصرية" },
-  { id: 212, name: "كيس OX الرياضي", desc: "حقيبة رياضية بمقصورات متعددة وحجرة للأحذية. تحمل شعار OX GYM.", price: 35, image: "👜", subCategory: "منتجات حصرية" },
-  { id: 213, name: "بار بروتين OX (علبة ١٢)", desc: "بار بروتين من إنتاج OX GYM — ٢٥ غ بروتين لكل بار، بدون سكر مضاف. علبة ١٢ حبة.", price: 30, image: "🍫", subCategory: "منتجات حصرية" },
+  { id: 201, name: "ماء OX — صغير", desc: "زجاجة ماء صغيرة (٣٣٠ مل) من ثلاجة الصالة.", price: 2,  image: "💧", subCategory: "الكل" },
+  { id: 202, name: "ماء OX — كبير",  desc: "زجاجة ماء كبيرة (١٫٥ ل) لجلسات التمرين الطويلة.", price: 4,  image: "🚰", subCategory: "الكل" },
+  { id: 203, name: "كأس Pre-Workout", desc: "حصة جاهزة من مشروب ما قبل التمرين، تُحضّر عند الاستقبال.", price: 5,  image: "⚡", subCategory: "الكل" },
+  { id: 204, name: "كأس BCAA",        desc: "حصة جاهزة من BCAA، تُحضّر عند الاستقبال.",            price: 5,  image: "🥤", subCategory: "الكل" },
 ];

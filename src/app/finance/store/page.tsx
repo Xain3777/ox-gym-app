@@ -1,11 +1,18 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Package, Trash2 } from "lucide-react";
+import { Package, Trash2, Utensils } from "lucide-react";
 import {
   loadGymData, saveGymData, subscribeToGymData, computeProfitMargin,
   type GymDataStore,
 } from "@/lib/gymData";
+import {
+  MEAL_COST_BREAKDOWN,
+  MEAL_COST_PACKAGING_SYP,
+  MEAL_COST_OVERHEAD_SYP,
+  MEAL_RETAIL_PRICE_SYP,
+  MEAL_GUARANTEES_AR,
+} from "@/data/meal-cost";
 
 function fmt(n: number) { return "$" + n.toFixed(2); }
 function fmtDate(iso: string) {
@@ -66,6 +73,9 @@ export default function FinanceStorePage() {
         ))}
       </div>
 
+      {/* Meal cost breakdown — manager only */}
+      <MealCostCard />
+
       {/* Full sales log */}
       <div className="bg-charcoal border border-steel overflow-x-auto">
         <table className="w-full text-[12px]">
@@ -119,6 +129,65 @@ export default function FinanceStorePage() {
         <div className="px-4 py-2 border-t border-steel flex justify-between">
           <span className="text-muted text-[12px]">إجمالي الربح</span>
           <span className="text-green-400 font-bold">{fmt(totalProfit)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function fmtSyp(n: number) { return n.toLocaleString("ar-SY") + " ل.س"; }
+
+function MealCostCard() {
+  const ingredientsTotal = MEAL_COST_BREAKDOWN.reduce((s, l) => s + l.amount_syp, 0);
+  const subtotalCost     = ingredientsTotal + MEAL_COST_PACKAGING_SYP + MEAL_COST_OVERHEAD_SYP;
+  const profit           = MEAL_RETAIL_PRICE_SYP - subtotalCost;
+
+  return (
+    <div className="bg-charcoal border border-steel" dir="rtl">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-steel">
+        <Utensils size={16} className="text-gold" />
+        <h2 className="text-white text-[15px] font-semibold">تكلفة الوجبة (داخلي)</h2>
+        <span className="text-muted text-[11px] mr-auto">يظهر للمدير فقط</span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+        <div className="p-4 md:border-l border-steel space-y-2">
+          <p className="text-gold text-[10px] font-bold uppercase tracking-[0.12em] mb-2">المكونات</p>
+          {MEAL_COST_BREAKDOWN.map((line, i) => (
+            <div key={i} className="flex justify-between text-[13px]">
+              <span className="text-white/70">{line.label_ar}</span>
+              <span className="text-white font-mono">{fmtSyp(line.amount_syp)}</span>
+            </div>
+          ))}
+          <div className="flex justify-between text-[13px] pt-2 border-t border-steel/50">
+            <span className="text-white/50">مجموع المكونات</span>
+            <span className="text-white font-mono">{fmtSyp(ingredientsTotal)}</span>
+          </div>
+          <div className="flex justify-between text-[13px]">
+            <span className="text-white/70">بلاستيك / تغليف</span>
+            <span className="text-white font-mono">{fmtSyp(MEAL_COST_PACKAGING_SYP)}</span>
+          </div>
+          <div className="flex justify-between text-[13px]">
+            <span className="text-white/70">ربح + غاز + صوصات + تشغيل</span>
+            <span className="text-white font-mono">{fmtSyp(MEAL_COST_OVERHEAD_SYP)}</span>
+          </div>
+        </div>
+
+        <div className="p-4 space-y-3">
+          <div className="bg-iron border border-steel p-3 flex items-center justify-between">
+            <span className="text-white/60 text-[12px]">سعر البيع للزبون</span>
+            <span className="text-gold font-display text-[20px]">{fmtSyp(MEAL_RETAIL_PRICE_SYP)}</span>
+          </div>
+          <div className="bg-iron border border-steel p-3 flex items-center justify-between">
+            <span className="text-white/60 text-[12px]">الربح الصافي بعد التكاليف</span>
+            <span className="text-green-400 font-mono text-[14px]">{fmtSyp(profit)}</span>
+          </div>
+          <div>
+            <p className="text-gold text-[10px] font-bold uppercase tracking-[0.12em] mb-1.5">المضمون للزبون</p>
+            <ul className="text-white/70 text-[12px] leading-relaxed space-y-0.5">
+              {MEAL_GUARANTEES_AR.map((g, i) => (<li key={i}>• {g}</li>))}
+            </ul>
+          </div>
         </div>
       </div>
     </div>

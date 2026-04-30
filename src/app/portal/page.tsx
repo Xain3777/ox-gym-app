@@ -6,7 +6,6 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
-import { useToast } from "@/components/ui/Toast";
 import {
   OxDumbbell, OxFork, OxBag, OxClock, OxAlert,
   OxTarget, OxFlame, OxHeart, OxShield,
@@ -128,7 +127,6 @@ function buildSuggestions(data: UserData): Suggestion[] {
 
 export default function PortalHome() {
   const { t } = useTranslation();
-  const toast = useToast();
   const [data, setData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [noticeDismissed, setNoticeDismissed] = useState(false);
@@ -337,21 +335,15 @@ export default function PortalHome() {
                 ))}
               </div>
 
-              <button
-                type="button"
-                onClick={() =>
-                  toast.warning(
-                    "يرجى زيارة الاستقبال",
-                    "للاشتراك، تواصل مع موظف الاستقبال في النادي.",
-                  )
-                }
+              <Link
+                href="/renew"
                 className="mt-4 flex items-center justify-center gap-2 w-full bg-gold hover:bg-yellow-400 text-[#0A0A0A] font-bold text-[15px] py-3.5 transition-all duration-200 uppercase tracking-widest"
               >
                 اشترك الآن
-              </button>
+              </Link>
 
               <p className="text-white/20 text-[12px] text-center mt-3">
-                للاشتراك، تواصل مع موظف الاستقبال في النادي.
+                اطّلع على الخطط والعروض ثم زُر الاستقبال للاشتراك.
               </p>
             </div>
           </section>

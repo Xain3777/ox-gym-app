@@ -31,10 +31,16 @@ export default function MachinesPage() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Machine | null>(null);
 
+  // Machine names + model strings turned out to be inaccurate — we only
+  // surface the muscle group in the UI. Search matches on muscle-group
+  // labels (English + Arabic) so the filter pills aren't the only entry
+  // point. Text-of-name search is intentionally gone.
   const filtered = MACHINES.filter((m) => {
     const matchGroup = filter === "All" || m.muscleGroup === filter;
     const q = search.trim().toLowerCase();
-    const matchSearch = !q || m.name.toLowerCase().includes(q) || m.nameAr.includes(q) || m.model.toLowerCase().includes(q) || m.muscleGroup.toLowerCase().includes(q);
+    const matchSearch = !q
+      || m.muscleGroup.toLowerCase().includes(q)
+      || groupLabelAr[m.muscleGroup].includes(q);
     return matchGroup && matchSearch;
   });
 
@@ -78,11 +84,10 @@ export default function MachinesPage() {
             {filtered.map((machine) => (
               <button key={machine.id} onClick={() => setSelected(machine)} className="rounded-lg bg-white/[0.03] border border-white/[0.06] overflow-hidden text-left hover:bg-white/[0.05] hover:border-gold/10 active:scale-[0.98] transition-all duration-200">
                 <div className="bg-white h-44 overflow-hidden">
-                  <Image src={machine.image} alt={machine.name} width={400} height={250} className="w-full h-full object-contain p-4" />
+                  <Image src={machine.image} alt="" width={400} height={250} className="w-full h-full object-contain p-4" />
                 </div>
                 <div className="p-4">
-                  <h3 className="text-white text-[16px] font-semibold" dir={isAr ? "rtl" : "ltr"}>{isAr ? machine.nameAr : machine.name}</h3>
-                  <span className={cn("inline-block mt-2 text-[11px] font-medium px-2.5 py-1 rounded-sm", groupColor[machine.muscleGroup])}>
+                  <span className={cn("inline-block text-[11px] font-medium px-2.5 py-1 rounded-sm", groupColor[machine.muscleGroup])}>
                     {isAr ? groupLabelAr[machine.muscleGroup] : machine.muscleGroup}
                   </span>
                 </div>
@@ -104,12 +109,13 @@ function MachineModal({ machine, isAr, onClose }: { machine: Machine; isAr: bool
       <div className="bg-iron w-full max-w-md sm:rounded-lg rounded-t-2xl max-h-[90vh] overflow-y-auto border border-white/[0.08]" onClick={(e) => e.stopPropagation()}>
         <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mt-3 mb-2 sm:hidden" />
         <div className="bg-white sm:rounded-t-lg overflow-hidden">
-          <Image src={machine.image} alt={machine.name} width={480} height={300} className="w-full h-52 object-contain p-6" priority />
+          <Image src={machine.image} alt="" width={480} height={300} className="w-full h-52 object-contain p-6" priority />
         </div>
         <div className="p-6 space-y-4" dir={isAr ? "rtl" : "ltr"}>
           <div>
-            <p className="text-white/30 text-[12px] font-medium">{machine.model}</p>
-            <h2 className="text-white text-[22px] font-bold mt-1">{isAr ? machine.nameAr : machine.name}</h2>
+            <h2 className="text-white text-[22px] font-bold">
+              {isAr ? groupLabelAr[machine.muscleGroup] : machine.muscleGroup}
+            </h2>
             <span className={cn("inline-block mt-2 text-[11px] font-medium px-2.5 py-1 rounded-sm", groupColor[machine.muscleGroup])}>
               {isAr ? groupLabelAr[machine.muscleGroup] : machine.muscleGroup}
             </span>

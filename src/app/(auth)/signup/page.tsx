@@ -36,9 +36,7 @@ export default function SignupPage() {
   }
 
   async function submit() {
-    if (password.length < 8)     { setError("كلمة المرور يجب أن تكون 8 أحرف على الأقل"); return; }
-    if (!/[A-Z]/.test(password)) { setError("كلمة المرور يجب أن تحتوي على حرف كبير"); return; }
-    if (!/[0-9]/.test(password)) { setError("كلمة المرور يجب أن تحتوي على رقم"); return; }
+    if (!password) { setError("أدخل كلمة المرور"); return; }
 
     setLoading(true);
 
@@ -185,8 +183,7 @@ function PasswordStep({
 }) {
   return (
     <div>
-      <h1 className="font-display text-[26px] leading-tight text-white mb-2">أنشئ كلمة مرور</h1>
-      <p className="text-[13px] text-muted mb-8">8 أحرف على الأقل، حرف كبير ورقم</p>
+      <h1 className="font-display text-[26px] leading-tight text-white mb-8">أنشئ كلمة مرور</h1>
       <div className="relative">
         <input
           type={show ? "text" : "password"}

@@ -16,12 +16,9 @@ const SignupSchema = z.object({
     .trim()
     .min(3, "اسم المستخدم يجب أن يكون 3 أحرف على الأقل")
     .max(40, "اسم المستخدم طويل جداً"),
-  password: z
-    .string()
-    .min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل")
-    .max(128, "كلمة المرور طويلة جداً")
-    .regex(/[A-Z]/, "كلمة المرور يجب أن تحتوي على حرف كبير")
-    .regex(/[0-9]/, "كلمة المرور يجب أن تحتوي على رقم"),
+  // No complexity rules. Supabase Auth still enforces its own minimum
+  // length (configured in Dashboard → Authentication → Settings).
+  password: z.string().min(1, "كلمة المرور مطلوبة").max(128, "كلمة المرور طويلة جداً"),
 });
 
 export async function POST(request: Request) {

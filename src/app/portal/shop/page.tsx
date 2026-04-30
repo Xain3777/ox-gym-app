@@ -62,11 +62,8 @@ function ProductModal({ product, accent, onClose }: { product: Product; accent: 
             )}
           </div>
           <p className="text-white/40 text-[14px] leading-relaxed">{product.desc}</p>
-          <div className="flex items-center justify-between pt-2">
-            <span className={cn("text-[24px] font-bold", accent.text)}>${product.price}</span>
-            <button className={cn("px-6 py-3 text-[14px] font-bold transition-all active:scale-95", accent.bg, accent.bg.startsWith("bg-gold") ? "text-void" : "text-white")}>
-              أضف للسلة
-            </button>
+          <div className="pt-2">
+            <span className={cn("text-[26px] font-bold", accent.text)}>${product.price}</span>
           </div>
           <button onClick={onClose} className="w-full py-3 text-white/30 text-[13px] hover:text-white/50 transition-colors">
             إغلاق

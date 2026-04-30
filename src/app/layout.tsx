@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Bebas_Neue, DM_Sans, DM_Mono } from "next/font/google";
 import { LanguageProvider } from "@/lib/i18n";
+import { MobileBackButton } from "@/components/MobileBackButton";
+import { AppFooter } from "@/components/AppFooter";
 import "./globals.css";
 import "../styles/animations.css";
 
@@ -65,7 +67,9 @@ export default function RootLayout({
     >
       <body className="bg-void text-offwhite font-body antialiased">
         <LanguageProvider>
+          <MobileBackButton />
           {children}
+          <AppFooter />
         </LanguageProvider>
       </body>
     </html>

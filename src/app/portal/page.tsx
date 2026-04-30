@@ -321,12 +321,12 @@ export default function PortalHome() {
                 </div>
               </div>
 
-              {/* Pricing hint */}
+              {/* Pricing hint — full ladder lives on /renew */}
               <div className="mt-4 grid grid-cols-3 gap-2">
                 {[
-                  { label: "شهري", price: "250,000 ل.س" },
-                  { label: "ربع سنوي", price: "650,000 ل.س" },
-                  { label: "سنوي", price: "2,200,000 ل.س" },
+                  { label: "شهر",    price: "$35"  },
+                  { label: "٣ أشهر", price: "$90"  },
+                  { label: "٦ أشهر", price: "$170" },
                 ].map(({ label, price }) => (
                   <div key={label} className="bg-white/[0.03] border border-white/[0.06] p-3 text-center">
                     <p className="text-white/50 text-[11px] font-mono uppercase tracking-wider">{label}</p>

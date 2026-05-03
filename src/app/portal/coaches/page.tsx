@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { cn } from "@/lib/utils";
 import { BackArrow } from "@/components/portal/BackArrow";
 import { OxTrainer, OxAward } from "@/components/icons/OxIcons";
 import { COACHES_AR, type CoachAr } from "@/data/coaches";
@@ -9,10 +10,11 @@ import { COACHES_AR, type CoachAr } from "@/data/coaches";
 // ═══════════════════════════════════════════════════════════════
 // OX GYM — Coaches Page (Arabic)
 //
-// Mobile-first roster. Coach photos are served from /public/coaches/
-// (see public/coaches/README.md for expected filenames). Missing or
-// broken images fall back to a clean "صورة المدرب" placeholder so the
-// UI never shows a broken-image icon.
+// Mobile-first 2-column grid. The head coach (role === "head_coach")
+// always renders first and spans both columns with a featured gold
+// border + glow. Coach photos are served from /public/coaches/ — see
+// public/coaches/README.md for expected filenames. Missing files fall
+// back to a "صورة المدرب" placeholder so no broken-image icons appear.
 // ═══════════════════════════════════════════════════════════════
 
 export default function CoachesPage() {
@@ -51,12 +53,14 @@ export default function CoachesPage() {
         />
       </div>
 
-      <div className="max-w-lg mx-auto px-5 pt-8 space-y-5">
-        {COACHES_AR.map((coach) => (
-          <CoachCard key={coach.name} coach={coach} />
-        ))}
+      <div className="max-w-lg mx-auto px-5 pt-8">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          {COACHES_AR.map((coach) => (
+            <CoachCard key={coach.name} coach={coach} />
+          ))}
+        </div>
 
-        <p className="text-center text-white/15 text-[12px] pt-4">OX GYM · فريق التدريب</p>
+        <p className="text-center text-white/15 text-[12px] pt-6">OX GYM · فريق التدريب</p>
       </div>
     </div>
   );
@@ -64,40 +68,71 @@ export default function CoachesPage() {
 
 // ── Card ──────────────────────────────────────────────────────
 function CoachCard({ coach }: { coach: CoachAr }) {
+  const isHead = coach.role === "head_coach";
+  const fullTitle = `${coach.title} ${coach.name}`;
+
   return (
-    <article className="border border-white/10 bg-white/[0.02] hover:bg-white/[0.04] transition-colors overflow-hidden rounded-xl">
+    <article
+      className={cn(
+        "rounded-2xl border bg-void/80 overflow-hidden flex flex-col",
+        isHead
+          ? "col-span-2 border-2 border-gold shadow-[0_0_28px_rgba(245,188,0,0.25)]"
+          : "border-gold/15"
+      )}
+    >
       {/* Photo */}
-      <CoachImage src={coach.image} alt={coach.name} />
-
-      <div className="p-5">
-        {/* Name + title */}
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div className="min-w-0">
-            <p className="text-gold/50 text-[10px] font-bold uppercase tracking-[0.12em]">الاسم</p>
-            <p className="text-white font-display text-[24px] tracking-wider leading-none mt-1 truncate">
-              {coach.name}
-            </p>
-          </div>
-          <span className="inline-block text-[11px] font-bold px-2.5 py-1 bg-gold/15 text-gold border border-gold/25 shrink-0">
-            {coach.title}
+      <div className="relative">
+        <CoachImage src={coach.image} alt={fullTitle} />
+        {isHead && (
+          <span className="absolute top-2 right-2 inline-block text-[10px] font-bold px-2 py-1 bg-gold text-void border border-gold shadow-md tracking-wide">
+            الهيد كوتش
           </span>
-        </div>
+        )}
+      </div>
 
-        <dl className="space-y-3 text-[13.5px]">
-          <Field label="التخصص" value={coach.specialty.join("، ")} />
-          <Field label="الخبرة" value={coach.experience} />
-          <Field label="الدراسة" value={coach.education} />
+      {/* Body */}
+      <div className={cn("flex-1", isHead ? "p-4" : "p-3")}>
+        <p
+          className={cn(
+            "text-white font-display tracking-wider leading-tight",
+            isHead ? "text-[22px]" : "text-[15px]"
+          )}
+        >
+          {fullTitle}
+        </p>
+
+        <dl className={cn("mt-3", isHead ? "space-y-2.5" : "space-y-1.5")}>
+          <Field
+            label="التخصص"
+            value={coach.specialty.length > 0 ? coach.specialty.join("، ") : "سيتم التحديث قريباً"}
+            compact={!isHead}
+          />
+          <Field label="الخبرة" value={coach.experience} compact={!isHead} />
+          <Field label="الدراسة" value={coach.education} compact={!isHead} />
         </dl>
 
         {coach.achievements.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-white/[0.06]">
-            <div className="flex items-center gap-2 mb-2">
-              <OxAward size={14} className="text-gold" />
-              <p className="text-gold/70 text-[10px] font-bold uppercase tracking-[0.15em]">الإنجازات</p>
+          <div className={cn("mt-3 pt-3 border-t border-white/[0.06]")}>
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <OxAward size={isHead ? 14 : 11} className="text-gold" />
+              <p
+                className={cn(
+                  "text-gold/70 font-bold uppercase tracking-[0.15em]",
+                  isHead ? "text-[10px]" : "text-[9px]"
+                )}
+              >
+                الإنجازات
+              </p>
             </div>
-            <ul className="space-y-1.5">
+            <ul className={cn(isHead ? "space-y-1.5" : "space-y-1")}>
               {coach.achievements.map((ach) => (
-                <li key={ach} className="text-white/70 text-[13.5px] leading-relaxed flex gap-2">
+                <li
+                  key={ach}
+                  className={cn(
+                    "text-white/70 leading-snug flex gap-1.5",
+                    isHead ? "text-[13px]" : "text-[11.5px]"
+                  )}
+                >
                   <span className="text-gold flex-shrink-0">•</span>
                   <span>{ach}</span>
                 </li>
@@ -121,12 +156,12 @@ function CoachImage({ src, alt }: { src: string; alt: string }) {
   }
 
   return (
-    <div className="relative aspect-square w-full bg-[#0d0d0d] border-b border-gold/15 overflow-hidden">
+    <div className="relative aspect-square w-full overflow-hidden">
       <Image
         src={src}
         alt={alt}
         fill
-        sizes="(max-width: 640px) 100vw, 512px"
+        sizes="(max-width: 768px) 50vw, 360px"
         className="object-cover"
         onError={() => setErrored(true)}
       />
@@ -137,26 +172,43 @@ function CoachImage({ src, alt }: { src: string; alt: string }) {
 function CoachImagePlaceholder() {
   return (
     <div
-      className="relative aspect-square w-full flex flex-col items-center justify-center gap-2 bg-[#0d0d0d] border-b border-gold/15 overflow-hidden"
+      className="relative aspect-square w-full flex flex-col items-center justify-center gap-2 bg-[#0d0d0d] overflow-hidden"
       style={{
         backgroundImage:
           "repeating-linear-gradient(45deg,transparent 0,transparent 18px,rgba(245,193,0,0.04) 18px,rgba(245,193,0,0.04) 20px)",
       }}
     >
-      <div className="w-14 h-14 bg-gold/10 border border-gold/25 flex items-center justify-center">
-        <OxTrainer size={26} className="text-gold/70" />
+      <div className="w-12 h-12 bg-gold/10 border border-gold/25 flex items-center justify-center">
+        <OxTrainer size={22} className="text-gold/70" />
       </div>
-      <p className="text-white/45 text-[12px] tracking-wide">صورة المدرب</p>
+      <p className="text-white/45 text-[11px] tracking-wide">صورة المدرب</p>
     </div>
   );
 }
 
 // ── Field row ─────────────────────────────────────────────────
-function Field({ label, value }: { label: string; value: string }) {
+function Field({
+  label,
+  value,
+  compact = false,
+}: {
+  label: string;
+  value: string;
+  compact?: boolean;
+}) {
   return (
-    <div className="flex items-baseline justify-between gap-4">
-      <span className="text-white/40 text-[12px] shrink-0">{label}</span>
-      <span className="text-white/85 text-[14px] font-medium text-left flex-1" dir="rtl">
+    <div className={cn("flex items-baseline justify-between gap-2", compact ? "gap-2" : "gap-4")}>
+      <span className={cn("text-white/40 shrink-0", compact ? "text-[10.5px]" : "text-[12px]")}>
+        {label}
+      </span>
+      <span
+        className={cn(
+          "text-white/85 font-medium text-left flex-1 truncate",
+          compact ? "text-[11.5px]" : "text-[14px]"
+        )}
+        dir="rtl"
+        title={value}
+      >
         {value}
       </span>
     </div>

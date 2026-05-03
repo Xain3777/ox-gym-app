@@ -121,7 +121,7 @@ function CoachImage({ src, alt }: { src: string; alt: string }) {
   }
 
   return (
-    <div className="relative w-full h-56 bg-[#0d0d0d] border-b border-gold/15">
+    <div className="relative aspect-square w-full bg-[#0d0d0d] border-b border-gold/15 overflow-hidden">
       <Image
         src={src}
         alt={alt}
@@ -137,7 +137,7 @@ function CoachImage({ src, alt }: { src: string; alt: string }) {
 function CoachImagePlaceholder() {
   return (
     <div
-      className="relative w-full h-56 flex flex-col items-center justify-center gap-2 bg-[#0d0d0d] border-b border-gold/15"
+      className="relative aspect-square w-full flex flex-col items-center justify-center gap-2 bg-[#0d0d0d] border-b border-gold/15 overflow-hidden"
       style={{
         backgroundImage:
           "repeating-linear-gradient(45deg,transparent 0,transparent 18px,rgba(245,193,0,0.04) 18px,rgba(245,193,0,0.04) 20px)",

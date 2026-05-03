@@ -9,7 +9,25 @@ import {
 // ── Subscription plans ──────────────────────────────────────────
 const plans = [
   {
-    name: "شهري",
+    name: "اشتراك يومي",
+    price: 5,
+    period: "يوم واحد",
+    discount: null,
+    color: "border-white/20",
+    accent: "text-white",
+    badge: null,
+  },
+  {
+    name: "١٥ يوم بالشهر",
+    price: 20,
+    period: "١٥ يوم",
+    discount: null,
+    color: "border-white/20",
+    accent: "text-white",
+    badge: null,
+  },
+  {
+    name: "شهر واحد",
     price: 35,
     period: "شهر",
     discount: null,
@@ -133,20 +151,20 @@ export default function GymInfoPage() {
           <p className="text-white font-display text-[22px] tracking-wider leading-none mb-5">عروض مميزة</p>
 
           <div className="space-y-3">
-            {/* Group offers */}
+            {/* Group offers — pay-for-fewer discount, NOT free months */}
             <div className="border border-white/10 bg-white/[0.02] p-4">
               <p className="text-gold text-[13px] font-bold mb-2">عروض المجموعات</p>
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
                   <OxCheck size={14} className="text-gold shrink-0 mt-0.5" />
                   <p className="text-white/70 text-[14px]">
-                    أنت + <span className="text-white font-semibold">٥ أصدقاء</span> يسجلون ← <span className="text-gold font-bold">شهر مجاناً</span>
+                    <span className="text-white font-semibold">مجموعة ٥ أشخاص</span>: ادفعوا سعر <span className="text-gold font-bold">٤ أشخاص</span> فقط
                   </p>
                 </div>
                 <div className="flex items-start gap-3">
                   <OxCheck size={14} className="text-gold shrink-0 mt-0.5" />
                   <p className="text-white/70 text-[14px]">
-                    أنت + <span className="text-white font-semibold">٩ أصدقاء</span> يسجلون ← <span className="text-gold font-bold">شهرين مجاناً</span>
+                    <span className="text-white font-semibold">مجموعة ٩ أشخاص</span>: ادفعوا سعر <span className="text-gold font-bold">٧ أشخاص</span> فقط
                   </p>
                 </div>
               </div>
@@ -154,11 +172,11 @@ export default function GymInfoPage() {
 
             {/* Couples offer */}
             <div className="border border-white/10 bg-white/[0.02] p-4">
-              <p className="text-gold text-[13px] font-bold mb-2">عرض الزوجين</p>
+              <p className="text-gold text-[13px] font-bold mb-2">عرض الأزواج</p>
               <div className="flex items-start gap-3">
                 <OxCheck size={14} className="text-gold shrink-0 mt-0.5" />
                 <p className="text-white/70 text-[14px]">
-                  أنت والزوجة <span className="text-white font-semibold">٦٠$</span>{" "}
+                  شخصين <span className="text-white font-semibold">٦٠$</span>{" "}
                   <span className="line-through text-white/30">٧٠$</span>
                 </p>
               </div>
@@ -170,17 +188,19 @@ export default function GymInfoPage() {
               <div className="flex items-start gap-3">
                 <OxCheck size={14} className="text-gold shrink-0 mt-0.5" />
                 <p className="text-white/70 text-[14px]">
-                  خصم <span className="text-gold font-bold">١٥٪</span> على الاشتراك الشهري لموظفي الشركات والبنوك
+                  خصم <span className="text-gold font-bold">١٥٪</span> على الاشتراك الشهري
                 </p>
               </div>
             </div>
 
-            {/* Daily */}
+            {/* Students */}
             <div className="border border-white/10 bg-white/[0.02] p-4">
-              <p className="text-gold text-[13px] font-bold mb-2">الاشتراك اليومي</p>
-              <div className="flex items-center justify-between">
-                <p className="text-white/70 text-[14px]">دخول ليوم واحد</p>
-                <p className="text-white font-bold text-[20px]" dir="ltr">$5</p>
+              <p className="text-gold text-[13px] font-bold mb-2">طلاب الجامعة</p>
+              <div className="flex items-start gap-3">
+                <OxCheck size={14} className="text-gold shrink-0 mt-0.5" />
+                <p className="text-white/70 text-[14px]">
+                  خصم <span className="text-gold font-bold">٢٠٪</span> على الاشتراك الشهري
+                </p>
               </div>
             </div>
           </div>

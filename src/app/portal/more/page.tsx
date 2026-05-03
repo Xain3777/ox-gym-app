@@ -29,9 +29,14 @@ const sections: { titleKey: string; items: MoreItem[] }[] = [
     ],
   },
   {
+    titleKey: "more.coachesSection",
+    items: [
+      { labelKey: "more.ourCoaches", subtitleKey: "more.ourCoachesSub", href: "/portal/coaches", icon: OxTrainer, iconBg: "bg-gold/10", iconColor: "text-gold" },
+    ],
+  },
+  {
     titleKey: "more.support",
     items: [
-      { labelKey: "more.personalTrainer", subtitleKey: "more.personalTrainerSub", href: "/portal/trainer", icon: OxTrainer, iconBg: "bg-danger/[0.08]", iconColor: "text-danger" },
       { labelKey: "more.messages", subtitleKey: "more.messagesSub", href: "/portal/messages", icon: OxChat, iconBg: "bg-sky-500/10", iconColor: "text-sky-400" },
       { labelKey: "more.feedback", subtitleKey: "more.feedbackSub", href: "/portal/feedback", icon: OxStar, iconBg: "bg-gold/10", iconColor: "text-gold" },
     ],

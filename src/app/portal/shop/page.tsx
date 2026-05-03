@@ -36,6 +36,34 @@ const accentColors: Record<MainCat, { text: string; bg: string; border: string; 
   "our-store":   { text: "text-gold",       bg: "bg-gold",       border: "border-gold/30",     tape: "#F5C100" },
 };
 
+// ── Product image renderer ────────────────────────────────────────
+// `Product.image` is either a public path ("/products/...") or a single
+// emoji glyph (legacy fallback). Paths render with next/image so we get
+// proper optimization; emoji renders as centered text.
+function ProductImage({ src, alt, sizes, glyphSize }: {
+  src: string;
+  alt: string;
+  sizes: string;
+  glyphSize: string;
+}) {
+  if (src.startsWith("/")) {
+    return (
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        sizes={sizes}
+        className="object-cover"
+      />
+    );
+  }
+  return (
+    <span className={cn("flex items-center justify-center w-full h-full", glyphSize)}>
+      {src}
+    </span>
+  );
+}
+
 // ── Product detail modal ─────────────────────────────────────────
 function ProductModal({ product, accent, onClose }: { product: Product; accent: typeof accentColors[MainCat]; onClose: () => void }) {
   return (
@@ -48,8 +76,13 @@ function ProductModal({ product, accent, onClose }: { product: Product; accent: 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="h-1 w-full" style={{ backgroundImage: `repeating-linear-gradient(90deg,${accent.tape} 0,${accent.tape} 6px,transparent 6px,transparent 12px)` }} />
-        <div className="aspect-[3/2] bg-white/[0.03] flex items-center justify-center text-[64px]">
-          {product.image}
+        <div className="relative aspect-[3/2] bg-white/[0.03] overflow-hidden">
+          <ProductImage
+            src={product.image}
+            alt={product.name}
+            sizes="(max-width: 640px) 100vw, 384px"
+            glyphSize="text-[64px]"
+          />
         </div>
         <div className="p-6 space-y-3" dir="rtl">
           <div className="flex items-start justify-between gap-3">
@@ -79,8 +112,13 @@ function ProductCard({ product, accent, onClick }: { product: Product; accent: t
       style={{ borderColor: undefined }}
       onClick={onClick}
     >
-      <div className="aspect-square bg-white/[0.02] flex items-center justify-center text-[40px]">
-        {product.image}
+      <div className="relative aspect-square bg-white/[0.02] overflow-hidden">
+        <ProductImage
+          src={product.image}
+          alt={product.name}
+          sizes="(max-width: 640px) 50vw, 200px"
+          glyphSize="text-[40px]"
+        />
       </div>
       <div className="p-3" dir="rtl">
         {product.badge && (

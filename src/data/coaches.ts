@@ -4,6 +4,11 @@
 // Source of truth for the gym's coaching team. Consumed by the
 // portal /portal/coaches page. Keep entries ordered by seniority /
 // preference of display, not alphabetically.
+//
+// Coach photos live in: public/coaches/
+//   The `image` field below is a public path (served from /coaches/...).
+//   If a file is missing or fails to load, the page falls back to a
+//   clean "صورة المدرب" placeholder — see public/coaches/README.md.
 // ═══════════════════════════════════════════════════════════════
 
 export interface CoachAr {
@@ -13,6 +18,8 @@ export interface CoachAr {
   experience: string;
   education: string;
   achievements: string[];
+  /** Public path under /public — drop the file at the matching path. */
+  image: string;
 }
 
 export const COACHES_AR: readonly CoachAr[] = [
@@ -23,6 +30,7 @@ export const COACHES_AR: readonly CoachAr[] = [
     experience: "٦ سنوات",
     education: "كلية رياضة",
     achievements: ["بطل مستر يونيفرس ٢٠٢٣"],
+    image: "/coaches/abd.jpg",
   },
   {
     name: "علي",
@@ -31,6 +39,7 @@ export const COACHES_AR: readonly CoachAr[] = [
     experience: "٦ سنوات",
     education: "معهد تجاري",
     achievements: [],
+    image: "/coaches/ali.jpg",
   },
   {
     name: "عابد صالح",
@@ -39,6 +48,7 @@ export const COACHES_AR: readonly CoachAr[] = [
     experience: "٦ سنوات",
     education: "كلية الحقوق",
     achievements: ["شهادة تدريب وتحكيم من الاتحاد الرياضي"],
+    image: "/coaches/abed-saleh.jpg",
   },
   {
     name: "نجدت",
@@ -47,6 +57,7 @@ export const COACHES_AR: readonly CoachAr[] = [
     experience: "١٤ سنة",
     education: "معهد متوسط كهرباء",
     achievements: [],
+    image: "/coaches/najdat.jpg",
   },
   {
     name: "هديل مصطفى",
@@ -55,6 +66,7 @@ export const COACHES_AR: readonly CoachAr[] = [
     experience: "٥ سنوات",
     education: "هندسة زراعية",
     achievements: [],
+    image: "/coaches/hadeel-mustafa.jpg",
   },
   {
     name: "ذوالفقار",
@@ -63,6 +75,7 @@ export const COACHES_AR: readonly CoachAr[] = [
     experience: "٧ سنوات",
     education: "كلية التمريض",
     achievements: ["بطل جمهورية ٥ سنوات في مصارعة الأذرع"],
+    image: "/coaches/thulfiqar.jpg",
   },
   {
     name: "مرام مخلوف",
@@ -71,6 +84,7 @@ export const COACHES_AR: readonly CoachAr[] = [
     experience: "٥ سنوات",
     education: "تجارة واقتصاد",
     achievements: [],
+    image: "/coaches/maram-makhlouf.jpg",
   },
   {
     name: "سومر خدام",
@@ -79,6 +93,7 @@ export const COACHES_AR: readonly CoachAr[] = [
     experience: "٧ سنوات",
     education: "هندسة الطاقة الكهربائية",
     achievements: [],
+    image: "/coaches/somer-khaddam.jpg",
   },
   {
     name: "عمر فوز",
@@ -87,5 +102,6 @@ export const COACHES_AR: readonly CoachAr[] = [
     experience: "+٧ سنوات",
     education: "كلية العلوم - كيمياء",
     achievements: ["بطل كأس عالم"],
+    image: "/coaches/omar-fawz.jpg",
   },
 ];

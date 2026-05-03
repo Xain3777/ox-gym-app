@@ -1,27 +1,29 @@
 import { NextResponse } from "next/server";
-import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { normalizePhone, phoneToEmail } from "@/lib/phone";
 
-// Player self-signup: username + password only.
-// Supabase Auth still requires an email under the hood, so we mint a
-// synthetic one anchored to a fresh UUID. The user never sees it; login
-// resolves it back via /api/auth/resolve.
-const SYNTHETIC_EMAIL_DOMAIN = "user.oxgym.app";
+// Self-signup linked-by-phone flow.
+//
+// Reception/dashboard creates a member first (full_name, phone,
+// subscription). Later the same person signs up in the app with the
+// same phone — instead of duplicating the row we look up the existing
+// member by phone_normalized and link auth.users.id onto it. The
+// dashboard's subscription remains the source of truth.
+//
+// If no matching dashboard member exists, we create a fresh `player`
+// row with status='active' but NO subscription — the portal will
+// render "Not subscribed" until reception attaches one.
 
 const SignupSchema = z.object({
-  username: z
-    .string()
-    .trim()
-    .min(3, "اسم المستخدم يجب أن يكون 3 أحرف على الأقل")
-    .max(40, "اسم المستخدم طويل جداً"),
-  // No complexity rules. Supabase Auth still enforces its own minimum
-  // length (configured in Dashboard → Authentication → Settings).
-  password: z.string().min(1, "كلمة المرور مطلوبة").max(128, "كلمة المرور طويلة جداً"),
+  full_name: z.string().trim().min(2, "الاسم يجب أن يكون حرفين على الأقل").max(100, "الاسم طويل جداً"),
+  phone:     z.string().trim().min(7, "رقم الهاتف غير صالح").max(20, "رقم الهاتف طويل جداً"),
+  password:  z.string().min(1, "كلمة المرور مطلوبة").max(128, "كلمة المرور طويلة جداً"),
 });
 
 export async function POST(request: Request) {
+  // ── Rate limit ─────────────────────────────────────────────────
   const ip = getClientIp(request);
   const rl = checkRateLimit(`signup:${ip}`, 5, 15 * 60_000);
   if (!rl.allowed) {
@@ -31,6 +33,7 @@ export async function POST(request: Request) {
     );
   }
 
+  // ── Validate ───────────────────────────────────────────────────
   let body: unknown;
   try { body = await request.json(); }
   catch { return NextResponse.json({ success: false, error: "Invalid request body" }, { status: 400 }); }
@@ -43,60 +46,110 @@ export async function POST(request: Request) {
     );
   }
 
-  const { username, password } = parsed.data;
+  const { full_name, phone, password } = parsed.data;
+  const phoneNormalized = normalizePhone(phone);
+  if (!phoneNormalized) {
+    return NextResponse.json({ success: false, error: "رقم الهاتف غير صالح" }, { status: 400 });
+  }
+
   const supabase = createServiceClient();
 
-  // Duplicate username check (case-insensitive)
+  // ── Look for an existing dashboard-created player on this phone ──
   const { data: existing } = await supabase
     .from("members")
-    .select("id")
-    .ilike("username", username)
+    .select("id, auth_id")
+    .eq("role", "player")
+    .eq("phone_normalized", phoneNormalized)
     .maybeSingle();
 
-  if (existing) {
+  if (existing?.auth_id) {
     return NextResponse.json(
-      { success: false, error: "هذا الاسم مستخدم من قبل. اختر اسماً مختلفاً." },
+      { success: false, error: "هذا الرقم لديه حساب بالفعل. سجّل الدخول بدلاً من ذلك." },
       { status: 409 },
     );
   }
 
-  // Mint a UUID up-front so we control both auth.users.id and the
-  // synthetic email — no two-phase create/update dance needed.
-  const authId = randomUUID();
-  const syntheticEmail = `${authId}@${SYNTHETIC_EMAIL_DOMAIN}`;
+  // ── Create the auth user ───────────────────────────────────────
+  // Phone-derived email keeps logins consistent with the staff flow
+  // (same internal email format works across both surfaces).
+  const internalEmail = phoneToEmail(phone);
 
-  const { error: authError } = await supabase.auth.admin.createUser({
-    id:            authId,
-    email:         syntheticEmail,
+  const { data: authResult, error: authError } = await supabase.auth.admin.createUser({
+    email:         internalEmail,
     password,
     email_confirm: true,
-    user_metadata: { username },
+    user_metadata: { full_name, phone: phoneNormalized },
   });
 
-  if (authError) {
+  if (authError || !authResult?.user) {
+    // Most likely cause: an auth.users row with the same email already
+    // exists (someone tried to sign up under this phone before but the
+    // members insert failed). Surface a clean message.
     return NextResponse.json(
       { success: false, error: "تعذّر إنشاء الحساب. حاول مرة أخرى." },
       { status: 400 },
     );
   }
 
-  const { error: memberError } = await supabase.from("members").insert({
-    auth_id:       authId,
-    role:          "player",
-    full_name:     username,         // user can rename in onboarding/profile
-    username,
-    status:        "active",
-    temporary_password: password,    // mirrored for admin visibility (per existing convention)
-  });
+  const authId = authResult.user.id;
 
-  if (memberError) {
-    // Roll back the auth user so the username isn't orphaned
-    await supabase.auth.admin.deleteUser(authId);
-    return NextResponse.json(
-      { success: false, error: "تعذّر إنشاء الملف الشخصي" },
-      { status: 500 },
-    );
+  // ── Link to existing member, or create a fresh one ─────────────
+  let linked = false;
+  let memberId: string;
+
+  if (existing) {
+    // Dashboard already created this person — just bind auth_id and
+    // update the display name in case the player typed it differently.
+    const { error: linkErr } = await supabase
+      .from("members")
+      .update({ auth_id: authId, full_name })
+      .eq("id", existing.id);
+
+    if (linkErr) {
+      // Roll back auth user so retries aren't blocked by an orphan row
+      await supabase.auth.admin.deleteUser(authId);
+      return NextResponse.json(
+        { success: false, error: "تعذّر ربط الحساب بالعضوية الحالية." },
+        { status: 500 },
+      );
+    }
+
+    memberId = existing.id;
+    linked   = true;
+  } else {
+    // No dashboard match → fresh player row. status='active' only marks
+    // the member record itself as live; the portal renders "Not
+    // subscribed" until a row is attached to the subscriptions table.
+    const { data: inserted, error: insErr } = await supabase
+      .from("members")
+      .insert({
+        auth_id:            authId,
+        role:               "player",
+        full_name,
+        phone,                          // trigger fills phone_normalized
+        status:             "active",
+        temporary_password: password,   // mirrored for admin visibility
+      })
+      .select("id")
+      .single();
+
+    if (insErr || !inserted) {
+      await supabase.auth.admin.deleteUser(authId);
+      return NextResponse.json(
+        { success: false, error: "تعذّر إنشاء الملف الشخصي." },
+        { status: 500 },
+      );
+    }
+    memberId = inserted.id;
   }
 
-  return NextResponse.json({ success: true, data: { user_id: authId } });
+  return NextResponse.json({
+    success: true,
+    data: {
+      user_id:   authId,
+      member_id: memberId,
+      email:     internalEmail,
+      linked,
+    },
+  });
 }

@@ -40,6 +40,7 @@ const INJURIES_AR: Record<string, string> = {
 
 type ProfileSnapshot = {
   firstName: string; lastName: string; birthday: string; phone: string;
+  heightCm: string; weightKg: string; fitnessGoal: string;
   illnesses: string[]; injuries: string[];
   level: "normal" | "advanced"; goal: "maintain" | "lose" | "gain"; outcome: "muscle" | "health";
 };
@@ -457,6 +458,9 @@ export default function ProfilePage() {
   const [lastName, setLastName]                     = useState("");
   const [birthday, setBirthday]                     = useState("");
   const [phone, setPhone]                           = useState("");
+  const [heightCm, setHeightCm]                     = useState("");
+  const [weightKg, setWeightKg]                     = useState("");
+  const [fitnessGoal, setFitnessGoal]               = useState("");
   const [selectedIllnesses, setSelectedIllnesses]   = useState<string[]>(["None"]);
   const [selectedInjuries, setSelectedInjuries]     = useState<string[]>(["None"]);
   const [level, setLevel]                           = useState<"normal" | "advanced">("normal");
@@ -470,7 +474,7 @@ export default function ProfilePage() {
       if (!user) return;
       const { data: member } = await supabase
         .from("members")
-        .select("full_name, phone, date_of_birth, illnesses, injuries, training_level, weight_goal, fitness_outcome")
+        .select("full_name, phone, date_of_birth, height_cm, weight_kg, fitness_goal, illnesses, injuries, training_level, weight_goal, fitness_outcome")
         .eq("auth_id", user.id)
         .single();
       if (!member) return;
@@ -484,6 +488,9 @@ export default function ProfilePage() {
       const oc = (member.fitness_outcome as "muscle" | "health") ?? "muscle";
 
       setFirstName(fn); setLastName(ln); setPhone(ph); setBirthday(bd);
+      setHeightCm(member.height_cm != null ? String(member.height_cm) : "");
+      setWeightKg(member.weight_kg != null ? String(member.weight_kg) : "");
+      setFitnessGoal(member.fitness_goal ?? "");
       setSelectedIllnesses(il); setSelectedInjuries(inj);
       setLevel(lv); setGoal(gl); setOutcome(oc);
       setProfileLoaded(true);
@@ -500,19 +507,32 @@ export default function ProfilePage() {
   }, []);
 
   async function persistProfile() {
-    const supabase = createBrowserSupabase();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase.from("members").update({
-      full_name: `${firstName} ${lastName}`.trim(),
-      phone: phone || null,
-      date_of_birth: birthday || null,
-      illnesses: selectedIllnesses,
-      injuries: selectedInjuries,
-      training_level: level,
-      weight_goal: goal,
-      fitness_outcome: outcome,
-    }).eq("auth_id", user.id);
+    // Routes through /api/portal/profile so the same Zod validation +
+    // field whitelist applies as for any other client. The API also
+    // refuses writes to role/auth_id/status/phone_normalized.
+    const heightVal = heightCm.trim() === "" ? null : Number(heightCm);
+    const weightVal = weightKg.trim() === "" ? null : Number(weightKg);
+
+    const res = await fetch("/api/portal/profile", {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        full_name:       `${firstName} ${lastName}`.trim(),
+        date_of_birth:   birthday || null,
+        height_cm:       Number.isFinite(heightVal) ? heightVal : null,
+        weight_kg:       Number.isFinite(weightVal) ? weightVal : null,
+        fitness_goal:    fitnessGoal.trim() || null,
+        illnesses:       selectedIllnesses,
+        injuries:        selectedInjuries,
+        training_level:  level,
+        weight_goal:     goal,
+        fitness_outcome: outcome,
+      }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      throw new Error(j?.error ?? "Update failed");
+    }
   }
 
   async function handleWizardComplete() {
@@ -523,7 +543,12 @@ export default function ProfilePage() {
   }
 
   function startEditing() {
-    setSnapshot({ firstName, lastName, birthday, phone, illnesses: selectedIllnesses, injuries: selectedInjuries, level, goal, outcome });
+    setSnapshot({
+      firstName, lastName, birthday, phone,
+      heightCm, weightKg, fitnessGoal,
+      illnesses: selectedIllnesses, injuries: selectedInjuries,
+      level, goal, outcome,
+    });
     setSaveError(null); setIsEditing(true);
   }
 
@@ -531,6 +556,8 @@ export default function ProfilePage() {
     if (!snapshot) return;
     setFirstName(snapshot.firstName); setLastName(snapshot.lastName);
     setBirthday(snapshot.birthday); setPhone(snapshot.phone);
+    setHeightCm(snapshot.heightCm); setWeightKg(snapshot.weightKg);
+    setFitnessGoal(snapshot.fitnessGoal);
     setSelectedIllnesses(snapshot.illnesses); setSelectedInjuries(snapshot.injuries);
     setLevel(snapshot.level); setGoal(snapshot.goal); setOutcome(snapshot.outcome);
     setSaveError(null); setIsEditing(false);
@@ -610,6 +637,13 @@ export default function ProfilePage() {
           <InputField label={t("profile.lastName")} value={lastName} onChange={setLastName} readOnly={!isEditing} />
           <InputField label={t("profile.dateOfBirth")} value={birthday} onChange={setBirthday} type="date" readOnly={!isEditing} />
           <InputField label={t("profile.phone")} value={phone} onChange={setPhone} type="tel" readOnly={!isEditing} />
+        </Section>
+
+        {/* ── Body & Goal ── */}
+        <Section title="القياسات والهدف" icon={<OxTarget size={14} className="text-gold" />}>
+          <InputField label="الطول (سم)" value={heightCm} onChange={setHeightCm} type="number" placeholder="175" readOnly={!isEditing} />
+          <InputField label="الوزن (كغ)" value={weightKg} onChange={setWeightKg} type="number" placeholder="72" readOnly={!isEditing} />
+          <InputField label="الهدف الرياضي" value={fitnessGoal} onChange={setFitnessGoal} placeholder="مثال: زيادة كتلة عضلية" readOnly={!isEditing} />
         </Section>
 
         {/* ── Health Conditions ── */}

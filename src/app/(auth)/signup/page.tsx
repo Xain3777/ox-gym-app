@@ -4,14 +4,22 @@ import { useState } from "react";
 import Link from "next/link";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
+import { phoneToEmail } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
-type Step = 0 | 1;
-const TOTAL = 2;
+// Self-signup is keyed on phone number — the same phone the dashboard
+// uses when reception adds a member. If a matching member already
+// exists we link the auth user to that row instead of creating a new
+// one (so the subscription set up at the desk follows the member into
+// the app).
+
+type Step = 0 | 1 | 2;
+const TOTAL = 3;
 
 export default function SignupPage() {
   const [step, setStep]         = useState<Step>(0);
-  const [username, setUsername] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone]       = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [error, setError]       = useState("");
@@ -20,10 +28,17 @@ export default function SignupPage() {
   function next() {
     setError("");
     if (step === 0) {
-      const u = username.trim();
-      if (u.length < 3) { setError("اسم المستخدم يجب أن يكون 3 أحرف على الأقل"); return; }
-      if (u.length > 40) { setError("اسم المستخدم طويل جداً"); return; }
+      const n = fullName.trim();
+      if (n.length < 2)  { setError("الاسم يجب أن يكون حرفين على الأقل"); return; }
+      if (n.length > 100) { setError("الاسم طويل جداً"); return; }
       setStep(1);
+      return;
+    }
+    if (step === 1) {
+      const digits = phone.replace(/\D/g, "");
+      if (digits.length < 7)  { setError("رقم الهاتف غير صالح"); return; }
+      if (digits.length > 15) { setError("رقم الهاتف طويل جداً"); return; }
+      setStep(2);
       return;
     }
     submit();
@@ -32,19 +47,21 @@ export default function SignupPage() {
   function back() {
     setError("");
     if (step === 0) return;
-    setStep(0);
+    setStep((step - 1) as Step);
   }
 
   async function submit() {
     if (!password) { setError("أدخل كلمة المرور"); return; }
-
     setLoading(true);
 
-    // 1. Create the account server-side
     const res = await fetch("/api/auth/signup", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ username: username.trim(), password }),
+      body:    JSON.stringify({
+        full_name: fullName.trim(),
+        phone:     phone.trim(),
+        password,
+      }),
     });
     const result = await res.json();
 
@@ -54,23 +71,13 @@ export default function SignupPage() {
       return;
     }
 
-    // 2. Resolve the synthetic email and sign in to set the session cookies
-    const resolveRes = await fetch(
-      `/api/auth/resolve?username=${encodeURIComponent(username.trim())}`,
-    );
-    const resolveData = await resolveRes.json();
-
-    if (!resolveData?.success || !resolveData.email) {
-      setError("تم إنشاء الحساب، لكن تعذّر تسجيل الدخول. حاول الدخول يدوياً.");
-      setLoading(false);
-      return;
-    }
+    // The signup route returns the email it bound to auth.users. Use it
+    // to set the session cookies — works whether the row was newly
+    // created or linked to an existing dashboard member.
+    const email = result.data?.email ?? phoneToEmail(phone);
 
     const supabase = createBrowserSupabase();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email:    resolveData.email,
-      password,
-    });
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
 
     if (signInError) {
       setError("تم إنشاء الحساب، لكن تعذّر تسجيل الدخول. حاول الدخول يدوياً.");
@@ -78,8 +85,10 @@ export default function SignupPage() {
       return;
     }
 
-    // Hard navigate so middleware sees the freshly-set session cookies
-    window.location.href = "/onboarding";
+    // Hard navigate so middleware sees the freshly-set session cookies.
+    // Linked members skip onboarding (they already have a profile from
+    // reception); fresh signups go through the wizard.
+    window.location.href = result.data?.linked ? "/portal" : "/onboarding";
   }
 
   return (
@@ -93,7 +102,7 @@ export default function SignupPage() {
             "w-9 h-9 flex items-center justify-center text-white/80 transition-opacity",
             step === 0 && "opacity-0 pointer-events-none",
           )}
-          aria-label="back"
+          aria-label="رجوع"
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M5 12h14M12 5l-7 7 7 7" transform="scale(-1,1) translate(-24,0)" />
@@ -119,9 +128,12 @@ export default function SignupPage() {
       {/* Body */}
       <div className="flex-1 flex flex-col">
         {step === 0 && (
-          <UsernameStep value={username} onChange={setUsername} />
+          <NameStep value={fullName} onChange={setFullName} />
         )}
         {step === 1 && (
+          <PhoneStep value={phone} onChange={setPhone} />
+        )}
+        {step === 2 && (
           <PasswordStep value={password} onChange={setPassword} show={showPass} toggleShow={() => setShowPass((v) => !v)} />
         )}
 
@@ -150,20 +162,41 @@ export default function SignupPage() {
   );
 }
 
-function UsernameStep({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function NameStep({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <h1 className="font-display text-[26px] leading-tight text-white mb-2">اختر اسم مستخدم</h1>
-      <p className="text-[13px] text-muted mb-8">3 أحرف على الأقل. هذا الاسم ستستخدمه لتسجيل الدخول.</p>
+      <h1 className="font-display text-[26px] leading-tight text-white mb-2">ما اسمك؟</h1>
+      <p className="text-[13px] text-muted mb-8">سنستخدمه لمناداتك في التطبيق.</p>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoFocus
-        autoComplete="username"
+        autoComplete="name"
         spellCheck={false}
         className="w-full h-14 px-4 bg-iron border border-steel text-offwhite text-[18px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
-        placeholder="ahmed_khalil"
+        placeholder="أحمد خليل"
+      />
+    </div>
+  );
+}
+
+function PhoneStep({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <h1 className="font-display text-[26px] leading-tight text-white mb-2">رقم الهاتف</h1>
+      <p className="text-[13px] text-muted mb-8">
+        إذا كان رقمك مسجّلاً عند الاستقبال، سنربط حسابك بالاشتراك تلقائياً.
+      </p>
+      <input
+        type="tel"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        autoFocus
+        autoComplete="tel"
+        spellCheck={false}
+        className="w-full h-14 px-4 bg-iron border border-steel text-offwhite text-[18px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
+        placeholder="0912345678"
         dir="ltr"
       />
     </div>
@@ -199,6 +232,7 @@ function PasswordStep({
           type="button"
           onClick={toggleShow}
           className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+          aria-label={show ? "إخفاء" : "إظهار"}
         >
           {show ? "◉" : "◎"}
         </button>

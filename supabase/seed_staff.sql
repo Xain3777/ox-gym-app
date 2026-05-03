@@ -1,7 +1,7 @@
 -- Staff seed — 1 manager, 5 reception, 10 coach.
 -- Run against a clean DB (members + auth.users empty). Passwords are
 -- bcrypt-hashed for Supabase Auth; the same plaintext is mirrored into
--- members.temp_password for admin visibility in the table editor.
+-- members.temporary_password for admin visibility in the table editor.
 --
 -- Login: username is "<First> <Last>" (spaces allowed) OR phone (0911000001…).
 
@@ -66,6 +66,6 @@ ins_identity AS (
   FROM prepared p
   RETURNING user_id
 )
-INSERT INTO public.members (auth_id, full_name, username, phone, role, status, temp_password)
+INSERT INTO public.members (auth_id, full_name, username, phone, role, status, temporary_password)
 SELECT auth_id, full_name, username, phone_canonical, role, 'active'::member_status, pwd
 FROM prepared;

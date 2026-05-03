@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     full_name:     username,         // user can rename in onboarding/profile
     username,
     status:        "active",
-    temp_password: password,         // mirrored for admin visibility (per existing convention)
+    temporary_password: password,    // mirrored for admin visibility (per existing convention)
   });
 
   if (memberError) {

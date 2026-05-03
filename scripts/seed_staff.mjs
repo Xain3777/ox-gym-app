@@ -76,7 +76,7 @@ async function seedOne(s) {
     phone:         phoneCanonical(s.phone_local),
     role:          s.role,
     status:        "active",
-    temp_password: s.pwd,
+    temporary_password: s.pwd,
   });
   if (insErr) {
     await admin.auth.admin.deleteUser(authId);

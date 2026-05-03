@@ -2,10 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 const ROLE_HOME: Record<string, string> = {
-  manager:   "/dashboard",
-  coach:     "/coach",
-  reception: "/reception",
-  player:    "/portal",
+  manager:    "/dashboard",
+  head_coach: "/coach",
+  coach:      "/coach",
+  reception:  "/reception",
+  player:     "/portal",
 };
 
 const PUBLIC_ROUTES  = ["/login", "/staff-login", "/signup", "/api/auth", "/forgot-password", "/reset-password"];
@@ -24,6 +25,8 @@ function roleForRoute(pathname: string): string | null {
     pathname.startsWith("/notifications") || pathname.startsWith("/settings") ||
     pathname.startsWith("/finance")   || pathname.startsWith("/roles")
   ) return "manager";
+  // /coach is owned by both regular coaches and the head coach. The
+  // role-equality check below is loosened to allow either role through.
   if (pathname.startsWith("/coach"))     return "coach";
   if (pathname.startsWith("/reception")) return "reception";
   if (pathname.startsWith("/portal"))    return "player";
@@ -110,7 +113,11 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  if (routeOwner !== role) {
+  // head_coach shares the /coach surface with coach.
+  const roleMatchesRoute =
+    routeOwner === role ||
+    (routeOwner === "coach" && role === "head_coach");
+  if (!roleMatchesRoute) {
     return NextResponse.redirect(new URL(ROLE_HOME[role] ?? "/portal", request.url));
   }
 

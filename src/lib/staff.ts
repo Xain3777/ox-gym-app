@@ -8,7 +8,7 @@ export interface StaffAccount {
   id: string;
   name: string;
   title: string;
-  role: "manager" | "reception";
+  role: "manager" | "reception" | "coach" | "head_coach";
   phone: string;
 }
 

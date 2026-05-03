@@ -3,23 +3,24 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
-type Role = "player" | "coach" | "reception" | "manager";
+type Role = "player" | "coach" | "head_coach" | "reception" | "manager";
 
 interface Member {
   id:            string;
   full_name:     string;
   username:      string | null;
   phone:         string | null;
-  temp_password: string | null;
+  temporary_password: string | null;
   role:          Role;
   status:        string;
 }
 
 const ROLES: { key: Role; label: string; color: string }[] = [
-  { key: "player",    label: "Player",    color: "text-blue-400 border-blue-400/30 bg-blue-400/10" },
-  { key: "coach",     label: "Coach",     color: "text-green-400 border-green-400/30 bg-green-400/10" },
-  { key: "reception", label: "Reception", color: "text-yellow-400 border-yellow-400/30 bg-yellow-400/10" },
-  { key: "manager",   label: "Manager",   color: "text-gold border-gold/30 bg-gold/10" },
+  { key: "player",     label: "Player",     color: "text-blue-400 border-blue-400/30 bg-blue-400/10" },
+  { key: "coach",      label: "Coach",      color: "text-green-400 border-green-400/30 bg-green-400/10" },
+  { key: "head_coach", label: "Head Coach", color: "text-emerald-300 border-emerald-300/40 bg-emerald-300/10" },
+  { key: "reception",  label: "Reception",  color: "text-yellow-400 border-yellow-400/30 bg-yellow-400/10" },
+  { key: "manager",    label: "Manager",    color: "text-gold border-gold/30 bg-gold/10" },
 ];
 
 export default function RolesPage() {
@@ -134,10 +135,10 @@ export default function RolesPage() {
                     </td>
                     <td className="px-4 py-3 text-white/60 font-mono">{member.phone ?? "—"}</td>
                     <td className="px-4 py-3">
-                      {member.temp_password ? (
+                      {member.temporary_password ? (
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-white/70">
-                            {vis ? member.temp_password : "••••••••"}
+                            {vis ? member.temporary_password : "••••••••"}
                           </span>
                           <button
                             onClick={() => togglePass(member.id)}

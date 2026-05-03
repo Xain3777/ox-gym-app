@@ -83,7 +83,9 @@ CREATE TABLE members (
   height_cm            INTEGER,
   fitness_goal         TEXT,
   -- Plain-text password mirror (admin visibility, intentional per migration 008)
-  temp_password        TEXT,
+  temporary_password   TEXT,
+  password_hash        TEXT,
+  must_change_password BOOLEAN      NOT NULL DEFAULT TRUE,
   created_at           TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 

@@ -10,7 +10,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("members")
     .select("id, full_name, phone, role")
-    .in("role", ["manager", "reception"])
+    .in("role", ["manager", "reception", "head_coach", "coach"])
     .order("role", { ascending: true })
     .order("full_name", { ascending: true });
 
@@ -18,13 +18,20 @@ export async function GET() {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 
+  const titleByRole: Record<string, string> = {
+    manager:    "المالك",
+    reception:  "موظف استقبال",
+    head_coach: "الهيد كوتش",
+    coach:      "الكوتش",
+  };
+
   const staff = (data ?? [])
     .filter((m) => m.phone)
     .map((m) => ({
       id:    m.id,
       name:  m.full_name,
-      role:  m.role as "manager" | "reception",
-      title: m.role === "manager" ? "المالك" : "موظف استقبال",
+      role:  m.role as "manager" | "reception" | "head_coach" | "coach",
+      title: titleByRole[m.role as string] ?? m.role,
       phone: m.phone as string,
     }));
 

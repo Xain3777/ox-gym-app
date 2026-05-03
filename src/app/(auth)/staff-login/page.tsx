@@ -50,8 +50,10 @@ export default function StaffLoginPage() {
 
     if (!authError && authData.user) {
       const roleHomes: Record<string, string> = {
-        manager: "/dashboard",
-        reception: "/reception",
+        manager:    "/dashboard",
+        reception:  "/reception",
+        head_coach: "/coach",
+        coach:      "/coach",
       };
       window.location.href = roleHomes[staff.role] ?? "/reception";
       return;
@@ -116,12 +118,12 @@ export default function StaffLoginPage() {
             value={pin}
             onChange={(e) => setPin(e.target.value)}
             required
-            maxLength={8}
-            className="w-full h-12 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors tracking-[0.3em] text-center"
-            placeholder="••••"
+            maxLength={64}
+            className="w-full h-12 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors tracking-[0.15em] text-center"
+            placeholder="••••••••"
           />
           <p className="text-[11px] text-muted/50 mt-1.5 text-center">
-            رمز الدخول التدريبي: 1234
+            استخدم كلمة المرور المؤقتة الخاصة بك
           </p>
         </div>
 

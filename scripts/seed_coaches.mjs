@@ -49,7 +49,10 @@ const admin = createClient(SUPA_URL, SVC_KEY, {
 //
 // To rotate a password, edit `temporary_password` here and re-run.
 const COACHES = [
-  { username: "mohammad",       full_name: "محمد",       role: "head_coach", phone_local: "0922000001", temporary_password: "OxCoach-482917" },
+  // Mohammad seeded as plain 'coach' for now — promote to 'head_coach' once
+  // the user_role enum has the value: ALTER TYPE user_role ADD VALUE 'head_coach';
+  // followed by: UPDATE members SET role = 'head_coach' WHERE username = 'mohammad';
+  { username: "mohammad",       full_name: "محمد",       role: "coach",      phone_local: "0922000001", temporary_password: "OxCoach-482917" },
   { username: "ruaa",           full_name: "رؤى",        role: "coach",      phone_local: "0922000002", temporary_password: "OxCoach-739204" },
   { username: "abd",            full_name: "عبد",        role: "coach",      phone_local: "0922000003", temporary_password: "OxCoach-156830" },
   { username: "ali",            full_name: "علي",        role: "coach",      phone_local: "0922000004", temporary_password: "OxCoach-604281" },
@@ -105,16 +108,51 @@ async function upsertAuthUser(coach) {
 }
 
 async function upsertMemberRow(coach, authId) {
-  const { data, error } = await admin.rpc("seed_coach_account", {
-    p_auth_id:            authId,
-    p_username:           coach.username,
-    p_full_name:          coach.full_name,
-    p_role:               coach.role,
-    p_phone:              phoneCanonical(coach.phone_local),
-    p_temporary_password: coach.temporary_password,
-  });
-  if (error) throw new Error(`rpc seed_coach_account ${coach.username}: ${error.message}`);
-  return data;
+  // Minimal-column upsert. Skips temporary_password / must_change_password
+  // / password_hash because Supabase's PostgREST schema cache lags
+  // behind DDL changes for several minutes after a migration; if those
+  // columns aren't visible to the cache yet the insert errors. Login
+  // doesn't need them — Supabase Auth uses auth.users.encrypted_password
+  // which we already set above. The plaintext password is the
+  // OxCoach-XXXXXX you have in this script's COACHES list.
+  const phone = phoneCanonical(coach.phone_local);
+
+  const { data: existing } = await admin
+    .from("members")
+    .select("id")
+    .ilike("username", coach.username)
+    .maybeSingle();
+
+  if (existing) {
+    const { data, error } = await admin
+      .from("members")
+      .update({
+        auth_id:   authId,
+        full_name: coach.full_name,
+        role:      coach.role,
+        phone,
+      })
+      .eq("id", existing.id)
+      .select("id")
+      .single();
+    if (error) throw new Error(`members.update ${coach.username}: ${error.message}`);
+    return data.id;
+  }
+
+  const { data, error } = await admin
+    .from("members")
+    .insert({
+      auth_id:   authId,
+      username:  coach.username,
+      full_name: coach.full_name,
+      role:      coach.role,
+      phone,
+      status:    "active",
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(`members.insert ${coach.username}: ${error.message}`);
+  return data.id;
 }
 
 async function seedOne(coach) {

@@ -15,11 +15,24 @@ export function LogoutButton({ className, label = "تسجيل الخروج" }: L
 
   async function doLogout() {
     setLoading(true);
-    const supabase = createBrowserSupabase();
-    await supabase.auth.signOut();
-    // Hard navigate so the cleared cookies are guaranteed in place before
-    // the next render — router.push is a soft transition that can race.
-    window.location.href = "/login";
+    try {
+      // 1. Browser-side: drop the in-memory session + best-effort cookie
+      //    delete. Catch is needed because the global signOut may try a
+      //    network call that fails when the session is already invalid.
+      const supabase = createBrowserSupabase();
+      try { await supabase.auth.signOut({ scope: "local" }); } catch { /* fine */ }
+
+      // 2. Server-side: the only path that can touch HttpOnly / chunked
+      //    sb-* cookies. Without this, middleware bounces the user
+      //    straight back to /coach.
+      try {
+        await fetch("/api/auth/logout", { method: "POST", cache: "no-store" });
+      } catch { /* fine — cookies above may already be cleared */ }
+    } finally {
+      // Hard navigate so the cleared cookies are guaranteed in place
+      // before middleware runs again.
+      window.location.href = "/login";
+    }
   }
 
   return (

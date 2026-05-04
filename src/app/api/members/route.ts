@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
+import { normalizePhone, phoneToEmail } from "@/lib/phone";
 import type { ApiResponse } from "@/types";
 
 const MIN_PRICE = 1;
@@ -9,6 +10,7 @@ const MIN_PRICE = 1;
 const AddMemberSchema = z.object({
   full_name:  z.string().min(2, "Name must be at least 2 characters").max(100),
   phone:      z.string().min(7, "Phone number too short").max(20).regex(/^\+?[\d\s\-()]+$/, "Invalid phone number"),
+  password:   z.string().min(1, "Password required").max(128, "Password too long"),
   goals:      z.string().max(500).optional(),
   plan_type:  z.enum(["monthly", "quarterly", "annual"]),
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format"),
@@ -36,14 +38,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { full_name, phone, goals, plan_type, start_date, end_date, price } = result.data;
+  const { full_name, phone, password, goals, plan_type, start_date, end_date, price } = result.data;
+  const phoneNormalized = normalizePhone(phone);
+  if (!phoneNormalized) {
+    return NextResponse.json<ApiResponse>({ success: false, error: "Invalid phone number" }, { status: 400 });
+  }
+
   const supabase = createServiceClient();
 
-  // Deduplicate by phone
+  // Deduplicate by normalized phone — catches different formats of the
+  // same number (0912…, +96391…, 96391…) and matches the partial unique
+  // index on members.phone_normalized for role='player'.
   const { data: existing } = await supabase
     .from("members")
     .select("id")
-    .eq("phone", phone)
+    .eq("phone_normalized", phoneNormalized)
     .maybeSingle();
 
   if (existing) {
@@ -53,13 +62,43 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Create the auth.users row first so the member can log in immediately
+  // with the password reception just typed. Same internal-email shape
+  // as /api/auth/signup so phone-derived logins are consistent.
+  const internalEmail = phoneToEmail(phone);
+  const { data: authResult, error: authError } = await supabase.auth.admin.createUser({
+    email:         internalEmail,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name, phone: phoneNormalized },
+  });
+
+  if (authError || !authResult?.user) {
+    return NextResponse.json<ApiResponse>(
+      { success: false, error: "Failed to create login account" },
+      { status: 500 },
+    );
+  }
+
+  const authId = authResult.user.id;
+
   const { data: member, error: memberError } = await supabase
     .from("members")
-    .insert({ full_name, phone, goals: goals ?? null, status: "active" })
+    .insert({
+      auth_id:            authId,
+      full_name,
+      phone,                          // trigger fills phone_normalized
+      goals:              goals ?? null,
+      role:               "player",
+      status:             "active",
+      temporary_password: password,   // mirror for admin visibility, same as signup flow
+    })
     .select()
     .single();
 
   if (memberError || !member) {
+    // Roll back auth user so retries aren't blocked by an orphan login
+    await supabase.auth.admin.deleteUser(authId);
     return NextResponse.json<ApiResponse>({ success: false, error: "Failed to create member" }, { status: 500 });
   }
 
@@ -74,6 +113,7 @@ export async function POST(request: NextRequest) {
 
   if (subError) {
     await supabase.from("members").delete().eq("id", member.id);
+    await supabase.auth.admin.deleteUser(authId);
     return NextResponse.json<ApiResponse>({ success: false, error: "Failed to create subscription" }, { status: 500 });
   }
 
@@ -85,8 +125,8 @@ export async function POST(request: NextRequest) {
     meta: { full_name, phone, plan_type },
   }).then(() => {});
 
-  return NextResponse.json<ApiResponse<{ id: string }>>(
-    { success: true, data: { id: member.id } },
+  return NextResponse.json<ApiResponse<{ id: string; email: string }>>(
+    { success: true, data: { id: member.id, email: internalEmail } },
     { status: 201 },
   );
 }

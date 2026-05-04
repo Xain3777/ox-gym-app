@@ -8,6 +8,7 @@ import { UserPlus, CheckCircle, AlertCircle } from "lucide-react";
 interface FormData {
   full_name: string;
   phone:     string;
+  password:  string;
   goals:     string;
   plan_type: "monthly" | "quarterly" | "annual";
   start_date: string;
@@ -18,6 +19,7 @@ interface FormData {
 interface FormErrors {
   full_name?: string;
   phone?:     string;
+  password?:  string;
   start_date?: string;
   end_date?:   string;
   price?:      string;
@@ -28,6 +30,7 @@ function validate(data: FormData, t: (key: string) => string): FormErrors {
   if (!data.full_name.trim()) errors.full_name = t("validation.nameRequired");
   if (!data.phone.trim()) errors.phone = t("validation.required");
   else if (!/^[\d\s+()-]{7,20}$/.test(data.phone)) errors.phone = t("validation.invalidPhone");
+  if (!data.password) errors.password = t("validation.required");
   if (!data.start_date) errors.start_date = t("validation.dateInvalid");
   if (!data.end_date)   errors.end_date   = t("validation.dateInvalid");
   if (data.price && isNaN(Number(data.price))) errors.price = t("validation.priceInvalid");
@@ -40,6 +43,7 @@ export default function ReceptionCreatePage() {
   const [form, setForm] = useState<FormData>({
     full_name: "",
     phone:     "",
+    password:  "",
     goals:     "",
     plan_type: "monthly",
     start_date: today,
@@ -96,7 +100,7 @@ export default function ReceptionCreatePage() {
       }
 
       setSuccess(true);
-      setForm({ full_name: "", phone: "", goals: "", plan_type: "monthly", start_date: today, end_date: "", price: "" });
+      setForm({ full_name: "", phone: "", password: "", goals: "", plan_type: "monthly", start_date: today, end_date: "", price: "" });
     } catch {
       setApiError(t("common.error"));
     } finally {
@@ -138,6 +142,17 @@ export default function ReceptionCreatePage() {
 
         <Field label={t("common.phone")} error={errors.phone} required>
           <input type="tel" value={form.phone} onChange={(e) => update("phone", e.target.value)} className={fieldClass(errors.phone)} placeholder="+964 7XX XXX XXXX" />
+        </Field>
+
+        <Field label={t("auth.password")} error={errors.password} required>
+          <input
+            type="password"
+            value={form.password}
+            onChange={(e) => update("password", e.target.value)}
+            className={fieldClass(errors.password)}
+            autoComplete="new-password"
+            placeholder="••••••••"
+          />
         </Field>
 
         <Field label={t("members.goals")}>

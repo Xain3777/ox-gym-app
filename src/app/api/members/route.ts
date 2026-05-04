@@ -82,16 +82,18 @@ export async function POST(request: NextRequest) {
 
   const authId = authResult.user.id;
 
+  // Skip temporary_password (see note in /api/auth/signup) so the
+  // route works even when deployed against a project that hasn't had
+  // migration 014 applied yet.
   const { data: member, error: memberError } = await supabase
     .from("members")
     .insert({
       auth_id:            authId,
       full_name,
-      phone,                          // trigger fills phone_normalized
+      phone,                          // trigger fills phone_normalized when present
       goals:              goals ?? null,
       role:               "player",
       status:             "active",
-      temporary_password: password,   // mirror for admin visibility, same as signup flow
     })
     .select()
     .single();

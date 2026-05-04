@@ -120,15 +120,23 @@ export async function POST(request: Request) {
     // No dashboard match → fresh player row. status='active' only marks
     // the member record itself as live; the portal renders "Not
     // subscribed" until a row is attached to the subscriptions table.
+    // Insert only the columns guaranteed to exist on every project the
+    // app might be deployed against. The plaintext-password mirror in
+    // members.temporary_password is a *nice-to-have* for admin support
+    // (so they can see what self-signup users chose) — but it isn't
+    // load-bearing: real auth uses auth.users.encrypted_password.
+    // Skipping it here means the route works whether the project has
+    // run migration 014 (temporary_password) or not. Staff seeders set
+    // it explicitly via SQL, so admin visibility into staff temps is
+    // unaffected.
     const { data: inserted, error: insErr } = await supabase
       .from("members")
       .insert({
         auth_id:            authId,
         role:               "player",
         full_name,
-        phone,                          // trigger fills phone_normalized
+        phone,                          // trigger fills phone_normalized when present
         status:             "active",
-        temporary_password: password,   // mirrored for admin visibility
       })
       .select("id")
       .single();

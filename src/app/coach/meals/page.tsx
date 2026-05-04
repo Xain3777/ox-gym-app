@@ -35,7 +35,7 @@ export default function CoachMealsPage() {
       <div className="flex items-center justify-between">
         <h1 className="font-display text-[28px] tracking-wider text-white">{t("coach.mealPlans")}</h1>
         <Link
-          href="/meal-plans/new"
+          href="/coach/meals/new"
           className="flex items-center gap-2 bg-[#FF6B35] text-void px-4 py-2.5 text-[13px] font-bold uppercase tracking-wider hover:bg-[#FF6B35]/90 transition-colors"
         >
           <Plus size={16} />

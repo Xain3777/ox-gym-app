@@ -78,7 +78,9 @@ const numberInputClass = "w-full bg-charcoal border border-steel text-offwhite t
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════
 
-export function CreateMealPlanForm() {
+export function CreateMealPlanForm({
+  returnPath = "/meal-plans",
+}: { returnPath?: string } = {}) {
   const router = useRouter();
   const { success: toastSuccess, error: toastError } = useToast();
 
@@ -216,7 +218,7 @@ export function CreateMealPlanForm() {
       if (!json.success) throw new Error(json.error);
 
       toastSuccess("Meal plan created successfully!");
-      router.push("/meal-plans");
+      router.push(returnPath);
     } catch (err: unknown) {
       toastError(err instanceof Error ? err.message : "Failed to create plan");
     } finally {

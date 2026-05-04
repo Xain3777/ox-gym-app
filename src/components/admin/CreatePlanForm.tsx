@@ -169,8 +169,10 @@ interface PlanFormState {
 
 export function CreatePlanForm({
   initialData,
+  returnPath = "/plans",
 }: {
   initialData?: Partial<WorkoutPlan>;
+  returnPath?: string;
 }) {
   const router = useRouter();
   const { success, error: toastError } = useToast();
@@ -344,7 +346,7 @@ export function CreatePlanForm({
         isEdit ? "Plan updated" : "Plan created",
         `${form.name} has been saved.`,
       );
-      router.push("/plans");
+      router.push(returnPath);
       router.refresh();
     } catch {
       toastError("Network error", "Check connection and try again.");

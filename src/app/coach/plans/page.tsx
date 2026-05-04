@@ -37,7 +37,7 @@ export default function CoachPlansPage() {
           <h1 className="font-display text-[28px] tracking-wider text-white">{t("coach.workoutPlans")}</h1>
         </div>
         <Link
-          href="/plans/new"
+          href="/coach/plans/new"
           className="flex items-center gap-2 bg-[#FF6B35] text-void px-4 py-2.5 text-[13px] font-bold uppercase tracking-wider hover:bg-[#FF6B35]/90 transition-colors"
         >
           <Plus size={16} />

@@ -1,66 +1,73 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
-import { getStaffEmail, type StaffAccount } from "@/lib/staff";
+
+// Staff login by free-text identifier (name | username | phone) +
+// password. The dropdown picker was replaced because every coach,
+// reception, and head_coach now needs to land here, and a flat list
+// scales badly.
+//
+// Resolution flow:
+//   1. POST /api/auth/resolve-staff { identifier } → { email, role }
+//   2. supabase.auth.signInWithPassword({ email, password })
+//   3. Hard-navigate to that role's home so middleware sees the
+//      freshly-set session cookies.
+
+const ROLE_HOMES: Record<string, string> = {
+  manager:    "/dashboard",
+  reception:  "/reception",
+  head_coach: "/coach",
+  coach:      "/coach",
+};
 
 export default function StaffLoginPage() {
-  const [staffList, setStaffList] = useState<StaffAccount[]>([]);
-  const [staffLoading, setStaffLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState("");
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/auth/staff")
-      .then((r) => r.json())
-      .then((res) => {
-        if (cancelled) return;
-        if (res?.success) setStaffList(res.data as StaffAccount[]);
-      })
-      .catch(() => { /* leave list empty; UI shows the empty state */ })
-      .finally(() => { if (!cancelled) setStaffLoading(false); });
-    return () => { cancelled = true; };
-  }, []);
+  const [identifier, setIdentifier] = useState("");
+  const [password,   setPassword]   = useState("");
+  const [error,      setError]      = useState("");
+  const [loading,    setLoading]    = useState(false);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError("");
 
-    const staff = staffList.find((s) => s.id === selectedId);
-    if (!staff) {
-      setError("يرجى اختيار موظف");
-      return;
-    }
-    if (!pin) {
-      setError("يرجى إدخال رمز الدخول");
-      return;
-    }
+    const id = identifier.trim();
+    if (!id) { setError("يرجى إدخال الاسم أو رقم الهاتف"); return; }
+    if (!password) { setError("يرجى إدخال كلمة المرور"); return; }
 
     setLoading(true);
 
-    const email = getStaffEmail(staff.phone);
-    const supabase = createBrowserSupabase();
-    const { data: authData, error: authError } =
-      await supabase.auth.signInWithPassword({ email, password: pin });
+    // Resolve identifier → auth email
+    const resolveRes = await fetch("/api/auth/resolve-staff", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ identifier: id }),
+    });
+    const resolved = await resolveRes.json();
 
-    if (!authError && authData.user) {
-      const roleHomes: Record<string, string> = {
-        manager:    "/dashboard",
-        reception:  "/reception",
-        head_coach: "/coach",
-        coach:      "/coach",
-      };
-      window.location.href = roleHomes[staff.role] ?? "/reception";
+    if (!resolveRes.ok || !resolved?.success) {
+      setError(resolved?.error ?? "لم يتم العثور على الحساب");
+      setLoading(false);
       return;
     }
 
-    setError("رمز الدخول غير صحيح");
-    setLoading(false);
+    // Authenticate
+    const supabase = createBrowserSupabase();
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email:    resolved.email,
+      password,
+    });
+
+    if (authError) {
+      setError("كلمة المرور غير صحيحة");
+      setLoading(false);
+      return;
+    }
+
+    const home = ROLE_HOMES[resolved.role as string] ?? "/reception";
+    window.location.href = home;
   }
 
   return (
@@ -79,48 +86,38 @@ export default function StaffLoginPage() {
           </div>
         )}
 
+        {/* Identifier — name OR phone OR username */}
         <div>
           <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-2">
-            الموظف
+            الاسم أو رقم الهاتف
           </label>
-          <div className="relative">
-            <select
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-              disabled={staffLoading}
-              className="w-full h-12 px-4 bg-iron border border-steel text-offwhite text-[14px] focus:border-gold focus:outline-none transition-colors appearance-none cursor-pointer disabled:opacity-50"
-            >
-              <option value="" disabled>
-                {staffLoading
-                  ? "جاري التحميل…"
-                  : staffList.length === 0
-                    ? "لا يوجد موظفون"
-                    : "— اختر —"}
-              </option>
-              {staffList.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} — {s.title}
-                </option>
-              ))}
-            </select>
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted text-[10px]">
-              ▼
-            </span>
-          </div>
+          <input
+            type="text"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            autoComplete="username"
+            spellCheck={false}
+            className="w-full h-12 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
+            placeholder="مثال: محمد أو 0922000001"
+            dir="rtl"
+          />
         </div>
 
+        {/* Password */}
         <div>
           <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-2">
-            رمز الدخول
+            كلمة المرور
           </label>
           <input
             type="password"
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             required
             maxLength={64}
+            autoComplete="current-password"
             className="w-full h-12 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors tracking-[0.15em] text-center"
             placeholder="••••••••"
+            dir="ltr"
           />
           <p className="text-[11px] text-muted/50 mt-1.5 text-center">
             استخدم كلمة المرور المؤقتة الخاصة بك

@@ -45,12 +45,31 @@ export interface Subscription {
   notes:      string | null;
 }
 
-// WorkoutDay describes a single day in a workout plan
+// WorkoutDay describes a single day in a workout plan.
+//
+// The library-aware fields (exercise_id, exercise_name, muscle_group,
+// equipment, image_url, machine_image_url, demo_url, tempo) and the
+// looser sets/reps shape were added in migration 016 so the coach
+// builder can save manually-filled values without losing the exercise's
+// library metadata. Older saved plans only carry { name, sets, reps,
+// notes } — every new field is optional so they still parse cleanly.
 export interface WorkoutExercise {
-  name:   string;
-  sets:   number;
-  reps:   string;   // "8-12" or "AMRAP" etc.
+  // Legacy / display
+  name:   string;          // kept for backward compat with old plans
+  sets?:  number | string; // free string ("4" or "" or "as many") — coach fills
+  reps?:  string;          // free string — coach fills
   notes?: string;
+
+  // Library-aware fields (added in migration 016)
+  exercise_id?:       string | null;
+  exercise_name?:     string;
+  muscle_group?:      string | null;
+  equipment?:         string | null;
+  image_url?:         string | null;
+  machine_image_url?: string | null;
+  demo_url?:          string | null;
+  rest?:              string;   // free string — coach fills
+  tempo?:             string;   // free string — coach fills (e.g. "3-1-1")
 }
 
 export interface WorkoutDay {
@@ -58,6 +77,54 @@ export interface WorkoutDay {
   exercises:        WorkoutExercise[];
   workoutDuration?: number;   // minutes
   cardioDuration?:  number;   // minutes
+}
+
+// ── Coach training-system library (migration 016) ─────────────
+export interface TrainingSystem {
+  id:          string;
+  name:        string;
+  description: string | null;
+  is_active:   boolean;
+  sort_order:  number;
+  created_at:  string;
+  updated_at:  string;
+}
+
+export interface TrainingSystemDay {
+  id:                 string;
+  training_system_id: string;
+  day_number:         number | null;
+  title:              string;
+  focus:              string | null;
+  sort_order:         number;
+  created_at:         string;
+  updated_at:         string;
+}
+
+export interface MuscleGroup {
+  id:          string;
+  name:        string;
+  is_active:   boolean;
+  sort_order:  number;
+  created_at:  string;
+  updated_at:  string;
+}
+
+export interface Exercise {
+  id:                string;
+  name:              string;
+  muscle_group_id:   string | null;
+  equipment:         string | null;
+  image_url:         string | null;
+  machine_image_url: string | null;
+  demo_url:          string | null;
+  file_name:         string | null;
+  storage_path:      string | null;
+  instructions:      string | null;
+  is_active:         boolean;
+  sort_order:        number;
+  created_at:        string;
+  updated_at:        string;
 }
 
 export interface WorkoutPlan {

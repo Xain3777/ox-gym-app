@@ -1,40 +1,47 @@
 "use client";
 
-import { useState, useCallback } from "react";
+// ═══════════════════════════════════════════════════════════════
+// CreatePlanForm — coach / manager workout-plan builder
+//
+// Library-aware as of migration 016: training systems, days, muscle
+// groups, and exercises now load from Supabase (tables created by
+// 016_coach_training_system.sql). Sets / reps / rest / tempo are
+// blank by default — the coach fills them manually for each
+// exercise. The plan still saves to workout_plans.content as JSONB
+// so the existing /api/plans + /api/plans/[id] routes and the
+// portal player view keep working.
+// ═══════════════════════════════════════════════════════════════
+
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import {
-  Plus, Trash2, GripVertical, ChevronDown, ChevronUp,
-  Dumbbell, Timer, Zap, Target, Shield, Heart,
+  Plus, Trash2, GripVertical, ChevronUp,
+  Dumbbell, Zap, Target, Shield, Heart,
   Activity, Flame, X, Check, Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardLabel } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
+import { ExerciseImage } from "@/components/ui/ExerciseImage";
+import { createBrowserSupabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
-import type { WorkoutPlan, WorkoutDay, WorkoutExercise } from "@/types";
+import type {
+  WorkoutPlan, WorkoutDay, WorkoutExercise,
+  TrainingSystem, TrainingSystemDay, MuscleGroup, Exercise,
+} from "@/types";
 
 // ═══════════════════════════════════════════════════════════════
-// PREDEFINED DATA
+// STATIC OPTIONS (intentionally hardcoded — these don't belong in
+// the editable library)
 // ═══════════════════════════════════════════════════════════════
 
 const DIFFICULTY_OPTIONS = [
-  { value: "beginner",     label: "Beginner",     icon: Shield,   color: "text-success",  borderColor: "border-success/30", bgColor: "bg-success/10" },
-  { value: "intermediate", label: "Intermediate", icon: Target,   color: "text-gold",     borderColor: "border-gold/30",    bgColor: "bg-gold/10" },
-  { value: "advanced",     label: "Advanced",     icon: Flame,    color: "text-danger",   borderColor: "border-danger/30",  bgColor: "bg-danger/10" },
+  { value: "beginner",     label: "Beginner",     icon: Shield, color: "text-success", borderColor: "border-success/30", bgColor: "bg-success/10" },
+  { value: "intermediate", label: "Intermediate", icon: Target, color: "text-gold",    borderColor: "border-gold/30",    bgColor: "bg-gold/10"    },
+  { value: "advanced",     label: "Advanced",     icon: Flame,  color: "text-danger",  borderColor: "border-danger/30",  bgColor: "bg-danger/10"  },
 ] as const;
 
 const DURATION_PRESETS = [15, 30, 45, 60];
-
-const MUSCLE_GROUPS = [
-  { id: "chest",     label: "Chest",     icon: "💪" },
-  { id: "back",      label: "Back",      icon: "🔙" },
-  { id: "legs",      label: "Legs",      icon: "🦵" },
-  { id: "arms",      label: "Arms",      icon: "💪" },
-  { id: "shoulders", label: "Shoulders", icon: "🏋️" },
-  { id: "core",      label: "Core",      icon: "🎯" },
-  { id: "full-body", label: "Full Body", icon: "⚡" },
-];
 
 const EQUIPMENT_OPTIONS = [
   { id: "bodyweight",       label: "Bodyweight",       icon: Activity },
@@ -45,100 +52,22 @@ const EQUIPMENT_OPTIONS = [
   { id: "kettlebell",       label: "Kettlebell",       icon: Dumbbell },
 ];
 
-const EXERCISE_LIBRARY: Record<string, { name: string; defaultSets: number; defaultReps: string }[]> = {
-  chest: [
-    { name: "Barbell Bench Press",    defaultSets: 4, defaultReps: "8-10" },
-    { name: "Incline Dumbbell Press", defaultSets: 3, defaultReps: "10-12" },
-    { name: "Cable Chest Fly",        defaultSets: 3, defaultReps: "12-15" },
-    { name: "Push-Ups",               defaultSets: 3, defaultReps: "15-20" },
-    { name: "Dumbbell Pullover",      defaultSets: 3, defaultReps: "10-12" },
-    { name: "Machine Chest Press",    defaultSets: 3, defaultReps: "10-12" },
-    { name: "Decline Bench Press",    defaultSets: 3, defaultReps: "8-10" },
-  ],
-  back: [
-    { name: "Pull-Ups",              defaultSets: 4, defaultReps: "8-12" },
-    { name: "Barbell Row",           defaultSets: 4, defaultReps: "8-10" },
-    { name: "Lat Pulldown",          defaultSets: 3, defaultReps: "10-12" },
-    { name: "Seated Cable Row",      defaultSets: 3, defaultReps: "10-12" },
-    { name: "Dumbbell Row",          defaultSets: 3, defaultReps: "10-12" },
-    { name: "Face Pulls",            defaultSets: 3, defaultReps: "15" },
-    { name: "T-Bar Row",             defaultSets: 3, defaultReps: "8-10" },
-    { name: "Deadlift",              defaultSets: 4, defaultReps: "5" },
-  ],
-  legs: [
-    { name: "Barbell Squat",         defaultSets: 4, defaultReps: "6-8" },
-    { name: "Leg Press",             defaultSets: 4, defaultReps: "10-12" },
-    { name: "Romanian Deadlift",     defaultSets: 3, defaultReps: "10-12" },
-    { name: "Walking Lunges",        defaultSets: 3, defaultReps: "12 each" },
-    { name: "Leg Extension",         defaultSets: 3, defaultReps: "12-15" },
-    { name: "Leg Curl",              defaultSets: 3, defaultReps: "10-12" },
-    { name: "Calf Raises",           defaultSets: 4, defaultReps: "15-20" },
-    { name: "Bulgarian Split Squat", defaultSets: 3, defaultReps: "10 each" },
-    { name: "Hip Thrust",            defaultSets: 3, defaultReps: "10-12" },
-  ],
-  arms: [
-    { name: "Barbell Curl",            defaultSets: 3, defaultReps: "10-12" },
-    { name: "Hammer Curl",             defaultSets: 3, defaultReps: "10-12" },
-    { name: "Tricep Pushdown",         defaultSets: 3, defaultReps: "12-15" },
-    { name: "Overhead Tricep Extension", defaultSets: 3, defaultReps: "10-12" },
-    { name: "Preacher Curl",           defaultSets: 3, defaultReps: "10-12" },
-    { name: "Tricep Dips",             defaultSets: 3, defaultReps: "10-15" },
-    { name: "Concentration Curl",      defaultSets: 3, defaultReps: "12" },
-    { name: "Skull Crushers",          defaultSets: 3, defaultReps: "10-12" },
-  ],
-  shoulders: [
-    { name: "Overhead Press",     defaultSets: 4, defaultReps: "6-8" },
-    { name: "Lateral Raises",     defaultSets: 3, defaultReps: "12-15" },
-    { name: "Front Raises",       defaultSets: 3, defaultReps: "12" },
-    { name: "Arnold Press",       defaultSets: 3, defaultReps: "10-12" },
-    { name: "Rear Delt Fly",      defaultSets: 3, defaultReps: "15" },
-    { name: "Upright Row",        defaultSets: 3, defaultReps: "10-12" },
-    { name: "Shrugs",             defaultSets: 3, defaultReps: "12-15" },
-  ],
-  core: [
-    { name: "Plank",              defaultSets: 3, defaultReps: "60s" },
-    { name: "Hanging Leg Raise",  defaultSets: 3, defaultReps: "12-15" },
-    { name: "Cable Crunch",       defaultSets: 3, defaultReps: "15-20" },
-    { name: "Russian Twist",      defaultSets: 3, defaultReps: "20" },
-    { name: "Ab Wheel Rollout",   defaultSets: 3, defaultReps: "10-12" },
-    { name: "Mountain Climbers",  defaultSets: 3, defaultReps: "30s" },
-    { name: "Dead Bug",           defaultSets: 3, defaultReps: "12 each" },
-  ],
-  "full-body": [
-    { name: "Clean & Press",      defaultSets: 4, defaultReps: "5" },
-    { name: "Burpees",            defaultSets: 3, defaultReps: "15" },
-    { name: "Thrusters",          defaultSets: 3, defaultReps: "10" },
-    { name: "Kettlebell Swing",   defaultSets: 3, defaultReps: "15" },
-    { name: "Turkish Get-Up",     defaultSets: 3, defaultReps: "5 each" },
-    { name: "Man Makers",         defaultSets: 3, defaultReps: "8" },
-  ],
-};
-
-const REST_OPTIONS = ["30s", "45s", "60s", "90s", "120s"];
-const REPS_PRESETS = ["5", "8", "10", "12", "15", "AMRAP"];
-
-const SPLIT_OPTIONS = [
-  { value: "3-day", label: "3-Day Split", days: ["Day 1 — Push", "Day 2 — Pull", "Day 3 — Legs"] },
-  { value: "4-day", label: "4-Day Split", days: ["Day 1 — Push", "Day 2 — Pull", "Day 3 — Legs", "Day 4 — Upper"] },
-  { value: "5-day", label: "5-Day Split", days: ["Day 1 — Chest", "Day 2 — Back", "Day 3 — Legs", "Day 4 — Shoulders", "Day 5 — Arms"] },
-  { value: "6-day", label: "6-Day Split", days: ["Day 1 — Push", "Day 2 — Pull", "Day 3 — Legs", "Day 4 — Push", "Day 5 — Pull", "Day 6 — Legs"] },
-] as const;
-
 const TAG_OPTIONS = [
-  { id: "strength",  label: "Strength",  color: "text-gold" },
-  { id: "fat-loss",  label: "Fat Loss",  color: "text-danger" },
-  { id: "mobility",  label: "Mobility",  color: "text-success" },
-  { id: "rehab",     label: "Rehab",     color: "text-muted" },
-  { id: "endurance", label: "Endurance", color: "text-gold" },
-  { id: "hypertrophy", label: "Hypertrophy", color: "text-danger" },
+  { id: "strength",    label: "Strength",    color: "text-gold"    },
+  { id: "fat-loss",    label: "Fat Loss",    color: "text-danger"  },
+  { id: "mobility",    label: "Mobility",    color: "text-success" },
+  { id: "rehab",       label: "Rehab",       color: "text-muted"   },
+  { id: "endurance",   label: "Endurance",   color: "text-gold"    },
+  { id: "hypertrophy", label: "Hypertrophy", color: "text-danger"  },
 ];
 
 // ═══════════════════════════════════════════════════════════════
 // FORM STATE
 // ═══════════════════════════════════════════════════════════════
 
-interface SelectedExercise extends WorkoutExercise {
-  rest: string;
+interface PlanDay {
+  day:       string;
+  exercises: WorkoutExercise[];
 }
 
 interface PlanFormState {
@@ -149,16 +78,12 @@ interface PlanFormState {
   customDuration:   boolean;
   workoutDuration:  number;
   cardioDuration:   number;
-  splitType:        string;
-  muscleGroups:     string[];
-  customMuscle:     string;
+  splitType:        string;          // training_system_id, or "custom"
+  muscleGroupIds:   string[];        // selected muscle group IDs (target)
   equipment:        string[];
   customEquipment:  string;
   created_by:       string;
-  days:             {
-    day: string;
-    exercises: SelectedExercise[];
-  }[];
+  days:             PlanDay[];
   notes:            string;
   tags:             string[];
 }
@@ -178,47 +103,74 @@ export function CreatePlanForm({
   const { success, error: toastError } = useToast();
   const isEdit = !!initialData?.id;
 
-  const [loading, setLoading] = useState(false);
-  const [activeSection, setActiveSection] = useState(0);
-  const [exerciseSearch, setExerciseSearch] = useState("");
-  const [showOtherMuscle, setShowOtherMuscle] = useState(false);
-  const [showOtherEquipment, setShowOtherEquipment] = useState(false);
-  const [activeMuscleFilter, setActiveMuscleFilter] = useState<string>("chest");
+  // ── DB-backed library data ───────────────────────────────────
+  const [systems,       setSystems]       = useState<TrainingSystem[]>([]);
+  const [systemDays,    setSystemDays]    = useState<TrainingSystemDay[]>([]);
+  const [muscleGroups,  setMuscleGroups]  = useState<MuscleGroup[]>([]);
+  const [exercises,     setExercises]     = useState<Exercise[]>([]);
+  const [libLoaded,     setLibLoaded]     = useState(false);
 
-  // Parse initial data for editing
-  const initialDays = (initialData?.content as any[])?.map((d) => ({
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const supabase = createBrowserSupabase();
+      const [sysRes, daysRes, mgRes, exRes] = await Promise.all([
+        supabase.from("training_systems").select("*").eq("is_active", true).order("sort_order").order("name"),
+        supabase.from("training_system_days").select("*").order("sort_order").order("day_number"),
+        supabase.from("muscle_groups").select("*").eq("is_active", true).order("sort_order").order("name"),
+        supabase.from("exercises").select("*").eq("is_active", true).order("sort_order").order("name"),
+      ]);
+      if (cancelled) return;
+      if (sysRes.data)  setSystems(sysRes.data as TrainingSystem[]);
+      if (daysRes.data) setSystemDays(daysRes.data as TrainingSystemDay[]);
+      if (mgRes.data)   setMuscleGroups(mgRes.data as MuscleGroup[]);
+      if (exRes.data)   setExercises(exRes.data as Exercise[]);
+      setLibLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Form state ───────────────────────────────────────────────
+  const initialDays: PlanDay[] = (initialData?.content as WorkoutDay[] | undefined)?.map((d) => ({
     day: d.day,
-    exercises: d.exercises.map((ex: any) => ({
-      ...ex,
-      rest: ex.rest || "60s",
-    })),
+    exercises: d.exercises.map((ex) => ({ ...ex })),
   })) ?? [{ day: "Day 1", exercises: [] }];
 
+  const [loading, setLoading] = useState(false);
+  const [exerciseSearch, setExerciseSearch] = useState("");
+  const [showOtherEquipment, setShowOtherEquipment] = useState(false);
+
   const [form, setForm] = useState<PlanFormState>({
-    name:            initialData?.name           ?? "",
+    name:            initialData?.name ?? "",
     description:     "",
-    level:           initialData?.level          ?? "intermediate",
+    level:           initialData?.level ?? "intermediate",
     duration:        (initialData?.duration_weeks ?? 4) * 7,
     customDuration:  false,
     workoutDuration: 60,
     cardioDuration:  15,
-    splitType:       "",
-    muscleGroups:    initialData?.category ? initialData.category.split(" · ").map(s => s.toLowerCase().trim()) : [],
-    customMuscle:    "",
+    splitType:       initialData?.split_type ?? "",
+    muscleGroupIds:  [],   // populated from initialData.category once muscle groups load
     equipment:       [],
     customEquipment: "",
-    created_by:      initialData?.created_by     ?? "",
+    created_by:      initialData?.created_by ?? "",
     days:            initialDays,
     notes:           "",
     tags:            [],
   });
 
-  // ── FIELD HELPERS ─────────────────────────────────────────
+  // Once muscle groups load, hydrate the muscleGroupIds from initialData.category
+  useEffect(() => {
+    if (!libLoaded || !initialData?.category || form.muscleGroupIds.length > 0) return;
+    const names = initialData.category.split(/\s*[·,]\s*/).map((s) => s.trim().toLowerCase());
+    const ids = muscleGroups.filter((g) => names.includes(g.name.toLowerCase())).map((g) => g.id);
+    if (ids.length > 0) setForm((p) => ({ ...p, muscleGroupIds: ids }));
+  }, [libLoaded, muscleGroups, initialData?.category, form.muscleGroupIds.length]);
+
+  // ── Field helpers ────────────────────────────────────────────
   function setField<K extends keyof PlanFormState>(key: K, val: PlanFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: val }));
   }
-
-  function toggleArrayItem(key: "muscleGroups" | "equipment" | "tags", item: string) {
+  function toggleArrayItem(key: "muscleGroupIds" | "equipment" | "tags", item: string) {
     setForm((prev) => {
       const arr = prev[key] as string[];
       return {
@@ -228,109 +180,179 @@ export function CreatePlanForm({
     });
   }
 
-  // ── DAY HELPERS ───────────────────────────────────────────
+  // ── Day helpers ──────────────────────────────────────────────
   function addDay() {
     setForm((prev) => ({
       ...prev,
       days: [...prev.days, { day: `Day ${prev.days.length + 1}`, exercises: [] }],
     }));
   }
-
   function removeDay(di: number) {
     setForm((prev) => ({
       ...prev,
       days: prev.days.filter((_, i) => i !== di),
     }));
   }
-
   function updateDayName(di: number, name: string) {
     setForm((prev) => ({
       ...prev,
       days: prev.days.map((d, i) => i === di ? { ...d, day: name } : d),
     }));
   }
+  function moveDay(di: number, dir: -1 | 1) {
+    setForm((prev) => {
+      const next = [...prev.days];
+      const target = di + dir;
+      if (target < 0 || target >= next.length) return prev;
+      [next[di], next[target]] = [next[target], next[di]];
+      return { ...prev, days: next };
+    });
+    if (activeDay === di) setActiveDay(di + dir);
+  }
 
-  // ── EXERCISE HELPERS ──────────────────────────────────────
-  function addExerciseToDay(di: number, exercise: { name: string; defaultSets: number; defaultReps: string }) {
-    setForm((prev) => ({
-      ...prev,
-      days: prev.days.map((d, i) =>
-        i === di
-          ? {
-              ...d,
-              exercises: [
-                ...d.exercises,
-                { name: exercise.name, sets: exercise.defaultSets, reps: exercise.defaultReps, rest: "60s", notes: "" },
-              ],
-            }
-          : d
-      ),
-    }));
+  // ── Exercise helpers ─────────────────────────────────────────
+  // Adds an exercise to the active day with EMPTY sets/reps/rest/tempo
+  // — coach fills them manually. The library-aware metadata (id, image
+  // refs, muscle group, equipment) is captured so the player can
+  // render images and the coach can edit the plan later without
+  // re-looking-up the exercise.
+  function addExerciseToDay(di: number, ex: Exercise) {
+    setForm((prev) => {
+      // Don't add duplicates
+      if (prev.days[di].exercises.some((e) => e.exercise_id === ex.id)) return prev;
+      const newEx: WorkoutExercise = {
+        exercise_id:       ex.id,
+        exercise_name:     ex.name,
+        name:              ex.name,
+        muscle_group:      muscleGroups.find((g) => g.id === ex.muscle_group_id)?.name ?? null,
+        equipment:         ex.equipment,
+        image_url:         ex.image_url,
+        machine_image_url: ex.machine_image_url,
+        demo_url:          ex.demo_url,
+        sets:              "",
+        reps:              "",
+        rest:              "",
+        tempo:             "",
+        notes:             "",
+      };
+      return {
+        ...prev,
+        days: prev.days.map((d, i) => i === di ? { ...d, exercises: [...d.exercises, newEx] } : d),
+      };
+    });
   }
 
   function addCustomExercise(di: number, name: string) {
     if (!name.trim()) return;
-    addExerciseToDay(di, { name: name.trim(), defaultSets: 3, defaultReps: "10" });
+    setForm((prev) => {
+      const newEx: WorkoutExercise = {
+        exercise_id:    null,
+        exercise_name:  name.trim(),
+        name:           name.trim(),
+        muscle_group:   null,
+        equipment:      null,
+        image_url:      null,
+        machine_image_url: null,
+        demo_url:       null,
+        sets: "", reps: "", rest: "", tempo: "", notes: "",
+      };
+      return {
+        ...prev,
+        days: prev.days.map((d, i) => i === di ? { ...d, exercises: [...d.exercises, newEx] } : d),
+      };
+    });
   }
 
   function removeExercise(di: number, ei: number) {
     setForm((prev) => ({
       ...prev,
       days: prev.days.map((d, i) =>
-        i === di ? { ...d, exercises: d.exercises.filter((_, j) => j !== ei) } : d
+        i === di ? { ...d, exercises: d.exercises.filter((_, j) => j !== ei) } : d,
       ),
     }));
   }
 
-  function updateExercise(di: number, ei: number, key: keyof SelectedExercise, val: string | number) {
+  function updateExercise(di: number, ei: number, key: keyof WorkoutExercise, val: string | number) {
     setForm((prev) => ({
       ...prev,
       days: prev.days.map((d, i) =>
         i === di
           ? { ...d, exercises: d.exercises.map((ex, j) => j === ei ? { ...ex, [key]: val } : ex) }
-          : d
+          : d,
       ),
     }));
   }
 
-  // ── SUBMIT ────────────────────────────────────────────────
+  // ── Apply training-system preset ─────────────────────────────
+  function applySplit(systemId: string) {
+    if (!systemId) {
+      setField("splitType", "");
+      return;
+    }
+    const dayList = systemDays.filter((d) => d.training_system_id === systemId);
+    setForm((prev) => ({
+      ...prev,
+      splitType: systemId,
+      days: dayList.map((d) => ({ day: d.title, exercises: [] })),
+    }));
+    setActiveDay(0);
+  }
+
+  // ── Submit ──────────────────────────────────────────────────
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) {
       toastError("Name required", "Please enter a plan name.");
       return;
     }
-    if (form.days.every(d => d.exercises.length === 0)) {
+    if (form.days.every((d) => d.exercises.length === 0)) {
       toastError("No exercises", "Add at least one exercise to the plan.");
       return;
     }
 
     setLoading(true);
     try {
-      const category = form.muscleGroups.map(m => m.charAt(0).toUpperCase() + m.slice(1)).join(" · ") ||
-        (form.customMuscle ? form.customMuscle : "General");
+      // Derive `category` from the selected muscle groups so older parts
+      // of the app (which read members.category as a display string) keep
+      // showing something sensible.
+      const selectedNames = muscleGroups
+        .filter((g) => form.muscleGroupIds.includes(g.id))
+        .map((g) => g.name);
+      const category = selectedNames.length > 0 ? selectedNames.join(" · ") : "General";
+      const splitName = systems.find((s) => s.id === form.splitType)?.name;
 
       const payload = {
         name:           form.name,
         category,
         level:          form.level,
         duration_weeks: Math.ceil(form.duration / 7) || 4,
-        content:        form.days.map(d => ({
+        split_type:     splitName,
+        content:        form.days.map((d) => ({
           day: d.day,
-          exercises: d.exercises.map(ex => ({
-            name:  ex.name,
-            sets:  ex.sets,
-            reps:  ex.reps,
-            notes: ex.notes || (ex.rest !== "60s" ? `Rest: ${ex.rest}` : ""),
+          exercises: d.exercises.map((ex) => ({
+            // legacy display name
+            name:               ex.exercise_name ?? ex.name,
+            // library-aware
+            exercise_id:        ex.exercise_id ?? null,
+            exercise_name:      ex.exercise_name ?? ex.name,
+            muscle_group:       ex.muscle_group ?? null,
+            equipment:          ex.equipment ?? null,
+            image_url:          ex.image_url ?? null,
+            machine_image_url:  ex.machine_image_url ?? null,
+            demo_url:           ex.demo_url ?? null,
+            // coach-filled (kept as strings, blank by default)
+            sets:               typeof ex.sets === "number" ? String(ex.sets) : (ex.sets ?? ""),
+            reps:               ex.reps ?? "",
+            rest:               ex.rest ?? "",
+            tempo:              ex.tempo ?? "",
+            notes:              ex.notes ?? "",
           })),
         })),
-        created_by: form.created_by,
       };
 
       const url    = isEdit ? `/api/plans/${initialData!.id}` : "/api/plans";
       const method = isEdit ? "PATCH" : "POST";
-
-      const res  = await fetch(url, {
+      const res    = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
@@ -355,42 +377,25 @@ export function CreatePlanForm({
     }
   }
 
-  // ── Get filtered exercises for display ────────────────────
-  const getFilteredExercises = useCallback(() => {
-    const exercises = EXERCISE_LIBRARY[activeMuscleFilter] ?? [];
-    if (!exerciseSearch.trim()) return exercises;
-    return exercises.filter(ex =>
-      ex.name.toLowerCase().includes(exerciseSearch.toLowerCase())
-    );
-  }, [activeMuscleFilter, exerciseSearch]);
-
-  const getAllFilteredExercises = useCallback(() => {
-    if (!exerciseSearch.trim()) return null;
-    const results: { muscle: string; exercises: typeof EXERCISE_LIBRARY["chest"] }[] = [];
-    for (const [muscle, exs] of Object.entries(EXERCISE_LIBRARY)) {
-      const filtered = exs.filter(ex => ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()));
-      if (filtered.length > 0) results.push({ muscle, exercises: filtered });
-    }
-    return results;
-  }, [exerciseSearch]);
-
-  // ── Active day for exercise builder ───────────────────────
+  // ── Exercise builder state ──────────────────────────────────
   const [activeDay, setActiveDay] = useState(0);
   const [customExName, setCustomExName] = useState("");
   const [exerciseStep, setExerciseStep] = useState<"muscles" | "exercises">("muscles");
-  const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
+  const [selectedMuscleId, setSelectedMuscleId] = useState<string | null>(null);
 
-  // ── Split type handler ──────────────────────────────────
-  function applySplit(splitValue: string) {
-    const split = SPLIT_OPTIONS.find(s => s.value === splitValue);
-    if (!split) return;
-    setForm((prev) => ({
-      ...prev,
-      splitType: splitValue,
-      days: split.days.map(d => ({ day: d, exercises: [] })),
-    }));
-    setActiveDay(0);
-  }
+  // Filtered exercises for the picker
+  const filteredExercises = useCallback(() => {
+    let pool = exercises;
+    if (selectedMuscleId) pool = pool.filter((e) => e.muscle_group_id === selectedMuscleId);
+    if (exerciseSearch.trim()) {
+      const q = exerciseSearch.toLowerCase();
+      pool = pool.filter((e) =>
+        e.name.toLowerCase().includes(q) ||
+        (e.equipment?.toLowerCase().includes(q) ?? false),
+      );
+    }
+    return pool;
+  }, [exercises, selectedMuscleId, exerciseSearch]);
 
   // ═══════════════════════════════════════════════════════════
   // RENDER
@@ -405,7 +410,6 @@ export function CreatePlanForm({
           <CardLabel className="mb-0 text-gold">Basic Information</CardLabel>
         </div>
         <div className="p-5 space-y-5">
-          {/* Name + Description */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-1.5">
@@ -425,7 +429,7 @@ export function CreatePlanForm({
               </label>
               <input
                 type="text"
-                placeholder="Coach Tariq"
+                placeholder="Coach name"
                 value={form.created_by}
                 onChange={(e) => setField("created_by", e.target.value)}
                 className="w-full bg-charcoal border border-steel text-offwhite text-[14px] px-3.5 h-[44px] outline-none focus:border-gold transition-colors placeholder:text-slate"
@@ -460,26 +464,22 @@ export function CreatePlanForm({
                     type="button"
                     onClick={() => setField("level", opt.value as PlanFormState["level"])}
                     className={cn(
-                      "flex flex-col items-center gap-2 py-4 px-3 border transition-all duration-[120ms]",
+                      "flex flex-col items-center gap-2 py-4 px-3 border transition-all duration-[120ms] relative",
                       selected
                         ? `${opt.bgColor} ${opt.borderColor} ${opt.color}`
                         : "border-steel bg-charcoal text-muted hover:border-slate hover:bg-iron",
                     )}
                   >
                     <Icon size={20} />
-                    <span className="font-mono text-[10px] tracking-[0.12em] uppercase">
-                      {opt.label}
-                    </span>
-                    {selected && (
-                      <Check size={12} className="absolute top-2 right-2" />
-                    )}
+                    <span className="font-mono text-[10px] tracking-[0.12em] uppercase">{opt.label}</span>
+                    {selected && <Check size={12} className="absolute top-2 right-2" />}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Duration Chips */}
+          {/* Duration chips */}
           <div>
             <label className="block font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-3">
               Duration (minutes per session)
@@ -515,8 +515,7 @@ export function CreatePlanForm({
               {form.customDuration && (
                 <input
                   type="number"
-                  min="5"
-                  max="180"
+                  min="5" max="180"
                   placeholder="Min"
                   value={form.duration}
                   onChange={(e) => setField("duration", parseInt(e.target.value, 10) || 30)}
@@ -526,16 +525,14 @@ export function CreatePlanForm({
             </div>
           </div>
 
-          {/* Workout + Cardio Duration */}
+          {/* Workout + Cardio durations */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-1.5">
                 Workout Duration (min)
               </label>
               <input
-                type="number"
-                min="10"
-                max="180"
+                type="number" min="10" max="180"
                 value={form.workoutDuration}
                 onChange={(e) => setField("workoutDuration", parseInt(e.target.value, 10) || 60)}
                 className="w-full bg-charcoal border border-steel text-offwhite text-[14px] px-3.5 h-[44px] outline-none focus:border-gold transition-colors font-mono"
@@ -546,9 +543,7 @@ export function CreatePlanForm({
                 Cardio Duration (min)
               </label>
               <input
-                type="number"
-                min="0"
-                max="120"
+                type="number" min="0" max="120"
                 value={form.cardioDuration}
                 onChange={(e) => setField("cardioDuration", parseInt(e.target.value, 10) || 0)}
                 className="w-full bg-charcoal border border-steel text-offwhite text-[14px] px-3.5 h-[44px] outline-none focus:border-gold transition-colors font-mono"
@@ -556,32 +551,32 @@ export function CreatePlanForm({
             </div>
           </div>
 
-          {/* Split Type */}
+          {/* Training system (DB-backed) */}
           <div>
             <label className="block font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-3">
-              Training Split
+              Training System
             </label>
             <div className="flex flex-wrap gap-2">
-              {SPLIT_OPTIONS.map((split) => (
+              {systems.map((s) => (
                 <button
-                  key={split.value}
+                  key={s.id}
                   type="button"
-                  onClick={() => applySplit(split.value)}
+                  onClick={() => applySplit(s.id)}
                   className={cn(
-                    "px-4 py-2 border font-mono text-[12px] tracking-[0.08em] transition-all duration-[120ms]",
-                    form.splitType === split.value
+                    "px-4 py-2 border font-mono text-[11px] tracking-[0.08em] transition-all duration-[120ms]",
+                    form.splitType === s.id
                       ? "bg-gold/10 border-gold/30 text-gold"
                       : "border-steel bg-charcoal text-muted hover:border-slate",
                   )}
                 >
-                  {split.label}
+                  {s.name}
                 </button>
               ))}
               <button
                 type="button"
                 onClick={() => setField("splitType", "")}
                 className={cn(
-                  "px-4 py-2 border font-mono text-[12px] tracking-[0.08em] transition-all duration-[120ms]",
+                  "px-4 py-2 border font-mono text-[11px] tracking-[0.08em] transition-all duration-[120ms]",
                   !form.splitType
                     ? "bg-gold/10 border-gold/30 text-gold"
                     : "border-steel bg-charcoal text-muted hover:border-slate",
@@ -590,11 +585,12 @@ export function CreatePlanForm({
                 Custom
               </button>
             </div>
+            {!libLoaded && <p className="text-muted text-[11px] mt-2">Loading library…</p>}
           </div>
         </div>
       </Card>
 
-      {/* ═══ SECTION 2: MUSCLE TARGETING ═══ */}
+      {/* ═══ SECTION 2: TARGET MUSCLE GROUPS ═══ */}
       <Card variant="default" className="overflow-hidden">
         <div className="px-5 py-4 border-b border-steel bg-gunmetal flex items-center gap-2">
           <Target size={14} className="text-gold" />
@@ -602,68 +598,28 @@ export function CreatePlanForm({
         </div>
         <div className="p-5">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {MUSCLE_GROUPS.map((mg) => {
-              const selected = form.muscleGroups.includes(mg.id);
+            {muscleGroups.map((mg) => {
+              const selected = form.muscleGroupIds.includes(mg.id);
               return (
                 <button
                   key={mg.id}
                   type="button"
-                  onClick={() => toggleArrayItem("muscleGroups", mg.id)}
+                  onClick={() => toggleArrayItem("muscleGroupIds", mg.id)}
                   className={cn(
-                    "flex flex-col items-center gap-2 py-4 px-3 border transition-all duration-[120ms] relative",
+                    "flex items-center justify-center gap-2 py-3 px-3 border transition-all duration-[120ms] relative",
                     selected
                       ? "bg-gold/10 border-gold/30 text-gold"
                       : "border-steel bg-charcoal text-muted hover:border-slate hover:bg-iron",
                   )}
                 >
-                  <span className="text-2xl">{mg.icon}</span>
-                  <span className="font-mono text-[10px] tracking-[0.12em] uppercase">{mg.label}</span>
-                  {selected && (
-                    <span className="absolute top-2 right-2">
-                      <Check size={12} className="text-gold" />
-                    </span>
-                  )}
+                  <span className="font-medium text-[12px]">{mg.name}</span>
+                  {selected && <Check size={12} className="absolute top-2 right-2" />}
                 </button>
               );
             })}
-            {/* Other */}
-            <button
-              type="button"
-              onClick={() => setShowOtherMuscle(!showOtherMuscle)}
-              className={cn(
-                "flex flex-col items-center gap-2 py-4 px-3 border transition-all duration-[120ms]",
-                showOtherMuscle
-                  ? "bg-gold/10 border-gold/30 text-gold"
-                  : "border-steel bg-charcoal text-muted hover:border-slate hover:bg-iron",
-              )}
-            >
-              <Plus size={20} />
-              <span className="font-mono text-[10px] tracking-[0.12em] uppercase">Other</span>
-            </button>
           </div>
-          {showOtherMuscle && (
-            <div className="mt-3 flex gap-2">
-              <input
-                type="text"
-                placeholder="Custom muscle group..."
-                value={form.customMuscle}
-                onChange={(e) => setField("customMuscle", e.target.value)}
-                className="flex-1 bg-charcoal border border-gold/30 text-offwhite text-[13px] px-3 h-[38px] outline-none focus:border-gold transition-colors placeholder:text-slate"
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  if (form.customMuscle.trim()) {
-                    toggleArrayItem("muscleGroups", form.customMuscle.toLowerCase());
-                    setField("customMuscle", "");
-                  }
-                }}
-              >
-                Add
-              </Button>
-            </div>
+          {muscleGroups.length === 0 && libLoaded && (
+            <p className="text-muted text-[12px] py-3">No muscle groups in library — add some in <span className="text-gold">Coach → Library</span>.</p>
           )}
         </div>
       </Card>
@@ -672,7 +628,7 @@ export function CreatePlanForm({
       <Card variant="default" className="overflow-hidden">
         <div className="px-5 py-4 border-b border-steel bg-gunmetal flex items-center gap-2">
           <Dumbbell size={14} className="text-gold" />
-          <CardLabel className="mb-0 text-gold">Equipment Required</CardLabel>
+          <CardLabel className="mb-0 text-gold">Equipment Available</CardLabel>
         </div>
         <div className="p-5">
           <div className="flex flex-wrap gap-2">
@@ -746,8 +702,7 @@ export function CreatePlanForm({
             <CardLabel className="mb-0 text-gold">Exercise Builder</CardLabel>
           </div>
           <Button type="button" variant="ghost" size="sm" onClick={addDay}>
-            <Plus size={12} />
-            Add Day
+            <Plus size={12} /> Add Day
           </Button>
         </div>
 
@@ -779,22 +734,38 @@ export function CreatePlanForm({
 
           {form.days[activeDay] && (
             <div className="space-y-4">
-              {/* Day name input */}
-              <div className="flex items-center gap-3">
+              {/* Day name + reorder + delete */}
+              <div className="flex items-center gap-2">
                 <input
                   type="text"
-                  placeholder={`Day ${activeDay + 1} — Push / Pull / Legs...`}
+                  placeholder={`Day ${activeDay + 1} title`}
                   value={form.days[activeDay].day}
                   onChange={(e) => updateDayName(activeDay, e.target.value)}
                   className="flex-1 bg-charcoal border border-steel text-offwhite text-[14px] px-3.5 h-[44px] outline-none focus:border-gold transition-colors placeholder:text-slate"
                 />
+                <button
+                  type="button"
+                  onClick={() => moveDay(activeDay, -1)}
+                  disabled={activeDay === 0}
+                  title="Move up"
+                  className="w-[44px] h-[44px] border border-steel text-slate hover:text-gold hover:border-gold/40 disabled:opacity-30 transition-colors flex items-center justify-center"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveDay(activeDay, 1)}
+                  disabled={activeDay === form.days.length - 1}
+                  title="Move down"
+                  className="w-[44px] h-[44px] border border-steel text-slate hover:text-gold hover:border-gold/40 disabled:opacity-30 transition-colors flex items-center justify-center"
+                >
+                  ↓
+                </button>
                 {form.days.length > 1 && (
                   <button
                     type="button"
-                    onClick={() => {
-                      removeDay(activeDay);
-                      setActiveDay(Math.max(0, activeDay - 1));
-                    }}
+                    onClick={() => { removeDay(activeDay); setActiveDay(Math.max(0, activeDay - 1)); }}
+                    title="Remove day"
                     className="w-[44px] h-[44px] border border-steel text-slate hover:text-danger hover:border-danger/50 transition-colors flex items-center justify-center"
                   >
                     <Trash2 size={14} />
@@ -802,31 +773,29 @@ export function CreatePlanForm({
                 )}
               </div>
 
-              {/* Exercise Library — Two-Step Selection */}
+              {/* Exercise picker */}
               <div className="border border-steel bg-charcoal">
                 {exerciseStep === "muscles" ? (
-                  /* STEP 1: Muscle Group Cards */
                   <div className="p-4">
                     <p className="font-mono text-[10px] tracking-[0.12em] uppercase text-muted mb-3">
-                      Select a muscle group
+                      Choose a muscle group to browse, or search
                     </p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {MUSCLE_GROUPS.map((mg) => {
-                        const exerciseCount = EXERCISE_LIBRARY[mg.id]?.length ?? 0;
+                      {muscleGroups.map((mg) => {
+                        const exerciseCount = exercises.filter((e) => e.muscle_group_id === mg.id).length;
                         return (
                           <button
                             key={mg.id}
                             type="button"
                             onClick={() => {
-                              setSelectedMuscle(mg.id);
+                              setSelectedMuscleId(mg.id);
                               setExerciseStep("exercises");
                               setExerciseSearch("");
                             }}
-                            className="flex flex-col items-center gap-2 py-5 px-3 border border-steel bg-iron hover:border-gold/30 hover:bg-gold/5 transition-all duration-[120ms] group"
+                            className="flex flex-col items-center gap-1 py-4 px-3 border border-steel bg-iron hover:border-gold/30 hover:bg-gold/5 transition-all duration-[120ms] group"
                           >
-                            <span className="text-2xl">{mg.icon}</span>
-                            <span className="font-mono text-[11px] tracking-[0.08em] uppercase text-offwhite group-hover:text-gold transition-colors">
-                              {mg.label}
+                            <span className="font-mono text-[12px] uppercase tracking-[0.06em] text-offwhite group-hover:text-gold transition-colors">
+                              {mg.name}
                             </span>
                             <span className="font-mono text-[9px] text-slate">
                               {exerciseCount} exercises
@@ -837,26 +806,23 @@ export function CreatePlanForm({
                     </div>
                   </div>
                 ) : (
-                  /* STEP 2: Exercises for Selected Muscle */
                   <div>
                     <div className="px-4 py-3 border-b border-steel flex items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => { setExerciseStep("muscles"); setSelectedMuscle(null); }}
+                        onClick={() => { setExerciseStep("muscles"); setSelectedMuscleId(null); }}
                         className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.12em] uppercase text-muted hover:text-gold transition-colors"
                       >
-                        <ChevronUp size={12} />
-                        Back
+                        <ChevronUp size={12} /> Back
                       </button>
                       <span className="font-mono text-[11px] tracking-[0.08em] uppercase text-gold">
-                        {MUSCLE_GROUPS.find(m => m.id === selectedMuscle)?.icon}{" "}
-                        {selectedMuscle?.replace("-", " ")}
+                        {muscleGroups.find((m) => m.id === selectedMuscleId)?.name}
                       </span>
-                      <div className="flex-1 relative ml-auto max-w-[200px]">
+                      <div className="flex-1 relative ml-auto max-w-[220px]">
                         <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate" />
                         <input
                           type="text"
-                          placeholder="Search..."
+                          placeholder="Search exercises…"
                           value={exerciseSearch}
                           onChange={(e) => setExerciseSearch(e.target.value)}
                           className="w-full bg-iron border border-steel text-offwhite text-[12px] pl-8 pr-3 h-[32px] outline-none focus:border-gold transition-colors placeholder:text-slate"
@@ -864,30 +830,38 @@ export function CreatePlanForm({
                       </div>
                     </div>
 
-                    <div className="p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-[260px] overflow-y-auto">
-                      {(EXERCISE_LIBRARY[selectedMuscle ?? ""] ?? [])
-                        .filter(ex => !exerciseSearch || ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()))
-                        .map((ex) => {
-                          const isAdded = form.days[activeDay]?.exercises.some(e => e.name === ex.name);
-                          return (
-                            <button
-                              key={ex.name}
-                              type="button"
-                              onClick={() => !isAdded && addExerciseToDay(activeDay, ex)}
-                              disabled={isAdded}
-                              className={cn(
-                                "text-left px-3 py-2.5 border transition-all duration-[120ms]",
-                                isAdded
-                                  ? "border-gold/30 bg-gold/10 opacity-50 cursor-not-allowed"
-                                  : "border-steel/50 hover:border-gold/30 hover:bg-gold/5 cursor-pointer",
-                              )}
-                            >
+                    <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[360px] overflow-y-auto">
+                      {filteredExercises().map((ex) => {
+                        const isAdded = form.days[activeDay]?.exercises.some((e) => e.exercise_id === ex.id);
+                        return (
+                          <button
+                            key={ex.id}
+                            type="button"
+                            onClick={() => !isAdded && addExerciseToDay(activeDay, ex)}
+                            disabled={isAdded}
+                            className={cn(
+                              "flex items-center gap-2 text-left p-2 border transition-all duration-[120ms]",
+                              isAdded
+                                ? "border-gold/30 bg-gold/10 opacity-50 cursor-not-allowed"
+                                : "border-steel/50 hover:border-gold/30 hover:bg-gold/5 cursor-pointer",
+                            )}
+                          >
+                            <ExerciseImage src={ex.image_url} alt={ex.name} className="w-12 h-12 flex-shrink-0" iconSize={16} />
+                            <div className="flex-1 min-w-0">
                               <p className="text-[12px] text-offwhite truncate">{ex.name}</p>
-                              <p className="text-[9px] text-slate font-mono mt-0.5">{ex.defaultSets}×{ex.defaultReps}</p>
-                              {isAdded && <Check size={10} className="text-gold mt-1" />}
-                            </button>
-                          );
-                        })}
+                              {ex.equipment && (
+                                <p className="text-[10px] text-slate font-mono mt-0.5 truncate">{ex.equipment}</p>
+                              )}
+                            </div>
+                            {isAdded && <Check size={11} className="text-gold flex-shrink-0" />}
+                          </button>
+                        );
+                      })}
+                      {filteredExercises().length === 0 && (
+                        <div className="col-span-full text-center py-6 text-muted text-[12px]">
+                          No exercises match. Add one in <span className="text-gold">Coach → Library</span>.
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -896,7 +870,7 @@ export function CreatePlanForm({
                 <div className="px-3 py-3 border-t border-steel flex gap-2">
                   <input
                     type="text"
-                    placeholder="+ Add custom exercise..."
+                    placeholder="+ Add custom exercise…"
                     value={customExName}
                     onChange={(e) => setCustomExName(e.target.value)}
                     onKeyDown={(e) => {
@@ -918,103 +892,101 @@ export function CreatePlanForm({
                 </div>
               </div>
 
-              {/* Selected exercises list */}
-              {form.days[activeDay].exercises.length > 0 && (
+              {/* Selected exercises */}
+              {form.days[activeDay].exercises.length > 0 ? (
                 <div className="space-y-2">
-                  <CardLabel>
-                    Selected Exercises ({form.days[activeDay].exercises.length})
-                  </CardLabel>
+                  <CardLabel>Selected Exercises ({form.days[activeDay].exercises.length})</CardLabel>
                   {form.days[activeDay].exercises.map((ex, ei) => (
                     <div
                       key={ei}
-                      className="bg-iron border border-steel p-3 flex flex-col sm:flex-row gap-3 group hover:border-gold/20 transition-colors"
+                      className="bg-iron border border-steel p-3 space-y-2 group hover:border-gold/20 transition-colors"
                     >
-                      {/* Grip + Name */}
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <GripVertical size={14} className="text-steel flex-shrink-0 cursor-grab" />
+                      {/* Top row: position, image, name, delete */}
+                      <div className="flex items-center gap-3">
+                        <GripVertical size={14} className="text-steel flex-shrink-0" />
                         <span className="font-mono text-[9px] text-gold bg-gold/10 px-1.5 py-0.5 flex-shrink-0">
                           {ei + 1}
                         </span>
-                        <span className="text-[13px] text-offwhite truncate">{ex.name}</span>
-                      </div>
-
-                      {/* Controls */}
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {/* Sets */}
-                        <div className="flex flex-col items-center">
-                          <span className="font-mono text-[8px] text-slate uppercase mb-0.5">Sets</span>
-                          <div className="flex items-center border border-steel">
-                            <button
-                              type="button"
-                              onClick={() => updateExercise(activeDay, ei, "sets", Math.max(1, ex.sets - 1))}
-                              className="w-7 h-7 flex items-center justify-center text-muted hover:text-gold transition-colors"
-                            >
-                              -
-                            </button>
-                            <span className="w-8 h-7 flex items-center justify-center text-[12px] text-offwhite font-mono bg-charcoal border-x border-steel">
-                              {ex.sets}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => updateExercise(activeDay, ei, "sets", ex.sets + 1)}
-                              className="w-7 h-7 flex items-center justify-center text-muted hover:text-gold transition-colors"
-                            >
-                              +
-                            </button>
-                          </div>
+                        <ExerciseImage
+                          src={ex.image_url}
+                          alt={ex.exercise_name ?? ex.name}
+                          className="w-10 h-10 flex-shrink-0"
+                          iconSize={14}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] text-offwhite truncate">{ex.exercise_name ?? ex.name}</p>
+                          <p className="text-[10px] text-slate font-mono truncate">
+                            {ex.muscle_group ?? ""}{ex.muscle_group && ex.equipment ? " · " : ""}{ex.equipment ?? ""}
+                          </p>
                         </div>
-
-                        {/* Reps */}
-                        <div className="flex flex-col items-center">
-                          <span className="font-mono text-[8px] text-slate uppercase mb-0.5">Reps</span>
-                          <input
-                            type="text"
-                            value={ex.reps}
-                            onChange={(e) => updateExercise(activeDay, ei, "reps", e.target.value)}
-                            className="w-16 h-7 bg-charcoal border border-steel text-offwhite text-[12px] text-center font-mono outline-none focus:border-gold transition-colors"
-                          />
-                        </div>
-
-                        {/* Rest */}
-                        <div className="flex flex-col items-center">
-                          <span className="font-mono text-[8px] text-slate uppercase mb-0.5">Rest</span>
-                          <select
-                            value={ex.rest}
-                            onChange={(e) => updateExercise(activeDay, ei, "rest", e.target.value)}
-                            className="h-7 bg-charcoal border border-steel text-offwhite text-[11px] px-1 font-mono outline-none focus:border-gold transition-colors cursor-pointer"
-                          >
-                            {REST_OPTIONS.map((r) => (
-                              <option key={r} value={r}>{r}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Delete */}
+                        {ex.machine_image_url && (
+                          <ExerciseImage src={ex.machine_image_url} alt="machine" className="w-8 h-8 flex-shrink-0 hidden sm:block" iconSize={12} />
+                        )}
+                        {ex.demo_url && (
+                          <ExerciseImage src={ex.demo_url} alt="demo" className="w-8 h-8 flex-shrink-0 hidden sm:block" iconSize={12} />
+                        )}
                         <button
                           type="button"
                           onClick={() => removeExercise(activeDay, ei)}
-                          className="w-7 h-7 flex items-center justify-center text-steel hover:text-danger transition-colors mt-3"
+                          title="Remove"
+                          className="w-7 h-7 flex items-center justify-center text-steel hover:text-danger transition-colors flex-shrink-0"
                         >
                           <X size={14} />
                         </button>
                       </div>
 
-                      {/* Notes field */}
-                      <div className="w-full sm:ml-[30px]">
-                        <input
-                          type="text"
-                          placeholder="Notes (e.g. slow eccentric, pause at bottom...)"
-                          value={ex.notes || ""}
-                          onChange={(e) => updateExercise(activeDay, ei, "notes", e.target.value)}
-                          className="w-full bg-charcoal border border-steel/50 text-muted text-[11px] px-3 h-7 outline-none focus:border-gold focus:text-offwhite transition-colors placeholder:text-slate/60"
-                        />
+                      {/* Coach-fillable values: empty by default */}
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        <FieldCell label="Sets">
+                          <input
+                            type="text"
+                            value={ex.sets === undefined || ex.sets === null ? "" : String(ex.sets)}
+                            onChange={(e) => updateExercise(activeDay, ei, "sets", e.target.value)}
+                            placeholder="—"
+                            className={cellClass}
+                          />
+                        </FieldCell>
+                        <FieldCell label="Reps">
+                          <input
+                            type="text"
+                            value={ex.reps ?? ""}
+                            onChange={(e) => updateExercise(activeDay, ei, "reps", e.target.value)}
+                            placeholder="—"
+                            className={cellClass}
+                          />
+                        </FieldCell>
+                        <FieldCell label="Rest">
+                          <input
+                            type="text"
+                            value={ex.rest ?? ""}
+                            onChange={(e) => updateExercise(activeDay, ei, "rest", e.target.value)}
+                            placeholder="—"
+                            className={cellClass}
+                          />
+                        </FieldCell>
+                        <FieldCell label="Tempo">
+                          <input
+                            type="text"
+                            value={ex.tempo ?? ""}
+                            onChange={(e) => updateExercise(activeDay, ei, "tempo", e.target.value)}
+                            placeholder="—"
+                            className={cellClass}
+                          />
+                        </FieldCell>
+                        <FieldCell label="Notes" full>
+                          <input
+                            type="text"
+                            value={ex.notes ?? ""}
+                            onChange={(e) => updateExercise(activeDay, ei, "notes", e.target.value)}
+                            placeholder="—"
+                            className={cellClass}
+                          />
+                        </FieldCell>
                       </div>
                     </div>
                   ))}
                 </div>
-              )}
-
-              {form.days[activeDay].exercises.length === 0 && (
+              ) : (
                 <div className="py-8 text-center border border-dashed border-steel bg-charcoal/50">
                   <Dumbbell size={24} className="text-steel mx-auto mb-2" />
                   <p className="text-[12px] text-muted">Click exercises above to add them</p>
@@ -1026,7 +998,7 @@ export function CreatePlanForm({
         </div>
       </Card>
 
-      {/* ═══ SECTION 5: EXTRAS ═══ */}
+      {/* ═══ SECTION 5: NOTES & TAGS ═══ */}
       <Card variant="default" className="overflow-hidden">
         <div className="px-5 py-4 border-b border-steel bg-gunmetal flex items-center gap-2">
           <Heart size={14} className="text-gold" />
@@ -1083,6 +1055,23 @@ export function CreatePlanForm({
           {loading ? "Saving..." : isEdit ? "SAVE CHANGES" : "CREATE PLAN"}
         </Button>
       </div>
+
     </form>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Local helpers
+// ═══════════════════════════════════════════════════════════════
+
+function FieldCell({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
+  return (
+    <div className={cn(full && "col-span-2 sm:col-span-5")}>
+      <span className="font-mono text-[8px] text-slate uppercase block mb-0.5">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+const cellClass =
+  "w-full h-7 bg-charcoal border border-steel text-offwhite text-[12px] px-2 outline-none focus:border-gold transition-colors placeholder:text-slate/50";

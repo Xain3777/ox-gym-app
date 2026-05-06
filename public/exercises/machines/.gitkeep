@@ -1,0 +1,7 @@
+Machine photos. Drop .png/.jpg files here matching the slug from
+public.exercises.file_name (e.g. chest-press → chest-press-machine.png).
+
+The path the app expects:
+  /exercises/machines/{slug}-machine.png
+
+Missing files render the placeholder in <ExerciseImage>.

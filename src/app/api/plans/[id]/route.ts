@@ -4,30 +4,20 @@ import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import type { ApiResponse } from "@/types";
 
-// Schema for an exercise inside a plan day.
+// Edit a saved workout plan. Same shape as POST /api/plans, applied
+// as an update against an existing row. Coach + manager only.
 //
-// Migration 016 made the coach plan builder library-aware: each
-// exercise can carry the originating exercise_id + image refs +
-// equipment + muscle group, and sets/reps/rest/tempo are *manually*
-// filled by the coach. The spec says these four fields should default
-// to empty strings — so this schema accepts empty values and either
-// `number` or `string` for sets (older plans saved sets as int; new
-// plans save sets as a free string like "" or "4" or "as many").
-//
-// Older saved plans only have { name, sets:int, reps:string, notes? }
-// and validate cleanly against this looser shape — backward-compatible.
-const ExerciseSchema = z.object({
-  // Required: every exercise has a display name (kept for old plans).
-  name:               z.string().min(1).max(100),
+// We deliberately re-declare the schemas here rather than importing
+// from ../route.ts because Next.js route files don't export reliably
+// in dev — keep them in sync if you change one.
 
-  // Manual coach-filled values — empty by default.
+const ExerciseSchema = z.object({
+  name:               z.string().min(1).max(100),
   sets:               z.union([z.number(), z.string()]).optional(),
   reps:               z.string().max(50).optional(),
   rest:               z.string().max(50).optional(),
   tempo:              z.string().max(50).optional(),
   notes:              z.string().max(500).optional(),
-
-  // Library-aware metadata (migration 016).
   exercise_id:        z.string().uuid().nullable().optional(),
   exercise_name:      z.string().max(120).optional(),
   muscle_group:       z.string().max(60).nullable().optional(),
@@ -53,19 +43,28 @@ const PlanSchema = z.object({
   content:        z.array(WorkoutDaySchema).min(1).max(30),
 });
 
-// POST — manager + coach only
-export async function POST(request: NextRequest) {
-  const { ctx, error } = await requireAuth(["manager", "coach"], request);
+const UuidSchema = z.string().uuid();
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } },
+) {
+  const { error } = await requireAuth(["manager", "coach"], request);
   if (error) return error;
+
+  const idCheck = UuidSchema.safeParse(params.id);
+  if (!idCheck.success) {
+    return NextResponse.json<ApiResponse>({ success: false, error: "Invalid plan id" }, { status: 400 });
+  }
 
   let body: unknown;
   try { body = await request.json(); }
   catch { return NextResponse.json<ApiResponse>({ success: false, error: "Invalid JSON" }, { status: 400 }); }
 
-  const result = PlanSchema.safeParse(body);
-  if (!result.success) {
+  const parsed = PlanSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json<ApiResponse>(
-      { success: false, error: result.error.errors[0]?.message ?? "Validation failed" },
+      { success: false, error: parsed.error.errors[0]?.message ?? "Validation failed" },
       { status: 400 },
     );
   }
@@ -73,30 +72,39 @@ export async function POST(request: NextRequest) {
   const supabase = createServiceClient();
   const { data, error: dbError } = await supabase
     .from("workout_plans")
-    .insert({ ...result.data, created_by: ctx.memberId })
+    .update(parsed.data)
+    .eq("id", idCheck.data)
     .select()
     .single();
 
-  if (dbError) {
-    return NextResponse.json<ApiResponse>({ success: false, error: "Failed to create plan" }, { status: 500 });
+  if (dbError || !data) {
+    return NextResponse.json<ApiResponse>({ success: false, error: "Failed to update plan" }, { status: 500 });
   }
 
-  return NextResponse.json<ApiResponse<typeof data>>({ success: true, data }, { status: 201 });
+  return NextResponse.json<ApiResponse<typeof data>>({ success: true, data });
 }
 
-// GET — manager + coach + reception
-export async function GET() {
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: { id: string } },
+) {
   const { error } = await requireAuth(["manager", "coach", "reception"]);
   if (error) return error;
+
+  const idCheck = UuidSchema.safeParse(params.id);
+  if (!idCheck.success) {
+    return NextResponse.json<ApiResponse>({ success: false, error: "Invalid plan id" }, { status: 400 });
+  }
 
   const supabase = createServiceClient();
   const { data, error: dbError } = await supabase
     .from("workout_plans")
     .select("*")
-    .order("created_at", { ascending: false });
+    .eq("id", idCheck.data)
+    .single();
 
-  if (dbError) {
-    return NextResponse.json<ApiResponse>({ success: false, error: "Failed to fetch plans" }, { status: 500 });
+  if (dbError || !data) {
+    return NextResponse.json<ApiResponse>({ success: false, error: "Plan not found" }, { status: 404 });
   }
 
   return NextResponse.json<ApiResponse<typeof data>>({ success: true, data });

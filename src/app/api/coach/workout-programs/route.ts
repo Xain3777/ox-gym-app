@@ -124,8 +124,8 @@ const DeleteSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("exercise"), id: z.string().uuid() }),
 ]);
 
-export async function GET() {
-  const { error } = await requireAuth([...COACH_ROLES]);
+export async function GET(request: Request) {
+  const { error } = await requireAuth([...COACH_ROLES], request);
   if (error) return error;
 
   try {

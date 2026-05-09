@@ -5,8 +5,8 @@ import { normalizePhone } from "@/lib/phone";
 
 const COACH_ROLES = ["manager", "admin", "head_coach", "coach"] as const;
 
-export async function GET() {
-  const { error } = await requireAuth([...COACH_ROLES]);
+export async function GET(request: Request) {
+  const { error } = await requireAuth([...COACH_ROLES], request);
   if (error) return error;
 
   const supabase = createServiceClient();

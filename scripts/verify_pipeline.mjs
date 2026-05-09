@@ -268,12 +268,34 @@ async function step4_onboardingCompletes() {
   pass(`onboarding wrote both members and member_app_profiles`);
 }
 
+async function step5_coachSeesEligible() {
+  log("→", "step 5: coach sees the test player in eligible group");
+  const coachJwt = await tokenFor(COACH_EMAIL, COACH_PASS);
+
+  const res = await fetch(`${APP}/api/coach/players`, {
+    headers: { "Authorization": `Bearer ${coachJwt}` },
+  });
+  if (res.status !== 200) fail(`expected 200, got ${res.status}: ${await res.text()}`);
+  const body = await res.json();
+
+  const eligible = (body.data ?? []).find((p) => p.id === createdMemberId);
+  if (!eligible) {
+    const visibleIds = (body.data ?? []).map((p) => p.id).join(", ");
+    fail(`test player not in eligible list. Saw ids: ${visibleIds}`);
+  }
+  if (!eligible.has_app_registration) fail(`has_app_registration is false`);
+  if (!eligible.has_dashboard_subscription) fail(`has_dashboard_subscription is false`);
+  if (!eligible.eligible) fail(`eligible flag is false`);
+  pass(`coach sees test player as eligible (full_name=${eligible.full_name})`);
+}
+
 async function main() {
   await cleanup("pre-run");
   await step1_receptionCreatesMember();
   await step2_duplicatePhoneRejected();
   await step3_playerSignupLinks();
   await step4_onboardingCompletes();
+  await step5_coachSeesEligible();
   await cleanup("post-run");
   log("✓", "all steps passed");
 }

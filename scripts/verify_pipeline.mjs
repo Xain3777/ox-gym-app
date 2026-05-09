@@ -28,6 +28,20 @@ const TEST_NAME     = "VerifyPipeline TestPlayer";
 const COACH_EMAIL   = "963911000007@member.oxgym.app";
 const COACH_PASS    = "Coach1#OX2026";
 
+// Normalize phone: 0999000777 → 963999000777
+function normalizePhone(input) {
+  const digits = input.replace(/\D/g, "");
+  if (digits.startsWith("09") && digits.length === 10) {
+    return "963" + digits.slice(1);
+  }
+  if (digits.startsWith("963") && digits.length === 12) {
+    return digits;
+  }
+  return digits;
+}
+
+const TEST_PHONE_NORMALIZED = normalizePhone(TEST_PHONE);
+
 let createdAuthId = null;
 let createdMemberId = null;
 let createdTemplateId = null;
@@ -50,7 +64,7 @@ async function cleanup(reason = "done") {
   const { data: existingMembers } = await admin
     .from("members")
     .select("id, auth_id")
-    .eq("phone_normalized", TEST_PHONE);
+    .eq("phone_normalized", TEST_PHONE_NORMALIZED);
   for (const m of existingMembers ?? []) {
     if (m.auth_id) {
       await admin.from("member_app_profiles").delete().eq("app_user_id", m.auth_id);
@@ -115,9 +129,37 @@ async function step1_receptionCreatesMember() {
   pass(`subscription row found (plan_type=${subs[0].plan_type})`);
 }
 
+async function step2_duplicatePhoneRejected() {
+  log("→", "step 2: second create with same phone is rejected");
+  const jwt = await tokenFor(MANAGER_EMAIL, MANAGER_PASS);
+  const today   = new Date().toISOString().slice(0, 10);
+  const endDate = new Date(Date.now() + 30 * 86400e3).toISOString().slice(0, 10);
+
+  const res = await fetch(`${APP}/api/members`, {
+    method: "POST",
+    headers: {
+      "Content-Type":  "application/json",
+      "Authorization": `Bearer ${jwt}`,
+      "Origin":        APP,
+    },
+    body: JSON.stringify({
+      full_name:  TEST_NAME + " 2",
+      phone:      TEST_PHONE,
+      password:   TEST_PASSWORD,
+      plan_type:  "monthly",
+      start_date: today,
+      end_date:   endDate,
+      price:      35,
+    }),
+  });
+  if (res.status !== 409) fail(`expected 409, got ${res.status}: ${await res.text()}`);
+  pass(`duplicate phone correctly rejected with 409`);
+}
+
 async function main() {
   await cleanup("pre-run");
   await step1_receptionCreatesMember();
+  await step2_duplicatePhoneRejected();
   await cleanup("post-run");
   log("✓", "all steps passed");
 }

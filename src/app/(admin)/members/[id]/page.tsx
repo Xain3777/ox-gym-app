@@ -47,7 +47,7 @@ async function getMember(id: string): Promise<{
 
     const { data: member, error } = await supabase
       .from("members")
-      .select("*, subscription:subscriptions(*)")
+      .select("*, subscription:member_subscriptions(*)")
       .eq("id", id)
       .single();
 

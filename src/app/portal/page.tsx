@@ -156,7 +156,7 @@ export default function PortalHome() {
 
         // Parallel fetches
         const [subRes, assignmentRes, planSendRes, mealSendRes, logRes, mealOrderRes] = await Promise.all([
-          supabase.from("subscriptions").select("plan_type, start_date, end_date, status, price")
+          supabase.from("member_subscriptions").select("plan_type, start_date, end_date, status, price")
             .eq("member_id", memberId).eq("status", "active")
             .order("end_date", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("member_workout_programs").select("template:workout_program_templates(name, category)")

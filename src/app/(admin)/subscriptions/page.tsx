@@ -13,7 +13,7 @@ async function getData() {
     const supabase = createServiceClient();
     const { data } = await supabase
       .from("members")
-      .select("*, subscription:subscriptions(*)")
+      .select("*, subscription:member_subscriptions(*)")
       .order("created_at", { ascending: false });
 
     return (data ?? []).map((m: any) => ({

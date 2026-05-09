@@ -147,8 +147,8 @@ export async function GET() {
 
   const supabase = createServiceClient();
   const selectFields = ctx.role === "reception"
-    ? "id, full_name, phone, goals, status, role, created_at, subscription:subscriptions(*)"
-    : "*, subscription:subscriptions(*)";
+    ? "id, full_name, phone, goals, status, role, created_at, subscription:member_subscriptions(*)"
+    : "*, subscription:member_subscriptions(*)";
   const { data, error: dbError } = await supabase
     .from("members")
     .select(selectFields)

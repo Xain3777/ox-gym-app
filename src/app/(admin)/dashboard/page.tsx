@@ -80,7 +80,7 @@ async function getDashboardData(): Promise<DashboardData> {
   // ── Fetch all members with subscriptions ──
   const { data: members } = await supabase
     .from("members")
-    .select(`*, subscription:subscriptions(*)`)
+    .select(`*, subscription:member_subscriptions(*)`)
     .order("created_at", { ascending: false });
 
   const withSubs = (members ?? []).map((m) => ({

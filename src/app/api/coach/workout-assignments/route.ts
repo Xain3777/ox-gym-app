@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   const [{ data: member }, { data: template }] = await Promise.all([
     supabase
       .from("members")
-      .select("id, auth_id, phone, phone_normalized, subscription:subscriptions(plan_type, start_date, end_date, status)")
+      .select("id, auth_id, phone, phone_normalized, subscription:member_subscriptions(plan_type, start_date, end_date, status)")
       .eq("id", member_id)
       .eq("role", "player")
       .maybeSingle(),

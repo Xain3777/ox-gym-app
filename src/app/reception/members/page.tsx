@@ -20,7 +20,7 @@ export default function ReceptionMembersPage() {
         const supabase = createBrowserSupabase();
         const { data } = await supabase
           .from("members")
-          .select("*, subscription:subscriptions(*)")
+          .select("*, subscription:member_subscriptions(*)")
           .order("created_at", { ascending: false });
 
         if (data) {

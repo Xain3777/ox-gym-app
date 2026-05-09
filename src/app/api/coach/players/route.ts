@@ -21,7 +21,7 @@ export async function GET(request: Request) {
       status,
       goals,
       created_at,
-      subscription:subscriptions(plan_type, start_date, end_date, status)
+      subscription:member_subscriptions(plan_type, start_date, end_date, status)
     `)
     .eq("role", "player")
     .order("created_at", { ascending: false });

@@ -28,7 +28,7 @@ export default function ReceptionSubscriptionsPage() {
       try {
         const supabase = createBrowserSupabase();
         const { data } = await supabase
-          .from("subscriptions")
+          .from("member_subscriptions")
           .select("*, member:members(full_name, phone)")
           .order("end_date", { ascending: true });
 

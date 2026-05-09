@@ -16,7 +16,7 @@ async function getData() {
     const [membersRes, plansRes] = await Promise.all([
       supabase
         .from("members")
-        .select("*, subscription:subscriptions(*)")
+        .select("*, subscription:member_subscriptions(*)")
         .neq("status", "expired")
         .order("full_name"),
       supabase

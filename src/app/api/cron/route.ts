@@ -38,7 +38,7 @@ export async function GET(request: Request) {
     while (true) {
       const { data: page, error } = await supabase
         .from("members")
-        .select("*, subscription:subscriptions(*)")
+        .select("*, subscription:member_subscriptions(*)")
         .neq("status", "expired")
         .range(offset, offset + PAGE_SIZE - 1);
 

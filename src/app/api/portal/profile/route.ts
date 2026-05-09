@@ -12,7 +12,7 @@ export async function GET() {
   const service = createServiceClient();
   const { data: member, error: dbError } = await service
     .from("members")
-    .select("id, full_name, phone, status, goals, subscription:subscriptions(*)")
+    .select("id, full_name, phone, status, goals, subscription:member_subscriptions(*)")
     .eq("id", ctx.memberId)
     .single();
 

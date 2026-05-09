@@ -345,6 +345,41 @@ async function step6_coachCreatesProgram() {
   pass(`template created with ${days.length} days (id=${createdTemplateId})`);
 }
 
+async function step7_coachAssignsProgram() {
+  log("→", "step 7: coach assigns program to the player");
+  const coachJwt = await tokenFor(COACH_EMAIL, COACH_PASS);
+
+  const res = await fetch(`${APP}/api/coach/workout-assignments`, {
+    method: "POST",
+    headers: {
+      "Content-Type":  "application/json",
+      "Authorization": `Bearer ${coachJwt}`,
+      "Origin":        APP,
+    },
+    body: JSON.stringify({
+      member_id:   createdMemberId,
+      template_id: createdTemplateId,
+      notes:       "Verify pipeline test assignment",
+    }),
+  });
+  if (![200, 201].includes(res.status)) fail(`expected 200/201, got ${res.status}: ${await res.text()}`);
+  const body = await res.json();
+  createdAssignmentId = body?.data?.id ?? body?.id;
+  if (!createdAssignmentId) fail(`no assignment id in response: ${JSON.stringify(body)}`);
+
+  const { data: row } = await admin
+    .from("member_workout_programs")
+    .select("id, status, member_id, template_id")
+    .eq("id", createdAssignmentId)
+    .single();
+  if (!row) fail(`assignment row not found in DB`);
+  if (row.status !== "active") fail(`assignment status not active: ${row.status}`);
+  if (row.member_id !== createdMemberId) fail(`member_id mismatch: ${row.member_id} vs ${createdMemberId}`);
+  if (row.template_id !== createdTemplateId) fail(`template_id mismatch: ${row.template_id} vs ${createdTemplateId}`);
+
+  pass(`assignment created (id=${createdAssignmentId}, status=active)`);
+}
+
 async function main() {
   await cleanup("pre-run");
   await step1_receptionCreatesMember();
@@ -353,6 +388,7 @@ async function main() {
   await step4_onboardingCompletes();
   await step5_coachSeesEligible();
   await step6_coachCreatesProgram();
+  await step7_coachAssignsProgram();
   await cleanup("post-run");
   log("✓", "all steps passed");
 }

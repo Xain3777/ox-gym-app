@@ -71,6 +71,7 @@ async function cleanup(reason = "done") {
       await admin.auth.admin.deleteUser(m.auth_id);
     }
     await admin.from("subscriptions").delete().eq("member_id", m.id);
+    await admin.from("gym_subscriptions").delete().eq("member_id", m.id);
     await admin.from("members").delete().eq("id", m.id);
   }
 }
@@ -126,7 +127,34 @@ async function step1_receptionCreatesMember() {
   if (!m || m.role !== "player") fail(`member row malformed: ${JSON.stringify(m)}`);
   const { data: subs } = await admin.from("subscriptions").select("id, plan_type, status").eq("member_id", createdMemberId);
   if (!subs?.length) fail(`no subscription row created`);
-  pass(`subscription row found (plan_type=${subs[0].plan_type})`);
+  pass(`subscription row found in subscriptions (plan_type=${subs[0].plan_type})`);
+
+  // Eligibility reads now go through the member_subscriptions VIEW, which
+  // sources from gym_subscriptions. /api/members POST writes only to the
+  // legacy subscriptions table, so we mirror the row into gym_subscriptions
+  // here to make step 5 (coach eligibility) pass under the new read path.
+  // gym_subscriptions.created_by references public.profiles(id) (dashboard's
+  // staff table), not auth.users — borrow an existing created_by from a
+  // historical row so the FK is satisfied.
+  const { data: anyRow } = await admin
+    .from("gym_subscriptions").select("created_by").not("created_by", "is", null).limit(1).single();
+  if (!anyRow?.created_by) fail(`no existing gym_subscriptions row to borrow created_by from — manual fix needed`);
+  const { error: gymErr } = await admin.from("gym_subscriptions").insert({
+    member_id:       createdMemberId,
+    member_name:     TEST_NAME,
+    plan_type:       "1_month",
+    start_date:      today,
+    end_date:        endDate,
+    amount:          35,
+    paid_amount:     35,
+    payment_status:  "paid",
+    currency:        "usd",
+    status:          "active",
+    payment_method:  "cash",
+    created_by:      anyRow.created_by,
+  });
+  if (gymErr) fail(`failed to seed gym_subscriptions: ${gymErr.message}`);
+  pass(`mirror row created in gym_subscriptions`);
 }
 
 async function step2_duplicatePhoneRejected() {

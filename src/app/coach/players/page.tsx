@@ -196,6 +196,20 @@ export default function CoachPlayersPage() {
               />
             </div>
 
+            {groups.duplicate_phone_needs_staff_fix.length > 0 && (
+              <section className="border border-danger/30 bg-danger/[0.04] p-4 mb-1">
+                <p className="text-danger text-[13px] font-bold mb-1">
+                  تكرار رقم الهاتف — تحتاج تدخّل
+                </p>
+                <p className="text-white/55 text-[12px] mb-3">
+                  هؤلاء الأعضاء لديهم نفس رقم الهاتف. عدّل بيانات أحدهم في صفحة الأعضاء قبل إرسال أي برنامج.
+                </p>
+                {groups.duplicate_phone_needs_staff_fix.map((p) => (
+                  <div key={p.id} className="text-white/70 text-[13px] py-0.5">{p.full_name} — {p.phone}</div>
+                ))}
+              </section>
+            )}
+
             <div className="space-y-2 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
               {filteredPlayers.length === 0 && (
                 <div className="bg-white/[0.03] border border-white/[0.06] p-5 text-center">

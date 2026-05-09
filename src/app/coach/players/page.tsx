@@ -144,6 +144,30 @@ export default function CoachPlayersPage() {
     });
   }
 
+  async function unassignProgram() {
+    if (!selectedPlayer) return;
+    if (!selectedPlayer.current_assignment) return;
+    const programName = selectedPlayer.current_assignment.template?.name ?? "current program";
+    if (!window.confirm(`Unassign "${programName}" from ${selectedPlayer.full_name}?`)) return;
+    try {
+      const res = await fetch("/api/coach/workout-assignments", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ member_id: selectedPlayer.id }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        toastError("Unassign failed", json.error ?? "Please try again.");
+        return;
+      }
+      success("Unassigned", `${programName} removed from ${selectedPlayer.full_name}`);
+      await load();
+      setSelectedPlayerId(selectedPlayer.id);
+    } catch {
+      toastError("Network error", "Could not unassign the program.");
+    }
+  }
+
   async function assignProgram(templateId: string) {
     if (!selectedPlayer) return;
     if (!selectedPlayer.eligible) {
@@ -250,7 +274,7 @@ export default function CoachPlayersPage() {
           <section className="space-y-5">
             {selectedPlayer ? (
               <>
-                <PlayerProfile player={selectedPlayer} />
+                <PlayerProfile player={selectedPlayer} onUnassign={unassignProgram} />
                 <div className="space-y-3">
                   {programs.map((program) => {
                     const isExpanded = expandedPrograms.has(program.id);
@@ -327,7 +351,7 @@ export default function CoachPlayersPage() {
   );
 }
 
-function PlayerProfile({ player }: { player: CoachPlayer }) {
+function PlayerProfile({ player, onUnassign }: { player: CoachPlayer; onUnassign: () => void }) {
   const subDays = player.subscription?.end_date ? daysUntil(player.subscription.end_date) : null;
   const notCompleted = "not completed";
   return (
@@ -346,6 +370,16 @@ function PlayerProfile({ player }: { player: CoachPlayer }) {
           <p className="text-gold text-[13px] font-semibold mt-1">
             {player.current_assignment?.template?.name ?? "No program assigned"}
           </p>
+          {player.current_assignment && (
+            <button
+              type="button"
+              onClick={onUnassign}
+              className="mt-2 inline-flex items-center gap-1 border border-danger/30 text-danger text-[10px] font-bold uppercase tracking-wider px-2 py-1 hover:bg-danger/10 transition-colors"
+            >
+              <X size={11} />
+              Unassign
+            </button>
+          )}
         </div>
       </div>
 

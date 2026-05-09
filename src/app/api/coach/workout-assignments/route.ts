@@ -135,6 +135,46 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ success: true, data });
 }
 
+// DELETE: unassign the player's currently-active workout program. Marks
+// every active row for the member as `replaced` (same status the POST
+// path uses when superseding an old assignment) so we keep the history
+// and match the existing schema's permitted status values. Player's
+// /portal/workouts query (WHERE status='active') stops surfacing it.
+const UnassignSchema = z.object({
+  member_id: z.string().uuid(),
+});
+
+export async function DELETE(request: NextRequest) {
+  const { error } = await requireAuth([...COACH_ROLES], request);
+  if (error) return error;
+
+  let body: unknown;
+  try { body = await request.json(); }
+  catch { return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 }); }
+
+  const parsed = UnassignSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { success: false, error: parsed.error.errors[0]?.message ?? "Validation failed" },
+      { status: 400 },
+    );
+  }
+
+  const supabase = createServiceClient();
+  const { data: cleared, error: updErr } = await supabase
+    .from("member_workout_programs")
+    .update({ status: "replaced" })
+    .eq("member_id", parsed.data.member_id)
+    .eq("status", "active")
+    .select("id");
+
+  if (updErr) {
+    return NextResponse.json({ success: false, error: "Failed to unassign program" }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true, data: { cleared: cleared?.length ?? 0 } });
+}
+
 function pickActiveSubscription(subscription: unknown) {
   const rows = Array.isArray(subscription) ? subscription : subscription ? [subscription] : [];
   const today = new Date();

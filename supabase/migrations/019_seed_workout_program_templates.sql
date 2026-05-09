@@ -133,7 +133,7 @@ DECLARE
   day_index INTEGER;
   section_index INTEGER;
   exercise_index INTEGER;
-  exercise_name TEXT;
+  v_exercise_name TEXT;
   exercise_sets_reps TEXT;
   exercise_rest TEXT;
   exercise_duration TEXT;
@@ -225,21 +225,21 @@ BEGIN
           FOR exercise_item IN SELECT value FROM jsonb_array_elements(section_item->'exercises')
           LOOP
             IF jsonb_typeof(exercise_item) = 'object' THEN
-              exercise_name := exercise_item->>'name';
+              v_exercise_name := exercise_item->>'name';
               exercise_sets_reps := exercise_item->>'sets_reps';
               exercise_rest := exercise_item->>'rest';
               exercise_duration := exercise_item->>'duration';
             ELSE
-              exercise_name := trim(both '"' from exercise_item::TEXT);
+              v_exercise_name := trim(both '"' from exercise_item::TEXT);
               exercise_sets_reps := section_item->>'sets_reps';
               exercise_rest := NULL;
               exercise_duration := NULL;
             END IF;
 
-            exercise_instructions := 'Use controlled form for ' || exercise_name || '. Keep the target muscle engaged and ask your coach if anything feels painful.';
+            exercise_instructions := 'Use controlled form for ' || v_exercise_name || '. Keep the target muscle engaged and ask your coach if anything feels painful.';
 
             INSERT INTO public.exercise_media (exercise_name, machine_name, instructions, updated_at)
-            VALUES (exercise_name, exercise_name, exercise_instructions, now())
+            VALUES (v_exercise_name, v_exercise_name, exercise_instructions, now())
             ON CONFLICT (exercise_name) DO UPDATE SET
               machine_name = COALESCE(public.exercise_media.machine_name, EXCLUDED.machine_name),
               instructions = COALESCE(public.exercise_media.instructions, EXCLUDED.instructions),
@@ -264,7 +264,7 @@ BEGIN
               day_id,
               section_id,
               media_id,
-              exercise_name,
+              v_exercise_name,
               exercise_sets_reps,
               exercise_rest,
               exercise_duration,
@@ -283,21 +283,21 @@ BEGIN
         FOR exercise_item IN SELECT value FROM jsonb_array_elements(COALESCE(day_item->'exercises', '[]'::JSONB))
         LOOP
           IF jsonb_typeof(exercise_item) = 'object' THEN
-            exercise_name := exercise_item->>'name';
+            v_exercise_name := exercise_item->>'name';
             exercise_sets_reps := COALESCE(exercise_item->>'sets_reps', day_item->>'sets_reps');
             exercise_rest := exercise_item->>'rest';
             exercise_duration := exercise_item->>'duration';
           ELSE
-            exercise_name := trim(both '"' from exercise_item::TEXT);
+            v_exercise_name := trim(both '"' from exercise_item::TEXT);
             exercise_sets_reps := day_item->>'sets_reps';
             exercise_rest := NULL;
             exercise_duration := NULL;
           END IF;
 
-          exercise_instructions := 'Use controlled form for ' || exercise_name || '. Keep the target muscle engaged and ask your coach if anything feels painful.';
+          exercise_instructions := 'Use controlled form for ' || v_exercise_name || '. Keep the target muscle engaged and ask your coach if anything feels painful.';
 
           INSERT INTO public.exercise_media (exercise_name, machine_name, instructions, updated_at)
-          VALUES (exercise_name, exercise_name, exercise_instructions, now())
+          VALUES (v_exercise_name, v_exercise_name, exercise_instructions, now())
           ON CONFLICT (exercise_name) DO UPDATE SET
             machine_name = COALESCE(public.exercise_media.machine_name, EXCLUDED.machine_name),
             instructions = COALESCE(public.exercise_media.instructions, EXCLUDED.instructions),
@@ -322,7 +322,7 @@ BEGIN
             day_id,
             NULL,
             media_id,
-            exercise_name,
+            v_exercise_name,
             exercise_sets_reps,
             exercise_rest,
             exercise_duration,

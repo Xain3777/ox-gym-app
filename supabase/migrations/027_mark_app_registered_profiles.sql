@@ -11,7 +11,10 @@ UPDATE public.member_app_profiles
 SET app_registered_at = COALESCE(app_registered_at, created_at, now())
 WHERE app_registered_at IS NULL;
 
-CREATE OR REPLACE VIEW public.coach_player_profile_audit AS
+-- 027 inserts app_registered_at mid-column-list versus 026's view shape;
+-- CREATE OR REPLACE VIEW won't accept that, so drop and recreate.
+DROP VIEW IF EXISTS public.coach_player_profile_audit;
+CREATE VIEW public.coach_player_profile_audit AS
 SELECT
   m.id AS member_id,
   p.id AS app_profile_id,

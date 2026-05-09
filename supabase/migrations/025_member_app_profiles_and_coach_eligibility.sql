@@ -25,6 +25,19 @@ CREATE TABLE IF NOT EXISTS public.member_app_profiles (
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Backfill columns for projects where an earlier custom migration created
+-- member_app_profiles without phone_normalized / name_normalized /
+-- created_at / updated_at. CREATE TABLE IF NOT EXISTS above no-ops on an
+-- existing table; these ALTERs make sure the shape matches.
+ALTER TABLE public.member_app_profiles
+  ADD COLUMN IF NOT EXISTS phone_normalized TEXT;
+ALTER TABLE public.member_app_profiles
+  ADD COLUMN IF NOT EXISTS name_normalized  TEXT;
+ALTER TABLE public.member_app_profiles
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE public.member_app_profiles
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
 CREATE INDEX IF NOT EXISTS member_app_profiles_linked_member_idx
   ON public.member_app_profiles(linked_member_id);
 

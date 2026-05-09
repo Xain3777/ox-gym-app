@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { UserPlus, CheckCircle, AlertCircle } from "lucide-react";
+import { PhoneCollisionWarning } from "@/components/reception/PhoneCollisionWarning";
 
 interface FormData {
   full_name: string;
@@ -143,6 +144,7 @@ export default function ReceptionCreatePage() {
         <Field label={t("common.phone")} error={errors.phone} required>
           <input type="tel" value={form.phone} onChange={(e) => update("phone", e.target.value)} className={fieldClass(errors.phone)} placeholder="+964 7XX XXX XXXX" />
         </Field>
+        <PhoneCollisionWarning phone={form.phone} />
 
         <Field label={t("auth.password")} error={errors.password} required>
           <input

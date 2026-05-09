@@ -19,44 +19,55 @@ export async function POST(request: Request) {
     limitations,
   } = body;
 
-  const cookieStore = await cookies();
-  const supabaseAuth = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => cookieStore.getAll(),
-        setAll: (cookiesToSet) => {
-          try {
-            for (const { name, value, options } of cookiesToSet) {
-              cookieStore.set(name, value, options);
-            }
-          } catch { /* Server Component context — ignore */ }
+  const supabase = createServiceClient();
+
+  // Support both cookie-based sessions and Bearer token auth
+  let userId: string | null = null;
+  const authHeader = request.headers.get("authorization") ?? "";
+  const bearerMatch = /^Bearer\s+(.+)$/i.exec(authHeader);
+
+  if (bearerMatch) {
+    const { data: { user } } = await supabase.auth.getUser(bearerMatch[1]);
+    userId = user?.id ?? null;
+  } else {
+    const cookieStore = await cookies();
+    const supabaseAuth = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => cookieStore.getAll(),
+          setAll: (cookiesToSet) => {
+            try {
+              for (const { name, value, options } of cookiesToSet) {
+                cookieStore.set(name, value, options);
+              }
+            } catch { /* Server Component context — ignore */ }
+          },
         },
-      },
-    }
-  );
+      }
+    );
+    const { data: { user } } = await supabaseAuth.auth.getUser();
+    userId = user?.id ?? null;
+  }
 
-  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-
-  if (authError || !user) {
+  if (!userId) {
     return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });
   }
 
-  const supabase = createServiceClient();
   const { data: member, error: memberError } = await supabase
     .from("members")
     .select("id, full_name, phone")
-    .eq("auth_id", user.id)
+    .eq("auth_id", userId)
     .single();
 
   if (memberError || !member) {
     return NextResponse.json({ success: false, error: "Member not found" }, { status: 404 });
   }
 
-  await ensureMemberAppProfile(supabase, user.id, member.id);
+  await ensureMemberAppProfile(supabase, userId, member.id);
 
-  const appProfile = await upsertMemberAppProfile(supabase, user.id, member.id, {
+  const appProfile = await upsertMemberAppProfile(supabase, userId, member.id, {
     full_name: member.full_name,
     phone: member.phone,
     fitness_goal,

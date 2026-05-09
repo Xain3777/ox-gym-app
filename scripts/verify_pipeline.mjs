@@ -220,11 +220,60 @@ async function step3_playerSignupLinks() {
   pass(`signup linked auth_id=${createdAuthId} to member ${createdMemberId}`);
 }
 
+async function step4_onboardingCompletes() {
+  log("→", "step 4: player completes onboarding");
+  // Player's Supabase auth email is the normalized phone @ member.oxgym.app
+  const playerEmail = `${normalizePhone(TEST_PHONE)}@member.oxgym.app`;
+  const playerJwt = await tokenFor(playerEmail, TEST_PASSWORD);
+
+  const res = await fetch(`${APP}/api/auth/onboarding`, {
+    method: "POST",
+    headers: {
+      "Content-Type":  "application/json",
+      "Authorization": `Bearer ${playerJwt}`,
+      "Origin":        APP,
+    },
+    body: JSON.stringify({
+      fitness_goal:   "hypertrophy",
+      training_level: "intermediate",
+      illnesses:      [],
+      injuries:       [],
+      date_of_birth:  "2000-01-01",
+      gender:         "male",
+      weight_kg:      80,
+      height_cm:      180,
+      medical_notes:  null,
+      limitations:    null,
+    }),
+  });
+  if (res.status !== 200) fail(`onboarding expected 200, got ${res.status}: ${await res.text()}`);
+
+  const { data: m } = await admin
+    .from("members")
+    .select("onboarding_complete, fitness_goal, training_level")
+    .eq("id", createdMemberId)
+    .single();
+  if (!m?.onboarding_complete) fail(`members.onboarding_complete still false`);
+
+  const { data: prof } = await admin
+    .from("member_app_profiles")
+    .select("onboarding_complete, fitness_goal, training_level, weight_kg, height_cm")
+    .eq("app_user_id", createdAuthId)
+    .single();
+  if (!prof?.onboarding_complete) fail(`member_app_profiles.onboarding_complete still false`);
+  if (Number(prof.weight_kg) !== 80 || Number(prof.height_cm) !== 180) {
+    fail(`profile body metrics not stored correctly: weight=${prof.weight_kg}, height=${prof.height_cm}`);
+  }
+
+  pass(`onboarding wrote both members and member_app_profiles`);
+}
+
 async function main() {
   await cleanup("pre-run");
   await step1_receptionCreatesMember();
   await step2_duplicatePhoneRejected();
   await step3_playerSignupLinks();
+  await step4_onboardingCompletes();
   await cleanup("post-run");
   log("✓", "all steps passed");
 }

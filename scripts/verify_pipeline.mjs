@@ -156,10 +156,75 @@ async function step2_duplicatePhoneRejected() {
   pass(`duplicate phone correctly rejected with 409`);
 }
 
+async function step3_playerSignupLinks() {
+  log("→", "step 3: player self-signup links to existing member by phone");
+
+  // The reception flow (step 1) creates an auth user immediately, so
+  // to test the linking branch we must clear the auth_id from the
+  // existing member row (simulating a pre-registration without login
+  // credentials), delete the auth user, then call /api/auth/signup.
+  const normalized = normalizePhone(TEST_PHONE);
+  const { data: preLinkRows } = await admin
+    .from("members")
+    .select("id, auth_id")
+    .eq("phone_normalized", normalized);
+  const existing = preLinkRows?.[0];
+  if (!existing) fail("step 3 pre-condition: no member row found to reset");
+
+  // Delete the auth user created by reception so signup can create a fresh one
+  if (existing.auth_id) {
+    await admin.from("member_app_profiles").delete().eq("app_user_id", existing.auth_id);
+    await admin.auth.admin.deleteUser(existing.auth_id);
+  }
+  // Unlink auth_id so the signup route sees a member without credentials
+  await admin.from("members").update({ auth_id: null }).eq("id", existing.id);
+
+  const res = await fetch(`${APP}/api/auth/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Origin": APP },
+    body: JSON.stringify({
+      full_name: TEST_NAME,
+      phone:     TEST_PHONE,
+      password:  TEST_PASSWORD,
+    }),
+  });
+  if (res.status !== 200) fail(`signup expected 200, got ${res.status}: ${await res.text()}`);
+  const body = await res.json();
+  if (!body?.success || !body?.data?.user_id) fail(`signup body malformed: ${JSON.stringify(body)}`);
+  createdAuthId = body.data.user_id;
+
+  // Critical assertions: NO new member row created, existing row got auth_id
+  const { data: rows } = await admin
+    .from("members")
+    .select("id, auth_id")
+    .eq("phone_normalized", normalized);
+
+  if (!rows || rows.length !== 1) {
+    fail(`expected exactly 1 member row for phone, got ${rows?.length ?? 0}`);
+  }
+  if (rows[0].id !== createdMemberId) {
+    fail(`signup created a new row (${rows[0].id}) instead of linking to ${createdMemberId}`);
+  }
+  if (rows[0].auth_id !== createdAuthId) {
+    fail(`existing member row not linked: auth_id=${rows[0].auth_id}, expected ${createdAuthId}`);
+  }
+
+  // member_app_profiles row must exist for the auth user
+  const { data: prof } = await admin
+    .from("member_app_profiles")
+    .select("id")
+    .eq("app_user_id", createdAuthId)
+    .maybeSingle();
+  if (!prof) fail(`no member_app_profiles row created`);
+
+  pass(`signup linked auth_id=${createdAuthId} to member ${createdMemberId}`);
+}
+
 async function main() {
   await cleanup("pre-run");
   await step1_receptionCreatesMember();
   await step2_duplicatePhoneRejected();
+  await step3_playerSignupLinks();
   await cleanup("post-run");
   log("✓", "all steps passed");
 }

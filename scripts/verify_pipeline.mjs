@@ -289,6 +289,62 @@ async function step5_coachSeesEligible() {
   pass(`coach sees test player as eligible (full_name=${eligible.full_name})`);
 }
 
+async function step6_coachCreatesProgram() {
+  log("→", "step 6: coach creates a workout program template (with days + exercises)");
+  const coachJwt = await tokenFor(COACH_EMAIL, COACH_PASS);
+  const headers = {
+    "Content-Type":  "application/json",
+    "Authorization": `Bearer ${coachJwt}`,
+    "Origin":        APP,
+  };
+
+  // (a) Create the program record
+  let res = await fetch(`${APP}/api/coach/workout-programs`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      kind:     "program",
+      name:     `VerifyPipeline ${Date.now()}`,
+      category: "general",
+    }),
+  });
+  if (![200, 201].includes(res.status)) fail(`program create expected 200/201, got ${res.status}: ${await res.text()}`);
+  let body = await res.json();
+  createdTemplateId = body?.data?.id;
+  if (!createdTemplateId) fail(`no template id: ${JSON.stringify(body)}`);
+
+  // (b) Create 2 days so the assignment produces a meaningful plan
+  for (let i = 1; i <= 2; i++) {
+    res = await fetch(`${APP}/api/coach/workout-programs`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        kind:        "day",
+        template_id: createdTemplateId,
+        name:        `Day ${i}`,
+        day_type:    "training",
+        sort_order:  i - 1,
+      }),
+    });
+    if (![200, 201].includes(res.status)) fail(`day ${i} create expected 200/201, got ${res.status}: ${await res.text()}`);
+  }
+
+  // Verify in DB
+  const { data: tmpl } = await admin
+    .from("workout_program_templates")
+    .select("id, name")
+    .eq("id", createdTemplateId)
+    .single();
+  if (!tmpl) fail(`template not found in DB after create`);
+  const { data: days } = await admin
+    .from("workout_template_days")
+    .select("id")
+    .eq("template_id", createdTemplateId);
+  if ((days?.length ?? 0) !== 2) fail(`expected 2 days, got ${days?.length ?? 0}`);
+
+  pass(`template created with ${days.length} days (id=${createdTemplateId})`);
+}
+
 async function main() {
   await cleanup("pre-run");
   await step1_receptionCreatesMember();
@@ -296,6 +352,7 @@ async function main() {
   await step3_playerSignupLinks();
   await step4_onboardingCompletes();
   await step5_coachSeesEligible();
+  await step6_coachCreatesProgram();
   await cleanup("post-run");
   log("✓", "all steps passed");
 }

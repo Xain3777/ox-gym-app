@@ -380,6 +380,24 @@ async function step7_coachAssignsProgram() {
   pass(`assignment created (id=${createdAssignmentId}, status=active)`);
 }
 
+async function step8_playerFetchesPlan() {
+  log("→", "step 8: player fetches their assigned workout plan");
+  const playerEmail = `${normalizePhone(TEST_PHONE)}@member.oxgym.app`;
+  const playerJwt = await tokenFor(playerEmail, TEST_PASSWORD);
+
+  const res = await fetch(`${APP}/api/portal/workout`, {
+    headers: { "Authorization": `Bearer ${playerJwt}` },
+  });
+  if (res.status !== 200) fail(`expected 200, got ${res.status}: ${await res.text()}`);
+  const body = await res.json();
+  if (!body?.success) fail(`response not success: ${JSON.stringify(body)}`);
+  if (!body?.data) fail(`no data returned (assignment not surfaced): ${JSON.stringify(body)}`);
+  if (!Array.isArray(body.data.content)) fail(`content is not an array: ${typeof body.data.content}`);
+  if (body.data.content.length !== 2) fail(`expected 2 days, got ${body.data.content.length}`);
+
+  pass(`player received ${body.data.content.length}-day plan (name="${body.data.name}")`);
+}
+
 async function main() {
   await cleanup("pre-run");
   await step1_receptionCreatesMember();
@@ -389,6 +407,7 @@ async function main() {
   await step5_coachSeesEligible();
   await step6_coachCreatesProgram();
   await step7_coachAssignsProgram();
+  await step8_playerFetchesPlan();
   await cleanup("post-run");
   log("✓", "all steps passed");
 }

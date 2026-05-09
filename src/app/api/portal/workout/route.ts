@@ -4,8 +4,8 @@ import { requireAuth } from "@/lib/api-auth";
 import { loadTemplateDays } from "@/lib/workout-programs";
 import { playerWorkoutProgramName } from "@/lib/workout-display";
 
-export async function GET() {
-  const { ctx, error } = await requireAuth(["player"]);
+export async function GET(request: Request) {
+  const { ctx, error } = await requireAuth(["player"], request);
   if (error) return error;
 
   const service = createServiceClient();

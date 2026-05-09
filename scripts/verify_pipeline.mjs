@@ -64,9 +64,60 @@ async function cleanup(reason = "done") {
 process.on("uncaughtException", async (e) => { console.error(e); await cleanup("crash"); process.exit(1); });
 process.on("unhandledRejection", async (e) => { console.error(e); await cleanup("reject"); process.exit(1); });
 
+const MANAGER_EMAIL = "963911000001@member.oxgym.app";
+const MANAGER_PASS  = "Manager#OX2026";
+
+async function tokenFor(email, password) {
+  const res = await fetch(`${SUPA}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: { "apikey": ANON, "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const j = await res.json();
+  if (!j.access_token) throw new Error(`token fetch failed for ${email}: ${JSON.stringify(j)}`);
+  return j.access_token;
+}
+
+async function step1_receptionCreatesMember() {
+  log("→", "step 1: reception creates member + subscription");
+  const jwt = await tokenFor(MANAGER_EMAIL, MANAGER_PASS);
+  const today = new Date().toISOString().slice(0, 10);
+  const endDate = new Date(Date.now() + 30 * 86400e3).toISOString().slice(0, 10);
+
+  const res = await fetch(`${APP}/api/members`, {
+    method: "POST",
+    headers: {
+      "Content-Type":  "application/json",
+      "Authorization": `Bearer ${jwt}`,
+      "Origin":        APP,
+    },
+    body: JSON.stringify({
+      full_name:  TEST_NAME,
+      phone:      TEST_PHONE,
+      password:   TEST_PASSWORD,
+      plan_type:  "monthly",
+      start_date: today,
+      end_date:   endDate,
+      price:      35,
+    }),
+  });
+  if (res.status !== 201) fail(`expected 201, got ${res.status}: ${await res.text()}`);
+  const body = await res.json();
+  if (!body?.data?.id) fail(`no member id in response`);
+  createdMemberId = body.data.id;
+  pass(`member created (id=${createdMemberId})`);
+
+  // Verify the member + subscription rows exist
+  const { data: m } = await admin.from("members").select("id, full_name, phone, role").eq("id", createdMemberId).single();
+  if (!m || m.role !== "player") fail(`member row malformed: ${JSON.stringify(m)}`);
+  const { data: subs } = await admin.from("subscriptions").select("id, plan_type, status").eq("member_id", createdMemberId);
+  if (!subs?.length) fail(`no subscription row created`);
+  pass(`subscription row found (plan_type=${subs[0].plan_type})`);
+}
+
 async function main() {
   await cleanup("pre-run");
-  // step calls go here
+  await step1_receptionCreatesMember();
   await cleanup("post-run");
   log("✓", "all steps passed");
 }

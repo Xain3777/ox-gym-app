@@ -75,23 +75,41 @@ async function buildUserClient() {
 /**
  * Resolve the authenticated user + their DB role.
  * Returns null when the request carries no valid session.
+ *
+ * If a `request` is provided and it carries `Authorization: Bearer <jwt>`,
+ * we identify the user via that JWT instead of cookies. Lets server-to-
+ * server tests + admin scripts authenticate without forging SSR cookies.
+ * CSRF protection on mutating routes still requires a matching Origin.
  */
-export async function getAuthContext(): Promise<AuthContext | null> {
+export async function getAuthContext(request?: Request): Promise<AuthContext | null> {
   try {
-    const supabase = await buildUserClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    const authHeader = request?.headers.get("authorization") ?? "";
+    const bearerMatch = /^Bearer\s+(.+)$/i.exec(authHeader);
+
+    let userId: string | null = null;
+    if (bearerMatch) {
+      // Validate the bearer token by asking GoTrue who it belongs to.
+      const tokenClient = createServiceClient();
+      const { data: { user } } = await tokenClient.auth.getUser(bearerMatch[1]);
+      userId = user?.id ?? null;
+    } else {
+      const supabase = await buildUserClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      userId = user?.id ?? null;
+    }
+
+    if (!userId) return null;
 
     const service = createServiceClient();
     const { data: member } = await service
       .from("members")
       .select("id, role")
-      .eq("auth_id", user.id)
+      .eq("auth_id", userId)
       .single();
 
     if (!member) return null;
 
-    return { userId: user.id, memberId: member.id, role: member.role as UserRole };
+    return { userId, memberId: member.id, role: member.role as UserRole };
   } catch {
     return null;
   }
@@ -113,7 +131,7 @@ export async function requireAuth(
     };
   }
 
-  const ctx = await getAuthContext();
+  const ctx = await getAuthContext(request);
 
   if (!ctx) {
     return {

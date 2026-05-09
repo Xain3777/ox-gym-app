@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { ensureMemberAppProfile, upsertMemberAppProfile } from "@/lib/member-app-profile";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -14,6 +15,8 @@ export async function POST(request: Request) {
     gender,
     weight_kg,
     height_cm,
+    medical_notes,
+    limitations,
   } = body;
 
   const cookieStore = await cookies();
@@ -41,6 +44,38 @@ export async function POST(request: Request) {
   }
 
   const supabase = createServiceClient();
+  const { data: member, error: memberError } = await supabase
+    .from("members")
+    .select("id, full_name, phone")
+    .eq("auth_id", user.id)
+    .single();
+
+  if (memberError || !member) {
+    return NextResponse.json({ success: false, error: "Member not found" }, { status: 404 });
+  }
+
+  await ensureMemberAppProfile(supabase, user.id, member.id);
+
+  const appProfile = await upsertMemberAppProfile(supabase, user.id, member.id, {
+    full_name: member.full_name,
+    phone: member.phone,
+    fitness_goal,
+    training_level,
+    illnesses: illnesses ?? [],
+    injuries: injuries ?? [],
+    date_of_birth,
+    gender,
+    weight_kg,
+    height_cm,
+    medical_notes: medical_notes ?? null,
+    limitations: limitations ?? null,
+    onboarding_complete: true,
+  });
+
+  if (!appProfile) {
+    return NextResponse.json({ success: false, error: "Failed to save app profile" }, { status: 500 });
+  }
+
   const { error } = await supabase
     .from("members")
     .update({
@@ -54,7 +89,7 @@ export async function POST(request: Request) {
       height_cm,
       onboarding_complete: true,
     })
-    .eq("auth_id", user.id);
+    .eq("id", member.id);
 
   if (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

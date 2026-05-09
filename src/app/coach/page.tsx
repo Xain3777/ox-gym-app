@@ -24,12 +24,11 @@ export default function CoachDashboard() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Get players count (members with role=player)
-        const { count: playerCount } = await supabase
-          .from("members")
-          .select("*", { count: "exact", head: true })
-          .eq("role", "player")
-          .eq("status", "active");
+        // Same source as /coach/players: only subscribed + app-linked players
+        // are counted here, so the dashboard number matches the assignable list.
+        const playersRes = await fetch("/api/coach/players");
+        const playersJson = await playersRes.json().catch(() => ({ data: [] }));
+        const playerCount = Array.isArray(playersJson.data) ? playersJson.data.length : 0;
 
         // Get plans sent today
         const today = new Date().toISOString().split("T")[0];
@@ -39,7 +38,7 @@ export default function CoachDashboard() {
           .gte("sent_at", today);
 
         setStats({
-          activePlayers: playerCount ?? 0,
+          activePlayers: playerCount,
           plansSent: sentCount ?? 0,
           pendingMessages: 0,
         });

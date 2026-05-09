@@ -1,0 +1,290 @@
+{
+  "program_categories": [
+    "Upper Body",
+    "Lower Body",
+    "Body",
+    "Double Split",
+    "Pro Split",
+    "Feminine Focus"
+  ],
+  "male_programs": {
+    "pro_split_1": [
+      {
+        "name": "Push",
+        "sets_reps": "3 x 12-10-8",
+        "exercises": [
+          "Chest Press",
+          "Incline Chest Press",
+          "Chest Fly Machine",
+          "Dips",
+          "Shoulder Press Machine",
+          "Lateral Raise",
+          "Barbell Skull Crusher",
+          "Barbell Overhead Extension"
+        ]
+      },
+      {
+        "name": "Pull",
+        "sets_reps": "3 x 12-10-10",
+        "exercises": [
+          "Lat Pulldown",
+          "Seated Row",
+          "Cable Seated Row",
+          "Lat Pulldown Machine",
+          "Cobra Lower Back",
+          "Rear Delt Fly Machine",
+          "Preacher Curl",
+          "Cable Hammer Curl"
+        ]
+      },
+      {
+        "name": "Legs",
+        "sets_reps": "3 x 12-12-10",
+        "exercises": [
+          "Leg Extension",
+          "Belt Squat - Quadriceps",
+          "Leg Curl",
+          "Romanian Deadlift - RDL",
+          "Abductor Machine",
+          "Calf Raises"
+        ]
+      }
+    ],
+    "pro_split_2": [
+      {
+        "name": "Push",
+        "sets_reps": "3 x 12-10-8",
+        "exercises": [
+          "Chest Press - Vertical Grip",
+          "Chest Fly Machine",
+          "Incline Chest Fly",
+          "Cable Lower Chest Fly",
+          "Dumbbell Shoulder Press",
+          "Dumbbell Lateral Raise",
+          "Dumbbell Overhead Extension",
+          "Triceps Cable Pushdown"
+        ]
+      },
+      {
+        "name": "Pull",
+        "sets_reps": "3 x 12-10-10",
+        "exercises": [
+          "Lat Pulldown Machine",
+          "Seated Row - Wide Grip",
+          "Incline Row Machine",
+          "T-Bar Row - Upper Back",
+          "Cobra Lower Back",
+          "Cable Face Pull",
+          "Dumbbell Incline Curl",
+          "Hammer Curl Machine"
+        ]
+      },
+      {
+        "name": "Legs",
+        "sets_reps": "3 x 12-12-10",
+        "exercises": [
+          "Leg Extension",
+          "Belt Squat - Quadriceps",
+          "Leg Curl",
+          "Romanian Deadlift - RDL",
+          "Abductor Machine",
+          "Calf Raises"
+        ]
+      }
+    ],
+    "double_split": [
+      {
+        "name": "Shoulders + Biceps",
+        "sections": [
+          {
+            "muscle_group": "Shoulders",
+            "sets_reps": "3 x 12-10-10",
+            "exercises": [
+              "Shoulder Press",
+              "Dumbbell Lateral Raise",
+              "Shoulder Press Machine",
+              "Dumbbell Front Raise",
+              "Rear Delt Fly Machine"
+            ]
+          },
+          {
+            "muscle_group": "Biceps",
+            "sets_reps": "3 x 12-10-8",
+            "exercises": [
+              "Dumbbell Incline Curl",
+              "Hammer Curl Machine",
+              "Cable Biceps Curl"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Back + Triceps",
+        "sections": [
+          {
+            "muscle_group": "Back",
+            "sets_reps": "3 x 12-10-10",
+            "exercises": [
+              "Lat Pulldown",
+              "Seated Row",
+              "Incline Row Machine",
+              "Lat Pulldown Machine",
+              "Cobra Lower Back"
+            ]
+          },
+          {
+            "muscle_group": "Triceps",
+            "sets_reps": "3 x 12-10-8",
+            "exercises": [
+              "Triceps Cable Pushdown",
+              "Barbell Skull Crusher",
+              "Overhead Cable Extension"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Chest + Core",
+        "sections": [
+          {
+            "muscle_group": "Chest",
+            "sets_reps": "3 x 12-10-10",
+            "exercises": [
+              "Chest Press - Vertical Grip",
+              "Chest Fly Machine",
+              "Incline Chest Press",
+              "Split Chest Press",
+              "Cable Lower Chest Fly or Dips Machine"
+            ]
+          },
+          {
+            "muscle_group": "Core",
+            "exercises": [
+              {
+                "name": "Abdominal Crunches",
+                "sets_reps": "3 x 10"
+              },
+              {
+                "name": "Mountain Climbers",
+                "sets_reps": "30 reps",
+                "rest": "10 seconds"
+              },
+              {
+                "name": "Plank",
+                "duration": "30 seconds",
+                "rest": "10 seconds"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Legs",
+        "sets_reps": "3 x 15-12-10",
+        "exercises": [
+          "Leg Extension",
+          "Belt Squat - Quadriceps",
+          "Leg Curl",
+          "Adductor Machine",
+          "Abductor Machine",
+          "Calf Raises"
+        ]
+      }
+    ]
+  },
+  "female_programs": {
+    "professional_feminine_focus": [
+      {
+        "day": 1,
+        "name": "Glutes + Hamstrings",
+        "sets_reps": "3 x 12-10-10",
+        "exercises": [
+          "Hip Thrust",
+          "Belt Squat - Glutes",
+          "Adductor Machine",
+          "Cable Kickbacks",
+          "Romanian Deadlift - RDL"
+        ]
+      },
+      {
+        "day": 2,
+        "name": "Upper Body",
+        "sets_reps": "3 x 10",
+        "exercises": [
+          "Lat Pulldown",
+          "Seated Row",
+          "Dumbbell Lateral Raise",
+          "Shoulder Press Machine",
+          "Chest Press - Vertical Grip",
+          "Chest Fly Machine",
+          "Triceps Cable Pushdown",
+          "Cable Biceps Curl"
+        ]
+      },
+      {
+        "day": 3,
+        "name": "Quadriceps + Calves",
+        "sets_reps": "3 x 10",
+        "exercises": [
+          "Belt Squat - Quadriceps",
+          "Leg Press - Quadriceps",
+          "Leg Extension",
+          "Abductor Machine",
+          "Calf Raises"
+        ]
+      },
+      {
+        "day": 4,
+        "name": "Rest & Recovery",
+        "type": "rest_day",
+        "exercises": []
+      },
+      {
+        "day": 5,
+        "name": "Glutes Focus",
+        "sets_reps": "3 x 12-10-10",
+        "exercises": [
+          "Barbell Hip Thrust",
+          "Rear Kick Machine",
+          "Belt Squat - Glutes",
+          "Banded Kickbacks",
+          "Clamshells"
+        ]
+      },
+      {
+        "day": 6,
+        "name": "Upper Body + Cardio",
+        "sets_reps": "3 x 12-10-10",
+        "exercises": [
+          "Lat Pulldown Machine",
+          "Cable Seated Row",
+          "Split Chest Press",
+          "Chest Fly Machine",
+          "Dumbbell Lateral Raise",
+          "Overhead Cable Extension",
+          "Rear Delt Fly Machine"
+        ],
+        "cardio": [
+          {
+            "name": "Treadmill",
+            "duration": "15 minutes"
+          },
+          {
+            "name": "Stair Master",
+            "duration": "5 minutes"
+          }
+        ]
+      },
+      {
+        "day": 7,
+        "name": "OX Flex Day",
+        "type": "flexible_day",
+        "options": [
+          "Rest",
+          "Make-up Session",
+          "Advanced Functional Work"
+        ]
+      }
+    ]
+  }
+}

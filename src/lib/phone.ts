@@ -10,7 +10,7 @@
  *   963912345678@member.oxgym.app
  */
 export function normalizePhone(input: string): string {
-  const digits = input.replace(/\D/g, "");
+  const digits = normalizeDigits(input).replace(/\D/g, "");
 
   // Local Syrian format: 09XXXXXXXX (10 digits)
   if (digits.startsWith("09") && digits.length === 10) {
@@ -24,6 +24,14 @@ export function normalizePhone(input: string): string {
 
   // Fallback: return raw digits (handles non-Syrian numbers)
   return digits;
+}
+
+export function normalizeDigits(input: string): string {
+  return input.replace(/[\u0660-\u0669\u06F0-\u06F9]/g, (digit) => {
+    const code = digit.charCodeAt(0);
+    if (code >= 0x0660 && code <= 0x0669) return String(code - 0x0660);
+    return String(code - 0x06F0);
+  });
 }
 
 /** Generate the internal Supabase auth email from a phone number. */

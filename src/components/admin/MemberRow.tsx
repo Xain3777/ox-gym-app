@@ -56,6 +56,12 @@ export function MemberRow({ member, className }: MemberRowProps) {
             </span>
           )}
         </p>
+        <p className={cn(
+          "mt-1 font-mono text-[9px] uppercase tracking-[0.12em]",
+          member.auth_id ? "text-success" : "text-muted",
+        )}>
+          {member.auth_id ? "App linked" : "App unlinked"}
+        </p>
       </div>
 
       {/* Status badge */}

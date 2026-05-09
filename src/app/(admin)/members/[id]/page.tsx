@@ -165,6 +165,9 @@ export default async function MemberDetailPage({
                   </h2>
                   <div className="flex items-center gap-2 flex-wrap mt-2">
                     <StatusBadge status={status} />
+                    <Badge variant={member.auth_id ? "success" : "muted"}>
+                      {member.auth_id ? "App linked" : "App unlinked"}
+                    </Badge>
                     {member.level && (
                       <LevelBadge level={member.level} />
                     )}

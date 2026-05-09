@@ -2,65 +2,129 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { SubscriptionGate } from "@/components/portal/SubscriptionGate";
 import { OxCheck, OxChevronRight, OxPlay, OxInfo, OxTrophy, OxDumbbell } from "@/components/icons/OxIcons";
 import { createBrowserSupabase } from "@/lib/supabase";
+import { ExerciseImage } from "@/components/ui/ExerciseImage";
 
 // ── TYPES ────────────────────────────────────────────────────────
-type Exercise = { name: string; sets: number; reps: string; machine: string; done: boolean };
-type WorkoutDay = { label: string; title: string; isToday: boolean; exercises: Exercise[] };
+type Exercise = {
+  name: string;
+  sets: string;
+  reps: string;
+  machine: string;
+  section?: string | null;
+  rest?: string | null;
+  duration?: string | null;
+  instructions?: string | null;
+  machineImageUrl?: string | null;
+  demoImageUrl?: string | null;
+  demoVideoUrl?: string | null;
+  done: boolean;
+};
+type WorkoutDay = {
+  label: string;
+  title: string;
+  isToday: boolean;
+  dayType?: string;
+  cardio?: Array<{ name: string; duration: string }>;
+  options?: string[];
+  exercises: Exercise[];
+};
 
 // ── FALLBACK MOCK DATA ───────────────────────────────────────────
 const mockWorkoutDays: WorkoutDay[] = [
   {
     label: "اليوم 1", title: "يوم الدفع", isToday: true,
     exercises: [
-      { name: "Bench Press", sets: 4, reps: "8-10", machine: "Flat Bench", done: false },
-      { name: "Overhead Press", sets: 3, reps: "10-12", machine: "Shoulder Press Machine", done: false },
-      { name: "Incline Dumbbell Press", sets: 3, reps: "10-12", machine: "Incline Bench", done: false },
-      { name: "Lateral Raises", sets: 4, reps: "12-15", machine: "Dumbbells", done: false },
-      { name: "Tricep Pushdowns", sets: 3, reps: "12-15", machine: "Cable Machine", done: false },
-      { name: "Cable Flyes", sets: 3, reps: "12-15", machine: "Cable Crossover", done: false },
+      { name: "Bench Press", sets: "4", reps: "8-10", machine: "Flat Bench", done: false },
+      { name: "Overhead Press", sets: "3", reps: "10-12", machine: "Shoulder Press Machine", done: false },
+      { name: "Incline Dumbbell Press", sets: "3", reps: "10-12", machine: "Incline Bench", done: false },
+      { name: "Lateral Raises", sets: "4", reps: "12-15", machine: "Dumbbells", done: false },
+      { name: "Tricep Pushdowns", sets: "3", reps: "12-15", machine: "Cable Machine", done: false },
+      { name: "Cable Flyes", sets: "3", reps: "12-15", machine: "Cable Crossover", done: false },
     ],
   },
   {
     label: "اليوم 2", title: "يوم السحب", isToday: false,
     exercises: [
-      { name: "Deadlifts", sets: 4, reps: "6-8", machine: "Barbell", done: false },
-      { name: "Barbell Rows", sets: 4, reps: "8-10", machine: "Barbell", done: false },
-      { name: "Lat Pulldowns", sets: 3, reps: "10-12", machine: "Lat Pulldown Machine", done: false },
-      { name: "Face Pulls", sets: 3, reps: "15-20", machine: "Cable Machine", done: false },
-      { name: "Barbell Curls", sets: 3, reps: "10-12", machine: "Barbell", done: false },
-      { name: "Hammer Curls", sets: 3, reps: "12-15", machine: "Dumbbells", done: false },
+      { name: "Deadlifts", sets: "4", reps: "6-8", machine: "Barbell", done: false },
+      { name: "Barbell Rows", sets: "4", reps: "8-10", machine: "Barbell", done: false },
+      { name: "Lat Pulldowns", sets: "3", reps: "10-12", machine: "Lat Pulldown Machine", done: false },
+      { name: "Face Pulls", sets: "3", reps: "15-20", machine: "Cable Machine", done: false },
+      { name: "Barbell Curls", sets: "3", reps: "10-12", machine: "Barbell", done: false },
+      { name: "Hammer Curls", sets: "3", reps: "12-15", machine: "Dumbbells", done: false },
     ],
   },
   {
     label: "اليوم 3", title: "يوم الأرجل", isToday: false,
     exercises: [
-      { name: "Squats", sets: 4, reps: "8-10", machine: "Squat Rack", done: false },
-      { name: "Leg Press", sets: 4, reps: "10-12", machine: "Leg Press Machine", done: false },
-      { name: "Romanian Deadlifts", sets: 3, reps: "10-12", machine: "Barbell", done: false },
-      { name: "Leg Curls", sets: 3, reps: "12-15", machine: "Leg Curl Machine", done: false },
-      { name: "Calf Raises", sets: 4, reps: "15-20", machine: "Calf Raise Machine", done: false },
+      { name: "Squats", sets: "4", reps: "8-10", machine: "Squat Rack", done: false },
+      { name: "Leg Press", sets: "4", reps: "10-12", machine: "Leg Press Machine", done: false },
+      { name: "Romanian Deadlifts", sets: "3", reps: "10-12", machine: "Barbell", done: false },
+      { name: "Leg Curls", sets: "3", reps: "12-15", machine: "Leg Curl Machine", done: false },
+      { name: "Calf Raises", sets: "4", reps: "15-20", machine: "Calf Raise Machine", done: false },
     ],
   },
 ];
+void mockWorkoutDays;
 
 // Convert DB plan content (array of {day, exercises}) → WorkoutDay[]
-function planContentToDays(content: Array<{ day: string; exercises: Array<{ name: string; sets: number; reps: string; notes?: string }> }>): WorkoutDay[] {
+function splitSetsReps(value?: string | null): { sets: string; reps: string } {
+  if (!value) return { sets: "", reps: "" };
+  const match = value.match(/^(.+?)\s*x\s*(.+)$/i);
+  return match ? { sets: match[1].trim(), reps: match[2].trim() } : { sets: value, reps: "" };
+}
+
+function planContentToDays(content: Array<{
+  day: string;
+  day_type?: string;
+  cardio?: Array<{ name: string; duration: string }>;
+  options?: string[];
+  exercises?: Array<{
+    name: string;
+    sets?: number | string;
+    reps?: string;
+    sets_reps?: string | null;
+    rest?: string | null;
+    duration?: string | null;
+    instructions?: string | null;
+    notes?: string | null;
+    section?: string | null;
+    media?: {
+      machine_name?: string | null;
+      machine_image_url?: string | null;
+      demo_image_url?: string | null;
+      demo_video_url?: string | null;
+      instructions?: string | null;
+    } | null;
+  }>;
+}>): WorkoutDay[] {
   return content.map((d, i) => ({
     label: `اليوم ${i + 1}`,
     title: d.day,
     isToday: i === 0,
-    exercises: d.exercises.map((ex) => ({
-      name: ex.name,
-      sets: ex.sets,
-      reps: String(ex.reps),
-      machine: ex.notes ?? "",
-      done: false,
-    })),
+    dayType: d.day_type,
+    cardio: d.cardio ?? [],
+    options: d.options ?? [],
+    exercises: (d.exercises ?? []).map((ex) => {
+      const parsed = splitSetsReps(ex.sets_reps);
+      return {
+        name: ex.name,
+        sets: ex.sets != null ? String(ex.sets) : parsed.sets,
+        reps: ex.reps ?? parsed.reps,
+        machine: ex.media?.machine_name ?? ex.notes ?? "",
+        section: ex.section ?? null,
+        rest: ex.rest ?? null,
+        duration: ex.duration ?? null,
+        instructions: ex.media?.instructions ?? ex.instructions ?? ex.notes ?? null,
+        machineImageUrl: ex.media?.machine_image_url ?? null,
+        demoImageUrl: ex.media?.demo_image_url ?? null,
+        demoVideoUrl: ex.media?.demo_video_url ?? null,
+        done: false,
+      };
+    }),
   }));
 }
 
@@ -90,12 +154,11 @@ async function saveWorkoutLog(dayTitle: string, doneCount: number, totalCount: n
 
 // ── PAGE ─────────────────────────────────────────────────────────
 export default function WorkoutsPage() {
-  const router = useRouter();
-  const [days, setDays] = useState<WorkoutDay[]>(mockWorkoutDays);
+  const [days, setDays] = useState<WorkoutDay[]>([]);
   const [planName, setPlanName] = useState<string | null>(null);
   const [loadingPlan, setLoadingPlan] = useState(true);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const [machineHelp, setMachineHelp] = useState<string | null>(null);
+  const [machineHelp, setMachineHelp] = useState<Exercise | null>(null);
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [showQuitModal, setShowQuitModal] = useState(false);
   const [finishShownFor, setFinishShownFor] = useState<number | null>(null);
@@ -113,7 +176,7 @@ export default function WorkoutsPage() {
           setDays(planContentToDays(plan.content));
           setPlanName(plan.name ?? null);
         }
-      } catch { /* keep mock */ }
+      } catch { /* show empty assigned-plan state */ }
       setLoadingPlan(false);
     }
     loadPlan();
@@ -176,8 +239,8 @@ export default function WorkoutsPage() {
     const day = days[selectedDay];
     const doneCount = getDoneCount(selectedDay);
     const totalCount = day.exercises.length;
-    const progress = Math.round((doneCount / totalCount) * 100);
-    const allDone = doneCount === totalCount;
+    const progress = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+    const allDone = totalCount > 0 && doneCount === totalCount;
 
     return (
       <div className="relative min-h-full pb-28 lg:pb-10" dir="rtl">
@@ -258,22 +321,47 @@ export default function WorkoutsPage() {
                       <p className={cn("text-[17px] font-semibold", ex.done ? "text-white/40 line-through" : "text-white")}>
                         {ex.name}
                       </p>
+                      {ex.section && <p className="text-white/30 text-[11px] mt-0.5">{ex.section}</p>}
                       <p className="text-gold text-[15px] font-medium mt-1" dir="ltr">
-                        {ex.sets} sets × {ex.reps} reps
+                        {ex.duration ? ex.duration : [ex.sets && `${ex.sets} sets`, ex.reps && `${ex.reps} reps`].filter(Boolean).join(" x ")}
                       </p>
+                      {ex.rest && <p className="text-white/30 text-[12px] mt-0.5">Rest: {ex.rest}</p>}
                     </div>
                   </div>
-                  {!ex.done && ex.machine && (
-                    <button
-                      onClick={() => setMachineHelp(ex.machine)}
-                      className="mt-3 me-[60px] flex items-center gap-2 text-white/30 hover:text-gold text-[13px] transition-colors"
-                    >
-                      <OxInfo size={14} />
-                      كيفية استخدام الجهاز
-                    </button>
+                  {!ex.done && (
+                    ex.machine || ex.instructions || ex.demoImageUrl || ex.machineImageUrl || ex.demoVideoUrl ? (
+                      <button
+                        onClick={() => setMachineHelp(ex)}
+                        className="mt-3 me-[60px] flex items-center gap-2 text-white/30 hover:text-gold text-[13px] transition-colors"
+                      >
+                        <OxInfo size={14} />
+                        كيفية استخدام الجهاز
+                      </button>
+                    ) : (
+                      <p className="mt-3 me-[60px] flex items-center gap-2 text-white/20 text-[12px]">
+                        <OxInfo size={14} />
+                        لا يوجد شرح متاح لهذا التمرين حالياً
+                      </p>
+                    )
                   )}
                 </div>
               ))}
+              {day.cardio && day.cardio.length > 0 && (
+                <div className="bg-white/[0.03] border border-white/[0.06] p-4">
+                  <p className="text-gold text-[13px] font-bold mb-2">Cardio</p>
+                  {day.cardio.map((item) => (
+                    <p key={`${item.name}-${item.duration}`} className="text-white/60 text-[13px]">
+                      {item.name} · {item.duration}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {day.options && day.options.length > 0 && (
+                <div className="bg-white/[0.03] border border-white/[0.06] p-4">
+                  <p className="text-gold text-[13px] font-bold mb-2">Options</p>
+                  <p className="text-white/60 text-[13px]">{day.options.join(" · ")}</p>
+                </div>
+              )}
             </div>
           </SubscriptionGate>
         </div>
@@ -380,12 +468,20 @@ export default function WorkoutsPage() {
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setMachineHelp(null)}>
             <div className="bg-iron w-full max-w-md p-6 pb-10 sm:pb-6 border border-white/[0.08]" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="w-10 h-1 bg-white/20 mx-auto mb-6 sm:hidden" />
-              <div className="w-full h-40 bg-white/[0.04] flex items-center justify-center mb-5">
-                <OxPlay size={32} className="text-white/20" />
+              <div className="grid grid-cols-2 gap-3 mb-5">
+                <ExerciseImage src={machineHelp.machineImageUrl} alt={`${machineHelp.name} machine`} className="w-full h-40" />
+                <ExerciseImage src={machineHelp.demoImageUrl} alt={`${machineHelp.name} demo`} className="w-full h-40" />
               </div>
-              <h3 className="text-white text-[20px] font-bold">{machineHelp}</h3>
+              {machineHelp.demoVideoUrl && (
+                <a href={machineHelp.demoVideoUrl} target="_blank" rel="noreferrer" className="mb-4 inline-flex items-center gap-2 text-gold text-[13px] font-semibold">
+                  <OxPlay size={14} />
+                  Open demo video
+                </a>
+              )}
+              <h3 className="text-white text-[20px] font-bold">{machineHelp.name}</h3>
+              {machineHelp.machine && <p className="text-gold/70 text-[13px] mt-1">{machineHelp.machine}</p>}
               <p className="text-white/40 text-[15px] mt-2 leading-relaxed">
-                اضبط ارتفاع المقعد. حافظ على استقامة ظهرك. أمسك بالمقابض بإحكام. اضغط بحركة منضبطة. أخرج الهواء عند بذل الجهد.
+                {machineHelp.instructions ?? "Move with control, keep the target muscle engaged, and stop if anything feels painful."}
               </p>
               <button onClick={() => setMachineHelp(null)} className="w-full mt-6 bg-white/[0.06] hover:bg-white/[0.10] text-white font-semibold text-[16px] py-4 transition-colors" style={{ minHeight: "56px" }}>
                 فهمت
@@ -418,6 +514,14 @@ export default function WorkoutsPage() {
             {[1, 2, 3].map((i) => (
               <div key={i} className="w-full border border-white/[0.06] bg-white/[0.02] animate-pulse" style={{ height: 80 }} />
             ))}
+          </div>
+        ) : days.length === 0 ? (
+          <div className="bg-white/[0.03] border border-white/[0.06] p-6 text-center">
+            <OxDumbbell size={28} className="text-white/15 mx-auto mb-3" />
+            <p className="text-white/65 text-[16px] font-semibold">لا توجد خطة تمرين مخصصة حالياً</p>
+            <p className="text-white/35 text-[13px] mt-1 leading-relaxed">
+              ستظهر هنا الخطة التي يرسلها المدرب لحسابك فقط.
+            </p>
           </div>
         ) : (
           <div className="space-y-3">

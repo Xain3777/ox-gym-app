@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
-import { phoneToEmail } from "@/lib/phone";
+import { normalizePhone, phoneToEmail } from "@/lib/phone";
 
 // GET /api/auth/resolve?username=... or ?phone=...
 // Returns the actual auth.users email for the matched member, looked up
@@ -41,14 +41,20 @@ export async function GET(request: Request) {
   // Phone path — for staff and any legacy phone-based members. Try a DB
   // lookup first so we return the real stored email; fall back to the
   // deterministic derivation if no member row matches yet.
-  const { data: member } = await supabase
+  const phoneNormalized = normalizePhone(phone!);
+
+  const { data: phoneMatches } = await supabase
     .from("members")
     .select("auth_id")
-    .eq("phone", phone)
-    .maybeSingle();
+    .eq("phone_normalized", phoneNormalized)
+    .limit(2);
 
-  if (member?.auth_id) {
-    const { data: authUser } = await supabase.auth.admin.getUserById(member.auth_id);
+  if ((phoneMatches?.length ?? 0) > 1) {
+    return NextResponse.json({ success: false, error: "Duplicate phone number found, staff must fix" }, { status: 409 });
+  }
+
+  if (phoneMatches?.[0]?.auth_id) {
+    const { data: authUser } = await supabase.auth.admin.getUserById(phoneMatches[0].auth_id);
     if (authUser?.user?.email) {
       return NextResponse.json({ success: true, email: authUser.user.email });
     }

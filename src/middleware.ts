@@ -116,7 +116,7 @@ export async function middleware(request: NextRequest) {
   // head_coach shares the /coach surface with coach.
   const roleMatchesRoute =
     routeOwner === role ||
-    (routeOwner === "coach" && role === "head_coach");
+    (routeOwner === "coach" && ["head_coach", "manager", "admin"].includes(role));
   if (!roleMatchesRoute) {
     return NextResponse.redirect(new URL(ROLE_HOME[role] ?? "/portal", request.url));
   }

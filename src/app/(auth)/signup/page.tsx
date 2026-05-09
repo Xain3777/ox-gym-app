@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
-import { phoneToEmail } from "@/lib/phone";
+import { normalizePhone, phoneToEmail } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
 // Self-signup is keyed on phone number — the same phone the dashboard
@@ -35,7 +35,7 @@ export default function SignupPage() {
       return;
     }
     if (step === 1) {
-      const digits = phone.replace(/\D/g, "");
+      const digits = normalizePhone(phone);
       if (digits.length < 7)  { setError("رقم الهاتف غير صالح"); return; }
       if (digits.length > 15) { setError("رقم الهاتف طويل جداً"); return; }
       setStep(2);
@@ -86,9 +86,9 @@ export default function SignupPage() {
     }
 
     // Hard navigate so middleware sees the freshly-set session cookies.
-    // Linked members skip onboarding (they already have a profile from
-    // reception); fresh signups go through the wizard.
-    window.location.href = result.data?.linked ? "/portal" : "/onboarding";
+    // Linked dashboard members still need the Web App profile screen because
+    // reception data is not the same thing as app onboarding data.
+    window.location.href = result.data?.linked ? "/portal/profile" : "/onboarding";
   }
 
   return (

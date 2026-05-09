@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { BackArrow } from "@/components/portal/BackArrow";
 import { OxCheck, OxShield, OxHeart, OxTarget, OxDumbbell, OxFlame } from "@/components/icons/OxIcons";
-import { createBrowserSupabase } from "@/lib/supabase";
 
 const WIZARD_DRAFT_KEY = "profile_wizard_draft";
 
@@ -41,6 +40,7 @@ const INJURIES_AR: Record<string, string> = {
 type ProfileSnapshot = {
   firstName: string; lastName: string; birthday: string; phone: string;
   heightCm: string; weightKg: string; fitnessGoal: string;
+  medicalNotes: string; limitations: string;
   illnesses: string[]; injuries: string[];
   level: "normal" | "advanced"; goal: "maintain" | "lose" | "gain"; outcome: "muscle" | "health";
 };
@@ -94,7 +94,7 @@ function ProfileWizard({
       if (draft.goal)    setGoal(draft.goal);
       if (draft.outcome) setOutcome(draft.outcome);
     } catch { /* ignore */ }
-  }, []);
+  }, [setGoal, setLevel, setOutcome, setSelectedIllnesses, setSelectedInjuries]);
 
   // Persist draft whenever wizard state changes
   useEffect(() => {
@@ -461,6 +461,8 @@ export default function ProfilePage() {
   const [heightCm, setHeightCm]                     = useState("");
   const [weightKg, setWeightKg]                     = useState("");
   const [fitnessGoal, setFitnessGoal]               = useState("");
+  const [medicalNotes, setMedicalNotes]             = useState("");
+  const [limitations, setLimitations]               = useState("");
   const [selectedIllnesses, setSelectedIllnesses]   = useState<string[]>(["None"]);
   const [selectedInjuries, setSelectedInjuries]     = useState<string[]>(["None"]);
   const [level, setLevel]                           = useState<"normal" | "advanced">("normal");
@@ -469,14 +471,9 @@ export default function ProfilePage() {
 
   useEffect(() => {
     async function loadProfile() {
-      const supabase = createBrowserSupabase();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: member } = await supabase
-        .from("members")
-        .select("full_name, phone, date_of_birth, height_cm, weight_kg, fitness_goal, illnesses, injuries, training_level, weight_goal, fitness_outcome")
-        .eq("auth_id", user.id)
-        .single();
+      const res = await fetch("/api/portal/profile");
+      if (!res.ok) return;
+      const { data: member } = await res.json();
       if (!member) return;
       const parts = (member.full_name ?? "").split(" ");
       const fn = parts[0] ?? ""; const ln = parts.slice(1).join(" ") ?? "";
@@ -491,15 +488,20 @@ export default function ProfilePage() {
       setHeightCm(member.height_cm != null ? String(member.height_cm) : "");
       setWeightKg(member.weight_kg != null ? String(member.weight_kg) : "");
       setFitnessGoal(member.fitness_goal ?? "");
+      setMedicalNotes(member.medical_notes ?? "");
+      setLimitations(member.limitations ?? "");
       setSelectedIllnesses(il); setSelectedInjuries(inj);
       setLevel(lv); setGoal(gl); setOutcome(oc);
       setProfileLoaded(true);
 
-      // Show wizard if never completed and profile is bare
+      // Show wizard if the database says app onboarding is incomplete.
+      // Browser localStorage is only a convenience flag; it cannot be the
+      // source of truth for legacy or cross-device accounts.
       const alreadyOnboarded = typeof window !== "undefined"
         && localStorage.getItem("profile_onboarded") === "1";
-      const isBarProfile = !member.date_of_birth && !member.illnesses?.length && !member.injuries?.length;
-      if (!alreadyOnboarded && isBarProfile) {
+      const isBareProfile = !member.date_of_birth && !member.illnesses?.length && !member.injuries?.length;
+      const dbProfileComplete = Boolean(member.onboarding_complete);
+      if (!dbProfileComplete || (!alreadyOnboarded && isBareProfile)) {
         setShowWizard(true);
       }
     }
@@ -524,6 +526,8 @@ export default function ProfilePage() {
         fitness_goal:    fitnessGoal.trim() || null,
         illnesses:       selectedIllnesses,
         injuries:        selectedInjuries,
+        medical_notes:   medicalNotes.trim() || null,
+        limitations:     limitations.trim() || null,
         training_level:  level,
         weight_goal:     goal,
         fitness_outcome: outcome,
@@ -546,6 +550,7 @@ export default function ProfilePage() {
     setSnapshot({
       firstName, lastName, birthday, phone,
       heightCm, weightKg, fitnessGoal,
+      medicalNotes, limitations,
       illnesses: selectedIllnesses, injuries: selectedInjuries,
       level, goal, outcome,
     });
@@ -558,6 +563,7 @@ export default function ProfilePage() {
     setBirthday(snapshot.birthday); setPhone(snapshot.phone);
     setHeightCm(snapshot.heightCm); setWeightKg(snapshot.weightKg);
     setFitnessGoal(snapshot.fitnessGoal);
+    setMedicalNotes(snapshot.medicalNotes); setLimitations(snapshot.limitations);
     setSelectedIllnesses(snapshot.illnesses); setSelectedInjuries(snapshot.injuries);
     setLevel(snapshot.level); setGoal(snapshot.goal); setOutcome(snapshot.outcome);
     setSaveError(null); setIsEditing(false);
@@ -636,7 +642,7 @@ export default function ProfilePage() {
           <InputField label={t("profile.firstName")} value={firstName} onChange={setFirstName} readOnly={!isEditing} />
           <InputField label={t("profile.lastName")} value={lastName} onChange={setLastName} readOnly={!isEditing} />
           <InputField label={t("profile.dateOfBirth")} value={birthday} onChange={setBirthday} type="date" readOnly={!isEditing} />
-          <InputField label={t("profile.phone")} value={phone} onChange={setPhone} type="tel" readOnly={!isEditing} />
+          <InputField label={t("profile.phone")} value={phone} onChange={setPhone} type="tel" readOnly />
         </Section>
 
         {/* ── Body & Goal ── */}
@@ -686,6 +692,11 @@ export default function ProfilePage() {
               );
             })}
           </div>
+        </Section>
+
+        <Section title="ملاحظات طبية وقيود الحركة" icon={<OxHeart size={14} className="text-danger" />}>
+          <TextAreaField label="ملاحظات طبية" value={medicalNotes} onChange={setMedicalNotes} placeholder="مثال: ألم مزمن، عملية سابقة، توصية طبيب..." readOnly={!isEditing} />
+          <TextAreaField label="قيود أو تمارين ممنوعة" value={limitations} onChange={setLimitations} placeholder="مثال: تجنب القفز، لا ضغط كتف فوق الرأس..." readOnly={!isEditing} />
         </Section>
 
         {/* ── Training Level ── */}
@@ -762,6 +773,30 @@ function InputField({ label, value, onChange, placeholder, type = "text", readOn
       ) : (
         <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
           className="bg-transparent text-white text-[15px] font-medium text-left w-full max-w-[60%] focus:outline-none focus:text-gold placeholder:text-white/15 transition-colors" dir="ltr" />
+      )}
+    </div>
+  );
+}
+
+function TextAreaField({ label, value, onChange, placeholder, readOnly = false }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; readOnly?: boolean;
+}) {
+  return (
+    <div className="px-5 py-3.5 border-b border-white/[0.04] last:border-b-0">
+      <label className="block text-white/35 text-[14px] mb-2">{label}</label>
+      {readOnly ? (
+        <p className="text-white text-[14px] leading-relaxed min-h-[44px]">
+          {value || <span className="text-white/20">غير مكتمل</span>}
+        </p>
+      ) : (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          rows={3}
+          className="w-full bg-transparent text-white text-[14px] leading-relaxed focus:outline-none focus:text-gold placeholder:text-white/15 transition-colors resize-none"
+          dir="rtl"
+        />
       )}
     </div>
   );

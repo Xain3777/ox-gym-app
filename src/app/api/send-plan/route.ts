@@ -12,7 +12,7 @@ const SendPlanSchema = z.object({
 
 // POST — manager + coach only
 export async function POST(request: NextRequest) {
-  const { ctx, error } = await requireAuth(["manager", "coach"], request);
+  const { ctx, error } = await requireAuth(["manager", "admin", "head_coach", "coach"], request);
   if (error) return error;
 
   let body: unknown;

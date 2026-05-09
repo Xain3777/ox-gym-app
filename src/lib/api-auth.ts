@@ -3,7 +3,7 @@ import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 
-export type UserRole = "player" | "coach" | "reception" | "manager";
+export type UserRole = "player" | "coach" | "head_coach" | "reception" | "manager" | "admin";
 
 export interface AuthContext {
   userId: string;

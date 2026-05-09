@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { BackArrow } from "@/components/portal/BackArrow";
 import {
@@ -82,7 +84,66 @@ const facilities = [
   { icon: OxClock,    label: "مواعيد مرنة",          sub: "مفتوح ٦ص – ١٢م يومياً" },
 ];
 
+type PartnerCard = {
+  slug: string;
+  title: string;
+  eyebrow: string | null;
+  subtitle: string | null;
+  bullets: string[];
+  logo_url: string | null;
+  owner_title: string | null;
+  owner_name: string | null;
+  supervisor_name: string | null;
+  supervisor_phone: string | null;
+  contact_phone: string | null;
+  center_phone: string | null;
+  center_phone_2: string | null;
+  cta_label: string | null;
+  cta_url: string | null;
+};
+
+const fallbackWeSwim: PartnerCard = {
+  slug: "we-swim",
+  title: "WE SWIM",
+  eyebrow: "مدرسة السباحة",
+  subtitle: "مدرسة السباحة — بإدارة كوتش أدهم زيدان",
+  bullets: [
+    "تدريس السباحة لجميع الأعمار",
+    "تدريب احترافي ومتقدم",
+    "علاج الإصابات داخل الماء (Hydrotherapy)",
+  ],
+  logo_url: null,
+  owner_title: "المالك",
+  owner_name: "كوتش أدهم زيدان",
+  supervisor_name: "هلا",
+  supervisor_phone: "0930688165",
+  contact_phone: null,
+  center_phone: "0937727442",
+  center_phone_2: "0968593100",
+  cta_label: "زيارة صفحة WE SWIM",
+  cta_url: "https://www.instagram.com/weswim",
+};
+
 export default function GymInfoPage() {
+  const [weSwim, setWeSwim] = useState<PartnerCard>(fallbackWeSwim);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/portal/partners?slug=we-swim")
+      .then((res) => res.json())
+      .then((json) => {
+        if (active && json.success && json.data) {
+          setWeSwim({ ...fallbackWeSwim, ...json.data });
+        }
+      })
+      .catch(() => {
+        if (active) setWeSwim(fallbackWeSwim);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <div className="min-h-full pb-28 lg:pb-10" dir="rtl">
 
@@ -208,26 +269,26 @@ export default function GymInfoPage() {
 
         {/* ── We Swim ──────────────────────────────────── */}
         <section>
-          <p className="text-gold/50 text-[10px] font-bold uppercase tracking-[0.15em] mb-1">مدرسة السباحة</p>
-          <p className="text-white font-display text-[22px] tracking-wider leading-none mb-5">WE SWIM</p>
+          <p className="text-gold/50 text-[10px] font-bold uppercase tracking-[0.15em] mb-1">{weSwim.eyebrow}</p>
+          <p className="text-white font-display text-[22px] tracking-wider leading-none mb-5">{weSwim.title}</p>
 
           <div className="border border-blue-500/30 bg-blue-500/[0.04] p-5 space-y-4">
             <div className="flex items-center gap-3 mb-1">
-              <div className="w-10 h-10 bg-blue-500/20 flex items-center justify-center shrink-0">
-                <span className="text-blue-400 text-[18px]">🌊</span>
+              <div className="relative w-10 h-10 bg-blue-500/20 border border-blue-400/20 flex items-center justify-center shrink-0 overflow-hidden">
+                {weSwim.logo_url ? (
+                  <Image src={weSwim.logo_url} alt={`${weSwim.title} logo`} fill className="object-contain" unoptimized />
+                ) : (
+                  <span className="text-blue-400 text-[18px]">🌊</span>
+                )}
               </div>
               <div>
-                <p className="text-white font-display text-[18px] tracking-wider">WE SWIM</p>
-                <p className="text-blue-400/70 text-[12px]">مدرسة السباحة — بإدارة كوتش أدهم زيدان</p>
+                <p className="text-white font-display text-[18px] tracking-wider">{weSwim.title}</p>
+                {weSwim.subtitle && <p className="text-blue-400/70 text-[12px]">{weSwim.subtitle}</p>}
               </div>
             </div>
 
             <div className="space-y-2.5">
-              {[
-                "تدريس السباحة لجميع الأعمار",
-                "تدريب احترافي ومتقدم",
-                "علاج الإصابات داخل الماء (Hydrotherapy)",
-              ].map((item) => (
+              {weSwim.bullets.map((item) => (
                 <div key={item} className="flex items-start gap-2.5">
                   <OxCheck size={14} className="text-blue-400 shrink-0 mt-0.5" />
                   <span className="text-white/60 text-[14px]">{item}</span>
@@ -235,14 +296,65 @@ export default function GymInfoPage() {
               ))}
             </div>
 
-            <a
-              href="https://www.instagram.com/weswim"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full text-center border border-blue-500/30 text-blue-400 text-[13px] font-semibold py-3 hover:bg-blue-500/10 transition-colors mt-2"
-            >
-              زيارة صفحة WE SWIM
-            </a>
+            {(weSwim.owner_name || weSwim.supervisor_name || weSwim.supervisor_phone || weSwim.contact_phone || weSwim.center_phone || weSwim.center_phone_2) && (
+              <div className="border border-blue-500/20 bg-black/15 p-3 space-y-2">
+                {weSwim.owner_name && (
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="text-white/35 text-[12px]">{weSwim.owner_title ?? "المالك"}</span>
+                    <span className="text-white/75 text-[13px] font-semibold text-left">{weSwim.owner_name}</span>
+                  </div>
+                )}
+                {weSwim.supervisor_name && (
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="text-white/35 text-[12px]">المديرة</span>
+                    <span className="text-white/75 text-[13px] font-semibold text-left">{weSwim.supervisor_name}</span>
+                  </div>
+                )}
+                {weSwim.supervisor_phone && (
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="text-white/35 text-[12px]">هاتف المديرة</span>
+                    <a href={`tel:${phoneHref(weSwim.supervisor_phone)}`} className="text-blue-300 text-[13px] font-semibold text-left" dir="ltr">
+                      {weSwim.supervisor_phone}
+                    </a>
+                  </div>
+                )}
+                {weSwim.center_phone && (
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="text-white/35 text-[12px]">خط المركز</span>
+                    <a href={`tel:${phoneHref(weSwim.center_phone)}`} className="text-blue-300 text-[13px] font-semibold text-left" dir="ltr">
+                      {weSwim.center_phone}
+                    </a>
+                  </div>
+                )}
+                {weSwim.center_phone_2 && (
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="text-white/35 text-[12px]">خط المركز 2</span>
+                    <a href={`tel:${phoneHref(weSwim.center_phone_2)}`} className="text-blue-300 text-[13px] font-semibold text-left" dir="ltr">
+                      {weSwim.center_phone_2}
+                    </a>
+                  </div>
+                )}
+                {weSwim.contact_phone && (
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="text-white/35 text-[12px]">رقم التواصل</span>
+                    <a href={`tel:${phoneHref(weSwim.contact_phone)}`} className="text-blue-300 text-[13px] font-semibold text-left" dir="ltr">
+                      {weSwim.contact_phone}
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {weSwim.cta_url && (
+              <a
+                href={weSwim.cta_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full text-center border border-blue-500/30 text-blue-400 text-[13px] font-semibold py-3 hover:bg-blue-500/10 transition-colors mt-2"
+              >
+                {weSwim.cta_label ?? "زيارة صفحة WE SWIM"}
+              </a>
+            )}
           </div>
         </section>
 
@@ -318,4 +430,9 @@ export default function GymInfoPage() {
       </div>
     </div>
   );
+}
+
+function phoneHref(phone: string): string {
+  const trimmed = phone.trim();
+  return trimmed.startsWith("+") ? `+${trimmed.slice(1).replace(/\D/g, "")}` : trimmed.replace(/\D/g, "");
 }

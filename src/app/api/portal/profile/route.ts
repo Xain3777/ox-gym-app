@@ -2,16 +2,17 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
+import { ensureMemberAppProfile, upsertMemberAppProfile } from "@/lib/member-app-profile";
 
 // GET — logged-in member's profile + subscription
 export async function GET() {
-  const { ctx, error } = await requireAuth();
+  const { ctx, error } = await requireAuth(["player"]);
   if (error) return error;
 
   const service = createServiceClient();
   const { data: member, error: dbError } = await service
     .from("members")
-    .select("*, subscription:subscriptions(*)")
+    .select("id, full_name, phone, status, goals, subscription:subscriptions(*)")
     .eq("id", ctx.memberId)
     .single();
 
@@ -19,11 +20,22 @@ export async function GET() {
     return NextResponse.json({ success: false, error: "Member not found" }, { status: 404 });
   }
 
+  const appProfile = await ensureMemberAppProfile(service, ctx.userId, ctx.memberId);
+
   const sub = Array.isArray(member.subscription)
     ? member.subscription[0] ?? null
     : member.subscription;
 
-  return NextResponse.json({ success: true, data: { ...member, subscription: sub } });
+  return NextResponse.json({
+    success: true,
+    data: {
+      ...member,
+      ...appProfile,
+      id: member.id,
+      app_profile_id: appProfile?.id ?? null,
+      subscription: sub,
+    },
+  });
 }
 
 // PATCH — let the player self-edit their profile.
@@ -38,6 +50,8 @@ const ProfilePatchSchema = z.object({
   weight_kg:        z.number().min(20).max(400).nullable().optional(),
   illnesses:        z.array(z.string().min(1).max(80)).max(40).optional(),
   injuries:         z.array(z.string().min(1).max(80)).max(40).optional(),
+  medical_notes:    z.string().trim().max(1000).nullable().optional(),
+  limitations:      z.string().trim().max(1000).nullable().optional(),
   fitness_goal:     z.string().trim().max(200).nullable().optional(),
   fitness_outcome:  z.string().trim().max(200).nullable().optional(),
   training_level:   z.string().trim().max(40).nullable().optional(),
@@ -46,7 +60,7 @@ const ProfilePatchSchema = z.object({
 });
 
 export async function PATCH(request: Request) {
-  const { ctx, error } = await requireAuth(undefined, request);
+  const { ctx, error } = await requireAuth(["player"], request);
   if (error) return error;
 
   let body: unknown;
@@ -73,9 +87,61 @@ export async function PATCH(request: Request) {
   }
 
   const service = createServiceClient();
+  const { data: member, error: memberError } = await service
+    .from("members")
+    .select("id, full_name, phone")
+    .eq("id", ctx.memberId)
+    .single();
+
+  if (memberError || !member) {
+    return NextResponse.json({ success: false, error: "Member not found" }, { status: 404 });
+  }
+
+  const profileUpdates = {
+    full_name: (updates.full_name as string | undefined) ?? member.full_name,
+    phone: member.phone,
+    date_of_birth: updates.date_of_birth as string | null | undefined,
+    gender: updates.gender as string | null | undefined,
+    height_cm: updates.height_cm as number | null | undefined,
+    weight_kg: updates.weight_kg as number | null | undefined,
+    fitness_goal: updates.fitness_goal as string | null | undefined,
+    fitness_outcome: updates.fitness_outcome as string | null | undefined,
+    training_level: updates.training_level as string | null | undefined,
+    weight_goal: updates.weight_goal as string | null | undefined,
+    illnesses: updates.illnesses as string[] | undefined,
+    injuries: updates.injuries as string[] | undefined,
+    medical_notes: updates.medical_notes as string | null | undefined,
+    limitations: updates.limitations as string | null | undefined,
+    onboarding_complete: true,
+  };
+
+  const appProfile = await upsertMemberAppProfile(service, ctx.userId, ctx.memberId, profileUpdates);
+  if (!appProfile) {
+    return NextResponse.json({ success: false, error: "Failed to update app profile" }, { status: 500 });
+  }
+
+  const memberMirror: Record<string, unknown> = {};
+  for (const key of [
+    "full_name",
+    "date_of_birth",
+    "gender",
+    "height_cm",
+    "weight_kg",
+    "fitness_goal",
+    "fitness_outcome",
+    "training_level",
+    "weight_goal",
+    "goals",
+    "illnesses",
+    "injuries",
+  ]) {
+    if (updates[key] !== undefined) memberMirror[key] = updates[key];
+  }
+  memberMirror.onboarding_complete = true;
+
   const { data, error: dbError } = await service
     .from("members")
-    .update(updates)
+    .update(memberMirror)
     .eq("id", ctx.memberId)
     .select()
     .single();

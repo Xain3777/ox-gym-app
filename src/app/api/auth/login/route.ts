@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { upsertMemberAppProfile } from "@/lib/member-app-profile";
 
 const LoginSchema = z.object({
   user_id: z.string().uuid("Invalid user ID"),
@@ -42,9 +43,17 @@ export async function POST(request: Request) {
 
   const { data: member } = await supabase
     .from("members")
-    .select("role")
+    .select("id, role, full_name, phone")
     .eq("auth_id", user_id)
     .single();
+
+  if (member?.role === "player") {
+    await upsertMemberAppProfile(supabase, user_id, member.id, {
+      full_name: member.full_name,
+      phone: member.phone,
+      app_registered_at: new Date().toISOString(),
+    });
+  }
 
   return NextResponse.json({
     success: true,

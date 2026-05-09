@@ -3,14 +3,15 @@ import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { normalizePhone, phoneToEmail } from "@/lib/phone";
+import { upsertMemberAppProfile } from "@/lib/member-app-profile";
 
 // Self-signup linked-by-phone flow.
 //
 // Reception/dashboard creates a member first (full_name, phone,
 // subscription). Later the same person signs up in the app with the
-// same phone — instead of duplicating the row we look up the existing
-// member by phone_normalized and link auth.users.id onto it. The
-// dashboard's subscription remains the source of truth.
+// same phone. Phone is the only identity key; full_name is display
+// context and must never block or drive linking. The dashboard
+// member/subscription remains the source of truth.
 //
 // If no matching dashboard member exists, we create a fresh `player`
 // row with status='active' but NO subscription — the portal will
@@ -54,13 +55,32 @@ export async function POST(request: Request) {
 
   const supabase = createServiceClient();
 
-  // ── Look for an existing dashboard-created player on this phone ──
-  const { data: existing } = await supabase
+  // Phone is the unique identity key. Fetch two rows so legacy duplicate
+  // phones block auto-linking without exposing any subscription data.
+  const { data: phoneMatches, error: lookupError } = await supabase
     .from("members")
     .select("id, auth_id")
     .eq("role", "player")
     .eq("phone_normalized", phoneNormalized)
-    .maybeSingle();
+    .limit(2);
+
+  if (lookupError) {
+    return NextResponse.json(
+      { success: false, error: "تعذّر التحقق من بيانات العضوية." },
+      { status: 500 },
+    );
+  }
+
+  const matchingMembers = phoneMatches ?? [];
+
+  if (matchingMembers.length > 1) {
+    return NextResponse.json(
+      { success: false, error: "Duplicate phone number found, staff must fix" },
+      { status: 409 },
+    );
+  }
+
+  const existing = matchingMembers[0] ?? null;
 
   if (existing?.auth_id) {
     return NextResponse.json(
@@ -98,14 +118,15 @@ export async function POST(request: Request) {
   let memberId: string;
 
   if (existing) {
-    // Dashboard already created this person — just bind auth_id and
-    // update the display name in case the player typed it differently.
-    const { error: linkErr } = await supabase
+    // Dashboard already created this person; just bind auth_id.
+    const { data: linkedRows, error: linkErr } = await supabase
       .from("members")
-      .update({ auth_id: authId, full_name })
-      .eq("id", existing.id);
+      .update({ auth_id: authId })
+      .eq("id", existing.id)
+      .is("auth_id", null)
+      .select("id");
 
-    if (linkErr) {
+    if (linkErr || !linkedRows?.length) {
       // Roll back auth user so retries aren't blocked by an orphan row
       await supabase.auth.admin.deleteUser(authId);
       return NextResponse.json(
@@ -150,6 +171,14 @@ export async function POST(request: Request) {
     }
     memberId = inserted.id;
   }
+
+  await upsertMemberAppProfile(supabase, authId, memberId, {
+    full_name,
+    phone,
+    onboarding_complete: false,
+    illnesses: [],
+    injuries: [],
+  });
 
   return NextResponse.json({
     success: true,

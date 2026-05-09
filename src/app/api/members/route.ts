@@ -9,7 +9,7 @@ const MIN_PRICE = 1;
 
 const AddMemberSchema = z.object({
   full_name:  z.string().min(2, "Name must be at least 2 characters").max(100),
-  phone:      z.string().min(7, "Phone number too short").max(20).regex(/^\+?[\d\s\-()]+$/, "Invalid phone number"),
+  phone:      z.string().min(7, "Phone number too short").max(20).regex(/^\+?[\d\s\-()\u0660-\u0669\u06F0-\u06F9]+$/, "Invalid phone number"),
   password:   z.string().min(1, "Password required").max(128, "Password too long"),
   goals:      z.string().max(500).optional(),
   plan_type:  z.enum(["monthly", "quarterly", "annual"]),
@@ -49,13 +49,20 @@ export async function POST(request: NextRequest) {
   // Deduplicate by normalized phone — catches different formats of the
   // same number (0912…, +96391…, 96391…) and matches the partial unique
   // index on members.phone_normalized for role='player'.
-  const { data: existing } = await supabase
+  const { data: phoneMatches, error: phoneLookupError } = await supabase
     .from("members")
     .select("id")
     .eq("phone_normalized", phoneNormalized)
-    .maybeSingle();
+    .limit(2);
 
-  if (existing) {
+  if (phoneLookupError) {
+    return NextResponse.json<ApiResponse>(
+      { success: false, error: "Failed to verify phone number" },
+      { status: 500 },
+    );
+  }
+
+  if ((phoneMatches?.length ?? 0) > 0) {
     return NextResponse.json<ApiResponse>(
       { success: false, error: "A member with this phone number already exists" },
       { status: 409 },
@@ -135,13 +142,16 @@ export async function POST(request: NextRequest) {
 
 // ── GET /api/members — manager + reception + coach ────────────
 export async function GET() {
-  const { error } = await requireAuth(["manager", "reception", "coach"]);
+  const { ctx, error } = await requireAuth(["manager", "reception", "coach", "admin", "head_coach"]);
   if (error) return error;
 
   const supabase = createServiceClient();
+  const selectFields = ctx.role === "reception"
+    ? "id, full_name, phone, goals, status, role, created_at, subscription:subscriptions(*)"
+    : "*, subscription:subscriptions(*)";
   const { data, error: dbError } = await supabase
     .from("members")
-    .select("*, subscription:subscriptions(*)")
+    .select(selectFields)
     .order("created_at", { ascending: false });
 
   if (dbError) {

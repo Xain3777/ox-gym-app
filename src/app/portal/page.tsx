@@ -6,6 +6,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
+import { playerWorkoutProgramName } from "@/lib/workout-display";
 import {
   OxDumbbell, OxFork, OxBag, OxClock, OxAlert,
   OxTarget, OxFlame, OxHeart, OxShield,
@@ -16,12 +17,16 @@ import type { DetailedSubStatus } from "@/lib/subscription";
 interface UserData {
   name: string;
   firstName: string;
+  phone: string | null;
   subscription: {
     plan: string;
+    dbStatus: string;
     status: DetailedSubStatus;
     daysLeft: number;
+    startDate: string;
     endDate: string;
     rawDays: number;
+    price: number | null;
   } | null;
   workout: { name: string; subtitle: string; exerciseCount: number } | null;
   hasLoggedProgress: boolean;
@@ -141,7 +146,7 @@ export default function PortalHome() {
         // Single member fetch
         const { data: member } = await supabase
           .from("members")
-          .select("id, full_name, status, date_of_birth, illnesses, injuries")
+          .select("id, full_name, phone, status, date_of_birth, illnesses, injuries")
           .eq("auth_id", user.id)
           .single();
 
@@ -150,10 +155,13 @@ export default function PortalHome() {
         const memberId = member.id;
 
         // Parallel fetches
-        const [subRes, planSendRes, mealSendRes, logRes, mealOrderRes] = await Promise.all([
-          supabase.from("subscriptions").select("plan_type, end_date, status")
+        const [subRes, assignmentRes, planSendRes, mealSendRes, logRes, mealOrderRes] = await Promise.all([
+          supabase.from("subscriptions").select("plan_type, start_date, end_date, status, price")
             .eq("member_id", memberId).eq("status", "active")
             .order("end_date", { ascending: false }).limit(1).maybeSingle(),
+          supabase.from("member_workout_programs").select("template:workout_program_templates(name, category)")
+            .eq("member_id", memberId).eq("status", "active")
+            .order("assigned_at", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("plan_sends").select("plan_id").eq("member_id", memberId)
             .eq("plan_type", "workout").eq("status", "sent")
             .order("sent_at", { ascending: false }).limit(1).maybeSingle(),
@@ -167,7 +175,17 @@ export default function PortalHome() {
         const sub = subRes.data;
         let workout = null;
 
-        if (planSendRes.data?.plan_id) {
+        const assignedTemplate = Array.isArray(assignmentRes.data?.template)
+          ? assignmentRes.data?.template[0]
+          : assignmentRes.data?.template;
+
+        if (assignedTemplate?.name) {
+          workout = {
+            name: playerWorkoutProgramName(assignedTemplate),
+            subtitle: assignedTemplate.category ?? "",
+            exerciseCount: 0,
+          };
+        } else if (planSendRes.data?.plan_id) {
           const { data: plan } = await supabase.from("workout_plans")
             .select("name, category, content").eq("id", planSendRes.data.plan_id).single();
           if (plan) {
@@ -193,12 +211,16 @@ export default function PortalHome() {
         setData({
           name: fullName,
           firstName,
+          phone: member.phone ?? null,
           subscription: sub ? {
             plan: sub.plan_type,
+            dbStatus: sub.status,
             status: status as DetailedSubStatus,
             daysLeft: Math.max(0, rawDays),
             rawDays,
+            startDate: new Date(sub.start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
             endDate: new Date(sub.end_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+            price: sub.price,
           } : null,
           workout,
           hasLoggedProgress: !!logRes.data,
@@ -314,7 +336,7 @@ export default function PortalHome() {
                   <OxClock size={22} className="text-white/25" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-white/70 text-[16px] font-semibold leading-snug">لا يوجد اشتراك نشط</p>
+                  <p className="text-white/70 text-[16px] font-semibold leading-snug">No subscription found for this phone number</p>
                   <p className="text-white/35 text-[13px] mt-1 leading-relaxed">
                     انضم الآن للوصول إلى برامج التمرين والتغذية وتتبع تقدمك.
                   </p>
@@ -387,6 +409,25 @@ export default function PortalHome() {
                 {t("common.renew")}
               </Link>
             )}
+          </section>
+        )}
+
+        {data?.subscription && (
+          <section className="relative bg-white/[0.03] border border-white/[0.06] overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-[3px] danger-tape-thin opacity-20" />
+            <div className="grid grid-cols-2 gap-x-4 gap-y-4 p-5">
+              <LinkedStat label="العضو" value={data.name} />
+              <LinkedStat label="الهاتف" value={data.phone ?? "—"} dir="ltr" />
+              <LinkedStat label="الخطة" value={data.subscription.plan} />
+              <LinkedStat label="الحالة" value={data.subscription.dbStatus === "active" ? "نشط" : data.subscription.dbStatus} />
+              <LinkedStat label="البداية" value={data.subscription.startDate} />
+              <LinkedStat label="النهاية" value={data.subscription.endDate} />
+              <LinkedStat label="الأيام المتبقية" value={`${data.subscription.daysLeft}`} />
+              <LinkedStat label="التجديد" value={isExpired ? "بحاجة لتجديد" : isExpiring ? "قريب" : "منتظم"} />
+              {data.subscription.price !== null && (
+                <LinkedStat label="الدفع" value={`$${Number(data.subscription.price).toFixed(0)}`} />
+              )}
+            </div>
           </section>
         )}
 
@@ -512,5 +553,18 @@ function ChevronDown({ className }: { className?: string }) {
     <svg width="28" height="14" viewBox="0 0 28 14" fill="currentColor" className={className}>
       <path d="M0 0L14 10L28 0V4L14 14L0 4V0Z" />
     </svg>
+  );
+}
+
+function LinkedStat({ label, value, dir }: { label: string; value: string; dir?: "ltr" | "rtl" }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-white/25 text-[10px] font-mono uppercase tracking-[0.12em] mb-1">
+        {label}
+      </p>
+      <p className="text-white/70 text-[13px] font-medium truncate" dir={dir ?? "rtl"} title={value}>
+        {value}
+      </p>
+    </div>
   );
 }

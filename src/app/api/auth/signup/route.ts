@@ -65,8 +65,11 @@ export async function POST(request: Request) {
     .limit(2);
 
   if (lookupError) {
+    // Surface the underlying Postgres error so production failures are
+    // debuggable from the Vercel function log + the response body.
+    console.error("[signup] members lookup failed:", lookupError);
     return NextResponse.json(
-      { success: false, error: "تعذّر التحقق من بيانات العضوية." },
+      { success: false, error: "تعذّر التحقق من بيانات العضوية.", debug: lookupError.message },
       { status: 500 },
     );
   }

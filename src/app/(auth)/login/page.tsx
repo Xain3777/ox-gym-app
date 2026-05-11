@@ -114,7 +114,7 @@ export default function LoginPage() {
         تسجيل الدخول
       </h2>
       <p className="text-[13px] text-muted mb-8">
-        أدخل اسم المستخدم أو رقم هاتفك وكلمة المرور
+        سجّل الدخول حالياً باستخدام رقم الهاتف وكلمة المرور
       </p>
 
       <form onSubmit={handleLogin} className="space-y-5">
@@ -131,7 +131,7 @@ export default function LoginPage() {
 
         <div>
           <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-2">
-            اسم المستخدم أو رقم الهاتف
+            رقم الهاتف
           </label>
           <input
             type="text"
@@ -140,7 +140,7 @@ export default function LoginPage() {
             required
             autoComplete="username"
             className="w-full h-12 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
-            placeholder="0912345678 أو ahmed_khalil"
+            placeholder="0912345678"
             dir="ltr"
           />
         </div>

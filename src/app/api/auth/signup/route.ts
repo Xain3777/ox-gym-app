@@ -175,7 +175,7 @@ export async function POST(request: Request) {
     memberId = inserted.id;
   }
 
-  await upsertMemberAppProfile(supabase, authId, memberId, {
+  const appProfile = await upsertMemberAppProfile(supabase, authId, memberId, {
     full_name,
     phone,
     onboarding_complete: false,
@@ -190,6 +190,8 @@ export async function POST(request: Request) {
       member_id: memberId,
       email:     internalEmail,
       linked,
+      app_profile_saved: Boolean(appProfile),
+      app_profile_migration_required: !appProfile,
     },
   });
 }

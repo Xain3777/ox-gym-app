@@ -237,8 +237,8 @@ export default function CoachPlayersPage() {
             <div className="space-y-2 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
               {filteredPlayers.length === 0 && (
                 <div className="bg-white/[0.03] border border-white/[0.06] p-5 text-center">
-                  <p className="text-white/45 text-[13px]">No eligible linked subscribed players.</p>
-                  <p className="text-white/25 text-[11px] mt-1">Dashboard-only and app-only players are listed below for diagnosis.</p>
+                  <p className="text-white/45 text-[13px]">No active Dashboard subscribers found.</p>
+                  <p className="text-white/25 text-[11px] mt-1">App-only players are listed below for diagnosis.</p>
                 </div>
               )}
               {filteredPlayers.map((player) => (
@@ -263,6 +263,11 @@ export default function CoachPlayersPage() {
                   {player.current_assignment?.template && (
                     <span className="text-[9px] font-mono uppercase text-gold bg-gold/10 px-1.5 py-0.5">
                       Assigned
+                    </span>
+                  )}
+                  {!player.eligible && (
+                    <span className="text-[9px] font-mono uppercase text-white/40 bg-white/[0.06] px-1.5 py-0.5">
+                      {player.has_app_registration ? "Blocked" : "No App"}
                     </span>
                   )}
                 </button>

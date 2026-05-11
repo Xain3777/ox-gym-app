@@ -253,6 +253,7 @@ export default function OnboardingPage() {
   // Step 7 – Height
   const [heightUnit, setHeightUnit] = useState<"cm" | "ft/in">("cm");
   const [heightVal,  setHeightVal]  = useState("170");
+  const [finishError, setFinishError] = useState("");
 
   function toggleMulti(set: Set<string>, val: string, setter: (s: Set<string>) => void) {
     const next = new Set(set);
@@ -275,6 +276,7 @@ export default function OnboardingPage() {
 
   async function handleFinish() {
     setLoading(true);
+    setFinishError("");
     const monthIdx = MONTHS.indexOf(dobMonth) + 1;
     const dob = `${dobYear}-${String(monthIdx).padStart(2, "0")}-${dobDay}`;
 
@@ -292,24 +294,32 @@ export default function OnboardingPage() {
             return Math.round((parseInt(match[1]) * 12 + parseInt(match[2])) * 2.54);
           })();
 
-    const res = await fetch("/api/auth/onboarding", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fitness_goal: fitnessGoal,
-        training_level: level,
-        illnesses: Array.from(illnesses),
-        injuries: Array.from(injuries),
-        date_of_birth: dob,
-        gender,
-        weight_kg: Math.round(weightKg * 10) / 10,
-        height_cm: heightCm,
-      }),
-    });
+    try {
+      const res = await fetch("/api/auth/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fitness_goal: fitnessGoal,
+          training_level: level,
+          illnesses: Array.from(illnesses),
+          injuries: Array.from(injuries),
+          date_of_birth: dob,
+          gender,
+          weight_kg: Math.round(weightKg * 10) / 10,
+          height_cm: heightCm,
+        }),
+      });
 
-    if (res.ok) {
-      window.location.href = "/portal";
-    } else {
+      if (res.ok) {
+        window.location.href = "/portal";
+        return;
+      }
+
+      const json = await res.json().catch(() => ({}));
+      setFinishError(json.error ?? "تعذر حفظ الملف. حاول مرة أخرى.");
+    } catch {
+      setFinishError("تعذر الاتصال بالخادم. حاول مرة أخرى.");
+    } finally {
       setLoading(false);
     }
   }
@@ -543,6 +553,9 @@ export default function OnboardingPage() {
 
       {/* Bottom actions */}
       <div className="px-6 pb-10 pt-2 space-y-3">
+        {finishError && (
+          <p className="text-danger text-[13px] text-center">{finishError}</p>
+        )}
         <button
           onClick={next}
           disabled={!canProceed() || loading}

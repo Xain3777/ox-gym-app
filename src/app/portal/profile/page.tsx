@@ -45,6 +45,30 @@ type ProfileSnapshot = {
   level: "normal" | "advanced"; goal: "maintain" | "lose" | "gain"; outcome: "muscle" | "health";
 };
 
+function normalizeProfileLevel(value: unknown): "normal" | "advanced" {
+  return value === "advanced" ? "advanced" : "normal";
+}
+
+function normalizeWeightGoal(value: unknown, legacyFitnessGoal: unknown): "maintain" | "lose" | "gain" {
+  if (value === "lose" || value === "gain" || value === "maintain") return value;
+  if (legacyFitnessGoal === "lose_weight") return "lose";
+  if (legacyFitnessGoal === "hypertrophy") return "gain";
+  return "maintain";
+}
+
+function normalizeFitnessOutcome(value: unknown, legacyFitnessGoal: unknown): "muscle" | "health" {
+  if (value === "muscle" || value === "health") return value;
+  if (legacyFitnessGoal === "lose_weight") return "health";
+  return "muscle";
+}
+
+function displayFitnessGoal(value: unknown) {
+  if (value === "hypertrophy") return "زيادة كتلة عضلية";
+  if (value === "muscle_definition") return "تنشيف وتعريف عضلي";
+  if (value === "lose_weight") return "خسارة وزن";
+  return typeof value === "string" ? value : "";
+}
+
 // ── WIZARD ────────────────────────────────────────────────────
 const WIZARD_STEPS = [
   { id: "welcome" },
@@ -72,6 +96,7 @@ function ProfileWizard({
   onComplete: () => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const [finishError, setFinishError] = useState("");
 
   // Restore step from draft on mount
   const [step, setStep] = useState(() => {
@@ -125,8 +150,14 @@ function ProfileWizard({
 
   async function handleFinish() {
     setSaving(true);
-    await onComplete();
-    setSaving(false);
+    setFinishError("");
+    try {
+      await onComplete();
+    } catch {
+      setFinishError("حدث خطأ أثناء الحفظ. حاول مرة أخرى.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const isLast = step === WIZARD_STEPS.length - 1;
@@ -405,6 +436,9 @@ function ProfileWizard({
 
       {/* Bottom CTA */}
       <div className="flex-shrink-0 px-5 pb-8 pt-4 border-t border-white/[0.06]">
+        {finishError && (
+          <p className="text-danger text-[13px] text-center mb-3">{finishError}</p>
+        )}
         <button
           onClick={() => {
             if (isLast) { handleFinish(); }
@@ -480,14 +514,14 @@ export default function ProfilePage() {
       const ph = member.phone ?? ""; const bd = member.date_of_birth ?? "";
       const il = member.illnesses?.length ? member.illnesses : ["None"];
       const inj = member.injuries?.length ? member.injuries : ["None"];
-      const lv = (member.training_level as "normal" | "advanced") ?? "normal";
-      const gl = (member.weight_goal as "maintain" | "lose" | "gain") ?? "maintain";
-      const oc = (member.fitness_outcome as "muscle" | "health") ?? "muscle";
+      const lv = normalizeProfileLevel(member.training_level);
+      const gl = normalizeWeightGoal(member.weight_goal, member.fitness_goal);
+      const oc = normalizeFitnessOutcome(member.fitness_outcome, member.fitness_goal);
 
       setFirstName(fn); setLastName(ln); setPhone(ph); setBirthday(bd);
       setHeightCm(member.height_cm != null ? String(member.height_cm) : "");
       setWeightKg(member.weight_kg != null ? String(member.weight_kg) : "");
-      setFitnessGoal(member.fitness_goal ?? "");
+      setFitnessGoal(displayFitnessGoal(member.fitness_goal));
       setMedicalNotes(member.medical_notes ?? "");
       setLimitations(member.limitations ?? "");
       setSelectedIllnesses(il); setSelectedInjuries(inj);

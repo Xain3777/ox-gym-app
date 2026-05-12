@@ -341,52 +341,7 @@ export default function PortalHome() {
         </section>
 
         {/* ── Plan / Subscription card ── */}
-        {isExpired ? (
-          /* Not subscribed state */
-          <section className="relative bg-white/[0.03] border border-white/[0.08] overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-[6px] overflow-hidden">
-              <div className="w-full h-full danger-tape-thin opacity-20" />
-            </div>
-            <div className="p-5">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-white/[0.04] border border-white/[0.08] flex items-center justify-center flex-shrink-0">
-                  <OxClock size={22} className="text-white/25" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-white/70 text-[16px] font-semibold leading-snug">No subscription found for this phone number</p>
-                  <p className="text-white/35 text-[13px] mt-1 leading-relaxed">
-                    انضم الآن للوصول إلى برامج التمرين والتغذية وتتبع تقدمك.
-                  </p>
-                </div>
-              </div>
-
-              {/* Pricing hint — full ladder lives on /renew */}
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                {[
-                  { label: "شهر",    price: "$35"  },
-                  { label: "٣ أشهر", price: "$90"  },
-                  { label: "٦ أشهر", price: "$170" },
-                ].map(({ label, price }) => (
-                  <div key={label} className="bg-white/[0.03] border border-white/[0.06] p-3 text-center">
-                    <p className="text-white/50 text-[11px] font-mono uppercase tracking-wider">{label}</p>
-                    <p className="text-gold text-[14px] font-bold mt-1">{price}</p>
-                  </div>
-                ))}
-              </div>
-
-              <Link
-                href="/renew"
-                className="mt-4 flex items-center justify-center gap-2 w-full bg-gold hover:bg-yellow-400 text-[#0A0A0A] font-bold text-[15px] py-3.5 transition-all duration-200 uppercase tracking-widest"
-              >
-                اشترك الآن
-              </Link>
-
-              <p className="text-white/20 text-[12px] text-center mt-3">
-                اطّلع على الخطط والعروض ثم زُر الاستقبال للاشتراك.
-              </p>
-            </div>
-          </section>
-        ) : (
+        {isExpired ? null : (
           /* Active / expiring subscription */
           <section className={cn(
             "relative p-5 flex items-center justify-between border overflow-hidden",

@@ -13,8 +13,14 @@ const ActivateSchema = z.object({
 // portal can hide the activation card without a flash. Also returns the
 // full subscription card data the portal home renders for activated
 // users (plan, status, dates, price, reception-registered name/phone).
+//
+// Auth: any signed-in user. The role check used to gate this to "player"
+// only, but signup may link the new auth account to a pre-existing
+// dashboard members row whose role isn't player — and the activation
+// code itself is the security boundary, so role gating just produces
+// confusing 403s for legitimate users.
 export async function GET() {
-  const { ctx, error } = await requireAuth(["player"]);
+  const { ctx, error } = await requireAuth();
   if (error) return error;
 
   const supabase = createServiceClient();
@@ -50,9 +56,10 @@ export async function GET() {
   });
 }
 
-// POST — claim an activation code for the current player.
+// POST — claim an activation code for the current signed-in user.
+// Same auth posture as GET above: the code is the secret, role is not.
 export async function POST(request: NextRequest) {
-  const { ctx, error } = await requireAuth(["player"], request);
+  const { ctx, error } = await requireAuth(undefined, request);
   if (error) return error;
 
   let body: unknown;

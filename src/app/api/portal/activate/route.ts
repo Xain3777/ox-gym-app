@@ -22,15 +22,31 @@ export async function GET() {
   if (error) return error;
 
   const supabase = createServiceClient();
-  const { data: row } = await supabase
+  // NB: the column is `amount`, not `price`. The member_subscriptions
+  // view aliases amount→price but we read gym_subscriptions directly
+  // here because that's the row the activation actually claimed.
+  const { data: row, error: lookupError } = await supabase
     .from("gym_subscriptions")
     .select(
-      "id, activation_code, plan_type, status, start_date, end_date, price, member_name, phone, activated_at",
+      "id, activation_code, plan_type, status, start_date, end_date, amount, currency, member_name, phone, activated_at",
     )
     .eq("activated_user_id", ctx.userId)
     .order("activated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  if (lookupError) {
+    console.error("[activate:GET] lookup failed:", lookupError);
+  }
+
+  // Translate raw plan_type to the user-facing tier name used elsewhere
+  // in the app (matches the member_subscriptions view convention).
+  const planTypeDisplay = (raw: string | null) => {
+    if (raw === "1_month") return "monthly";
+    if (raw === "3_months") return "quarterly";
+    if (raw === "12_months") return "annual";
+    return raw ?? "unknown";
+  };
 
   return NextResponse.json({
     success: true,
@@ -40,11 +56,13 @@ export async function GET() {
         ? {
             id: row.id,
             activation_code: row.activation_code,
-            plan_type: row.plan_type,
+            plan_type: planTypeDisplay(row.plan_type),
+            raw_plan_type: row.plan_type,
             status: row.status,
             start_date: row.start_date,
             end_date: row.end_date,
-            price: row.price,
+            price: row.amount,
+            currency: row.currency,
             member_name: row.member_name,
             phone: row.phone,
             activated_at: row.activated_at,

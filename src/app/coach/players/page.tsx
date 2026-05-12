@@ -25,6 +25,7 @@ type CoachPlayer = {
   full_name: string;
   phone: string | null;
   dashboard_phone?: string | null;
+  dashboard_full_name?: string | null;
   app_phone?: string | null;
   status: string;
   height_cm: number | null;
@@ -48,6 +49,8 @@ type CoachPlayer = {
   match_status?: string;
   match_reason?: string;
   match_conflict?: boolean;
+  link_source?: "activation_link" | "fuzzy" | "none";
+  activated_at?: string | null;
   subscription: {
     plan_type: string;
     start_date: string;
@@ -375,6 +378,10 @@ export default function CoachPlayersPage() {
 function PlayerProfile({ player, onUnassign }: { player: CoachPlayer; onUnassign: () => void }) {
   const subDays = player.subscription?.end_date ? daysUntil(player.subscription.end_date) : null;
   const notCompleted = "not completed";
+  const linkedByActivation = player.link_source === "activation_link";
+  const showsDistinctReceptionName =
+    player.dashboard_full_name && player.dashboard_full_name !== player.full_name;
+  const activatedDate = player.activated_at ? new Date(player.activated_at).toLocaleDateString() : null;
   return (
     <div className="bg-white/[0.04] border border-white/[0.06] p-5">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -385,6 +392,21 @@ function PlayerProfile({ player, onUnassign }: { player: CoachPlayer; onUnassign
             <Phone size={13} />
             {player.phone ?? "No phone"}
           </p>
+          {showsDistinctReceptionName && (
+            <p className="text-white/30 text-[12px] mt-1">
+              Reception name: <span className="text-white/55">{player.dashboard_full_name}</span>
+            </p>
+          )}
+          {player.dashboard_phone && player.dashboard_phone !== player.phone && (
+            <p className="text-white/30 text-[12px]" dir="ltr">
+              Reception phone: <span className="text-white/55">{player.dashboard_phone}</span>
+            </p>
+          )}
+          {linkedByActivation && (
+            <p className="mt-2 inline-flex items-center gap-1 bg-gold/10 text-gold text-[10px] font-bold uppercase tracking-wider px-2 py-1">
+              Activation linked{activatedDate ? ` · ${activatedDate}` : ""}
+            </p>
+          )}
         </div>
         <div className="text-right">
           <p className="text-white/35 text-[10px] font-mono uppercase tracking-[0.12em]">Current workout</p>

@@ -156,7 +156,7 @@ export default function PortalHome() {
         const memberId = member.id;
 
         // Parallel fetches
-        const [subRes, assignmentRes, planSendRes, mealSendRes, logRes, mealOrderRes] = await Promise.all([
+        const [subRes, assignmentRes, planSendRes, mealSendRes, logRes, mealOrderRes, activationRes] = await Promise.all([
           supabase.from("member_subscriptions").select("plan_type, start_date, end_date, status, price")
             .eq("member_id", memberId).eq("status", "active")
             .order("end_date", { ascending: false }).limit(1).maybeSingle(),
@@ -171,9 +171,26 @@ export default function PortalHome() {
             .order("sent_at", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("workout_logs").select("id").eq("member_id", memberId).limit(1).maybeSingle(),
           supabase.from("meal_orders").select("id").eq("member_id", memberId).limit(1).maybeSingle(),
+          // Activation-linked subscription is the source of truth when
+          // present. Goes through the API (service-role) so it bypasses
+          // RLS cleanly and matches whatever the user actually claimed.
+          fetch("/api/portal/activate")
+            .then((r) => r.ok ? r.json() : null)
+            .catch(() => null),
         ]);
 
-        const sub = subRes.data;
+        const activatedSub = activationRes?.success && activationRes?.data?.activated
+          ? activationRes.data.subscription
+          : null;
+        const sub = activatedSub
+          ? {
+              plan_type: activatedSub.plan_type,
+              start_date: activatedSub.start_date,
+              end_date: activatedSub.end_date,
+              status: activatedSub.status,
+              price: activatedSub.price ?? null,
+            }
+          : subRes.data;
         let workout = null;
 
         const assignedTemplate = Array.isArray(assignmentRes.data?.template)
@@ -315,11 +332,6 @@ export default function PortalHome() {
                 {t("portal.subscriptionActive")} · {data.subscription.plan}
               </p>
             )}
-            {isExpired && (
-              <p className="text-danger/60 text-[12px] mt-1 font-mono tracking-wide">
-                غير مشترك
-              </p>
-            )}
           </div>
           <Image src="/ox-logo.png" alt="OX GYM" width={120} height={120} className="w-14 h-14 object-contain" unoptimized />
         </section>
@@ -337,8 +349,7 @@ export default function PortalHome() {
                   <OxClock size={22} className="text-white/25" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-white/70 text-[16px] font-semibold leading-snug">No subscription found for this phone number</p>
-                  <p className="text-white/35 text-[13px] mt-1 leading-relaxed">
+                  <p className="text-white/35 text-[13px] leading-relaxed">
                     انضم الآن للوصول إلى برامج التمرين والتغذية وتتبع تقدمك.
                   </p>
                 </div>

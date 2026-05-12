@@ -127,7 +127,11 @@ export async function GET(request: Request) {
       ? "Linked deterministically via gym_subscriptions.activated_user_id."
       : fuzzyMatch.reason;
     const matchConflict = linkedByActivation ? false : fuzzyMatch.conflict || fuzzyMatch.status === "ambiguous";
-    const eligible = hasDashboardSubscription && hasAppRegistration && safeMatch;
+    // Eligibility (= "coach can send plans") is activation-only now.
+    // Fuzzy phone/name matching still runs above so the diagnostic
+    // groups can show who's *almost* matched, but it does not feed
+    // the sendable decision. One rule: code linked → sendable.
+    const eligible = linkedByActivation && hasAppRegistration;
 
     return {
       id: member.id,

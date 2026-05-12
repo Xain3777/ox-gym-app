@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
-import { normalizePhone, phoneToEmail } from "@/lib/phone";
+import { normalizePhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
 // Self-signup is keyed on phone number — the same phone the dashboard
@@ -71,10 +71,14 @@ export default function SignupPage() {
       return;
     }
 
-    // The signup route returns the email it bound to auth.users. Use it
-    // to set the session cookies — works whether the row was newly
-    // created or linked to an existing dashboard member.
-    const email = result.data?.email ?? phoneToEmail(phone);
+    // The signup route always returns the (UUID-based) email it bound
+    // to auth.users. Use it to set the session cookies.
+    const email = result.data?.email;
+    if (!email) {
+      setError("تم إنشاء الحساب، لكن تعذّر تسجيل الدخول. حاول الدخول يدوياً.");
+      setLoading(false);
+      return;
+    }
 
     const supabase = createBrowserSupabase();
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });

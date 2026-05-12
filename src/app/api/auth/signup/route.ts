@@ -1,21 +1,21 @@
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
-import { normalizePhone, phoneToEmail } from "@/lib/phone";
+import { normalizePhone } from "@/lib/phone";
 import { upsertMemberAppProfile } from "@/lib/member-app-profile";
 
-// Self-signup linked-by-phone flow.
+// Self-signup — code-only linking model.
 //
-// Reception/dashboard creates a member first (full_name, phone,
-// subscription). Later the same person signs up in the app with the
-// same phone. Phone is the only identity key; full_name is display
-// context and must never block or drive linking. The dashboard
-// member/subscription remains the source of truth.
+// Signup never inspects phone or links to dashboard members. Every
+// signup creates a fresh `members` row. The activation code is the
+// only way an app account becomes linked to a dashboard subscription.
 //
-// If no matching dashboard member exists, we create a fresh `player`
-// row with status='active' but NO subscription — the portal will
-// render "Not subscribed" until reception attaches one.
+// Auth identity in Supabase Auth uses a UUID-based synthetic email
+// (`{uuid}@member.oxgym.app`) so two app accounts may share a phone
+// without colliding on auth.users.email. The user-typed phone goes
+// into members.phone as plain contact metadata.
 
 const SignupSchema = z.object({
   full_name: z.string().trim().min(2, "الاسم يجب أن يكون حرفين على الأقل").max(50, "الاسم طويل جداً"),
@@ -55,9 +55,9 @@ export async function POST(request: Request) {
 
   const supabase = createServiceClient();
 
-  // The name doubles as the login identifier — must be globally unique
-  // (case-insensitive via idx_members_username_ci). Friendly Arabic
-  // error instead of letting Postgres throw.
+  // The name doubles as the login identifier — must be globally
+  // unique (case-insensitive via idx_members_username_ci). Friendly
+  // Arabic error instead of letting Postgres throw.
   const { data: usernameMatch } = await supabase
     .from("members")
     .select("id")
@@ -70,52 +70,11 @@ export async function POST(request: Request) {
       { status: 409 },
     );
   }
-  // We store the same string in both full_name (display) and username
-  // (login). Going forward the only difference is what they're indexed
-  // for — uniqueness vs free-text display.
   const username = full_name;
 
-  // Phone is the unique identity key. Fetch two rows so legacy duplicate
-  // phones block auto-linking without exposing any subscription data.
-  const { data: phoneMatches, error: lookupError } = await supabase
-    .from("members")
-    .select("id, auth_id")
-    .eq("role", "player")
-    .eq("phone_normalized", phoneNormalized)
-    .limit(2);
-
-  if (lookupError) {
-    // Surface the underlying Postgres error so production failures are
-    // debuggable from the Vercel function log + the response body.
-    console.error("[signup] members lookup failed:", lookupError);
-    return NextResponse.json(
-      { success: false, error: "تعذّر التحقق من بيانات العضوية.", debug: lookupError.message },
-      { status: 500 },
-    );
-  }
-
-  const matchingMembers = phoneMatches ?? [];
-
-  if (matchingMembers.length > 1) {
-    return NextResponse.json(
-      { success: false, error: "Duplicate phone number found, staff must fix" },
-      { status: 409 },
-    );
-  }
-
-  const existing = matchingMembers[0] ?? null;
-
-  if (existing?.auth_id) {
-    return NextResponse.json(
-      { success: false, error: "هذا الرقم لديه حساب بالفعل. سجّل الدخول بدلاً من ذلك." },
-      { status: 409 },
-    );
-  }
-
-  // ── Create the auth user ───────────────────────────────────────
-  // Phone-derived email keeps logins consistent with the staff flow
-  // (same internal email format works across both surfaces).
-  const internalEmail = phoneToEmail(phone);
+  // ── Create the auth user with a UUID-based synthetic email ────
+  // Avoids any collision when two app accounts share a phone.
+  const internalEmail = `${randomUUID()}@member.oxgym.app`;
 
   const { data: authResult, error: authError } = await supabase.auth.admin.createUser({
     email:         internalEmail,
@@ -125,9 +84,7 @@ export async function POST(request: Request) {
   });
 
   if (authError || !authResult?.user) {
-    // Most likely cause: an auth.users row with the same email already
-    // exists (someone tried to sign up under this phone before but the
-    // members insert failed). Surface a clean message.
+    console.error("[signup] auth.admin.createUser failed:", authError);
     return NextResponse.json(
       { success: false, error: "تعذّر إنشاء الحساب. حاول مرة أخرى." },
       { status: 400 },
@@ -136,65 +93,32 @@ export async function POST(request: Request) {
 
   const authId = authResult.user.id;
 
-  // ── Link to existing member, or create a fresh one ─────────────
-  let linked = false;
-  let memberId: string;
+  // ── Always create a fresh members row ─────────────────────────
+  // No phone lookup, no auto-link to dashboard. The user must enter
+  // their activation code from reception to become linked to a gym
+  // subscription.
+  const { data: inserted, error: insErr } = await supabase
+    .from("members")
+    .insert({
+      auth_id:  authId,
+      role:     "player",
+      full_name,
+      phone,                  // trigger fills phone_normalized
+      username,
+      status:   "active",
+    })
+    .select("id")
+    .single();
 
-  if (existing) {
-    // Dashboard already created this person; just bind auth_id + username.
-    const { data: linkedRows, error: linkErr } = await supabase
-      .from("members")
-      .update({ auth_id: authId, username })
-      .eq("id", existing.id)
-      .is("auth_id", null)
-      .select("id");
-
-    if (linkErr || !linkedRows?.length) {
-      // Roll back auth user so retries aren't blocked by an orphan row
-      await supabase.auth.admin.deleteUser(authId);
-      return NextResponse.json(
-        { success: false, error: "تعذّر ربط الحساب بالعضوية الحالية." },
-        { status: 500 },
-      );
-    }
-
-    memberId = existing.id;
-    linked   = true;
-  } else {
-    // No dashboard match → fresh player row. status='active' only marks
-    // the member record itself as live; the portal renders "Not
-    // subscribed" until a row is attached to the subscriptions table.
-    // Insert only the columns guaranteed to exist on every project the
-    // app might be deployed against. The plaintext-password mirror in
-    // members.temporary_password is a *nice-to-have* for admin support
-    // (so they can see what self-signup users chose) — but it isn't
-    // load-bearing: real auth uses auth.users.encrypted_password.
-    // Skipping it here means the route works whether the project has
-    // run migration 014 (temporary_password) or not. Staff seeders set
-    // it explicitly via SQL, so admin visibility into staff temps is
-    // unaffected.
-    const { data: inserted, error: insErr } = await supabase
-      .from("members")
-      .insert({
-        auth_id:            authId,
-        role:               "player",
-        full_name,
-        phone,                          // trigger fills phone_normalized when present
-        username,
-        status:             "active",
-      })
-      .select("id")
-      .single();
-
-    if (insErr || !inserted) {
-      await supabase.auth.admin.deleteUser(authId);
-      return NextResponse.json(
-        { success: false, error: "تعذّر إنشاء الملف الشخصي." },
-        { status: 500 },
-      );
-    }
-    memberId = inserted.id;
+  if (insErr || !inserted) {
+    console.error("[signup] members insert failed:", insErr);
+    await supabase.auth.admin.deleteUser(authId);
+    return NextResponse.json(
+      { success: false, error: "تعذّر إنشاء الملف الشخصي." },
+      { status: 500 },
+    );
   }
+  const memberId = inserted.id;
 
   const appProfile = await upsertMemberAppProfile(supabase, authId, memberId, {
     full_name,
@@ -210,7 +134,7 @@ export async function POST(request: Request) {
       user_id:   authId,
       member_id: memberId,
       email:     internalEmail,
-      linked,
+      linked:    false,
       app_profile_saved: Boolean(appProfile),
       app_profile_migration_required: !appProfile,
     },

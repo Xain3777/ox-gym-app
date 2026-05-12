@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
-import { isPhoneInput, phoneToEmail } from "@/lib/phone";
+import { isPhoneInput } from "@/lib/phone";
 
 export default function LoginPage() {
   const [identifier,   setIdentifier]   = useState(""); // username OR phone
@@ -34,13 +34,16 @@ export default function LoginPage() {
   }
 
   async function resolveEmail(id: string): Promise<string | null> {
-    // Phone path: derive the synthetic email directly. Works whether
-    // the member row exists or not (Supabase Auth will reject if not).
-    if (isPhoneInput(id)) return phoneToEmail(id);
-
-    // Username path: look up the real auth email via the resolve API.
+    // Always go through the resolve API. It looks up the member row by
+    // phone_normalized (phone path) or by username (name path) and
+    // returns the real auth.users.email — which can be phone-derived
+    // for legacy accounts or UUID-derived for new ones since signup
+    // stopped using phone as identity.
+    const param = isPhoneInput(id)
+      ? `phone=${encodeURIComponent(id)}`
+      : `username=${encodeURIComponent(id)}`;
     try {
-      const r = await fetch(`/api/auth/resolve?username=${encodeURIComponent(id)}`);
+      const r = await fetch(`/api/auth/resolve?${param}`);
       if (!r.ok) return null;
       const j = await r.json();
       return j?.email ?? null;

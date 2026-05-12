@@ -20,6 +20,8 @@ export type MemberAppProfile = {
   limitations: string | null;
   onboarding_complete: boolean;
   app_registered_at: string | null;
+  active: boolean;
+  activation_code: string | null;
 };
 
 const PROFILE_SELECT = `
@@ -41,7 +43,9 @@ const PROFILE_SELECT = `
   medical_notes,
   limitations,
   onboarding_complete,
-  app_registered_at
+  app_registered_at,
+  active,
+  activation_code
 `;
 
 export async function ensureMemberAppProfile(

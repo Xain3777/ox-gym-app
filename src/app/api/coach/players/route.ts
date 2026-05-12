@@ -49,12 +49,12 @@ export async function GET(request: Request) {
 
   const { data: appProfiles } = await supabase
     .from("member_app_profiles")
-    .select("id, linked_member_id, app_user_id, full_name, phone, phone_normalized, name_normalized, height_cm, weight_kg, fitness_goal, training_level, illnesses, injuries, medical_notes, limitations, onboarding_complete, app_registered_at");
+    .select("id, linked_member_id, app_user_id, full_name, phone, phone_normalized, name_normalized, height_cm, weight_kg, fitness_goal, training_level, illnesses, injuries, medical_notes, limitations, onboarding_complete, app_registered_at, active, activation_code");
 
   const { data: gymSubscriptions } = await supabase
     .from("gym_subscriptions")
     .select(
-      "id, member_id, member_name, phone, plan_type, start_date, end_date, status, activated_user_id, activated_at",
+      "id, member_id, member_name, phone, plan_type, start_date, end_date, status, activated_user_id, activated_at, activation_code",
     );
 
   const profileIndexes = buildAppProfileIndexes(appProfiles ?? []);
@@ -141,6 +141,8 @@ export async function GET(request: Request) {
       match_conflict: matchConflict,
       link_source: linkedByActivation ? "activation_link" : (gymSubscription ? "fuzzy" : "none"),
       activated_at: gymSubscription?.activated_at ?? null,
+      active: appProfile?.active ?? linkedByActivation,
+      activation_code: appProfile?.activation_code ?? gymSubscription?.activation_code ?? null,
       eligible,
       height_cm: appProfile?.height_cm ?? null,
       weight_kg: appProfile?.weight_kg ?? null,
@@ -196,6 +198,8 @@ export async function GET(request: Request) {
         : Boolean(fuzzyMatch?.conflict || fuzzyMatch?.status === "ambiguous"),
       link_source: linkedByActivation ? "activation_link" : (appProfile ? "fuzzy" : "none"),
       activated_at: subscription.activated_at ?? null,
+      active: appProfile?.active ?? linkedByActivation,
+      activation_code: appProfile?.activation_code ?? subscription.activation_code ?? null,
       eligible: false,
       height_cm: appProfile?.height_cm ?? null,
       weight_kg: appProfile?.weight_kg ?? null,
@@ -250,6 +254,8 @@ export async function GET(request: Request) {
       match_conflict: linkedByActivation ? false : (fuzzyGymMatch?.status === "ambiguous"),
       link_source: linkedByActivation ? "activation_link" : (subscription ? "fuzzy" : "none"),
       activated_at: subscription?.activated_at ?? null,
+      active: profile.active ?? linkedByActivation,
+      activation_code: profile.activation_code ?? subscription?.activation_code ?? null,
       eligible: false,
       height_cm: profile.height_cm ?? null,
       weight_kg: profile.weight_kg ?? null,

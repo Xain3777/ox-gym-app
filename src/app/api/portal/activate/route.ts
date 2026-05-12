@@ -196,6 +196,10 @@ export async function POST(request: NextRequest) {
 
   // Best-effort profile mirror so coach eligibility recognises them
   // immediately. Failure here MUST NOT roll back the successful claim.
+  // Writes `active=true` and `activation_code` onto the app profile so
+  // a single SELECT on member_app_profiles tells the coach whether
+  // they're sendable + which code they used (canonical store remains
+  // gym_subscriptions).
   const linkedMemberId = sub.member_id ?? ctx.memberId;
   if (linkedMemberId) {
     try {
@@ -203,6 +207,8 @@ export async function POST(request: NextRequest) {
         full_name: sub.member_name ?? undefined,
         phone: sub.phone ?? undefined,
         app_registered_at: nowIso,
+        active: true,
+        activation_code: code,
       });
     } catch (e) {
       console.error("[activate] upsertMemberAppProfile failed:", e);

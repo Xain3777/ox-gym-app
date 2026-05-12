@@ -51,6 +51,8 @@ type CoachPlayer = {
   match_conflict?: boolean;
   link_source?: "activation_link" | "fuzzy" | "none";
   activated_at?: string | null;
+  active?: boolean;
+  activation_code?: string | null;
   subscription: {
     plan_type: string;
     start_date: string;
@@ -405,6 +407,11 @@ function PlayerProfile({ player, onUnassign }: { player: CoachPlayer; onUnassign
           {linkedByActivation && (
             <p className="mt-2 inline-flex items-center gap-1 bg-gold/10 text-gold text-[10px] font-bold uppercase tracking-wider px-2 py-1">
               Activation linked{activatedDate ? ` · ${activatedDate}` : ""}
+            </p>
+          )}
+          {player.activation_code && (
+            <p className="text-white/30 text-[12px] mt-1 font-mono tracking-wider" dir="ltr">
+              CODE: <span className="text-white/65">{player.activation_code}</span>
             </p>
           )}
         </div>

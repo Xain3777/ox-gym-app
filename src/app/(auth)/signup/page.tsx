@@ -13,13 +13,15 @@ import { cn } from "@/lib/utils";
 // one (so the subscription set up at the desk follows the member into
 // the app).
 
-type Step = 0 | 1 | 2;
-const TOTAL = 3;
+type Step = 0 | 1 | 2 | 3;
+const TOTAL = 4;
+const USERNAME_RE = /^[a-zA-Z0-9._-]{3,30}$/;
 
 export default function SignupPage() {
   const [step, setStep]         = useState<Step>(0);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone]       = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [error, setError]       = useState("");
@@ -41,6 +43,15 @@ export default function SignupPage() {
       setStep(2);
       return;
     }
+    if (step === 2) {
+      const u = username.trim();
+      if (!USERNAME_RE.test(u)) {
+        setError("اسم المستخدم: ٣-٣٠ حرفاً (أحرف لاتينية، أرقام، . _ -)");
+        return;
+      }
+      setStep(3);
+      return;
+    }
     submit();
   }
 
@@ -60,6 +71,7 @@ export default function SignupPage() {
       body:    JSON.stringify({
         full_name: fullName.trim(),
         phone:     phone.trim(),
+        username:  username.trim(),
         password,
       }),
     });
@@ -134,6 +146,9 @@ export default function SignupPage() {
           <PhoneStep value={phone} onChange={setPhone} />
         )}
         {step === 2 && (
+          <UsernameStep value={username} onChange={setUsername} />
+        )}
+        {step === 3 && (
           <PasswordStep value={password} onChange={setPassword} show={showPass} toggleShow={() => setShowPass((v) => !v)} />
         )}
 
@@ -176,6 +191,31 @@ function NameStep({ value, onChange }: { value: string; onChange: (v: string) =>
         spellCheck={false}
         className="w-full h-14 px-4 bg-iron border border-steel text-offwhite text-[18px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
         placeholder="أحمد خليل"
+      />
+    </div>
+  );
+}
+
+function UsernameStep({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <h1 className="font-display text-[26px] leading-tight text-white mb-2">اختر اسم مستخدم</h1>
+      <p className="text-[13px] text-muted mb-8">
+        ستستخدمه لتسجيل الدخول. أحرف لاتينية وأرقام، ٣-٣٠ حرفاً.
+      </p>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        autoFocus
+        autoComplete="username"
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        maxLength={30}
+        className="w-full h-14 px-4 bg-iron border border-steel text-offwhite text-[18px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
+        placeholder="ahmad.k"
+        dir="ltr"
       />
     </div>
   );

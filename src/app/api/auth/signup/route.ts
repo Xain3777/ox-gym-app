@@ -20,6 +20,7 @@ import { upsertMemberAppProfile } from "@/lib/member-app-profile";
 const SignupSchema = z.object({
   full_name: z.string().trim().min(2, "الاسم يجب أن يكون حرفين على الأقل").max(100, "الاسم طويل جداً"),
   phone:     z.string().trim().min(7, "رقم الهاتف غير صالح").max(20, "رقم الهاتف طويل جداً"),
+  username:  z.string().trim().regex(/^[a-zA-Z0-9._-]{3,30}$/, "اسم المستخدم: ٣-٣٠ حرفاً (أحرف لاتينية، أرقام، . _ -)"),
   password:  z.string().min(1, "كلمة المرور مطلوبة").max(128, "كلمة المرور طويلة جداً"),
 });
 
@@ -47,13 +48,29 @@ export async function POST(request: Request) {
     );
   }
 
-  const { full_name, phone, password } = parsed.data;
+  const { full_name, phone, username, password } = parsed.data;
   const phoneNormalized = normalizePhone(phone);
   if (!phoneNormalized) {
     return NextResponse.json({ success: false, error: "رقم الهاتف غير صالح" }, { status: 400 });
   }
 
   const supabase = createServiceClient();
+
+  // Username uniqueness check (case-insensitive via the partial unique
+  // index idx_members_username_ci). Do it explicitly so we can return a
+  // friendly Arabic message instead of a Postgres error string.
+  const { data: usernameMatch } = await supabase
+    .from("members")
+    .select("id")
+    .ilike("username", username)
+    .limit(1)
+    .maybeSingle();
+  if (usernameMatch) {
+    return NextResponse.json(
+      { success: false, error: "اسم المستخدم محجوز. اختر اسماً آخر." },
+      { status: 409 },
+    );
+  }
 
   // Phone is the unique identity key. Fetch two rows so legacy duplicate
   // phones block auto-linking without exposing any subscription data.
@@ -121,10 +138,10 @@ export async function POST(request: Request) {
   let memberId: string;
 
   if (existing) {
-    // Dashboard already created this person; just bind auth_id.
+    // Dashboard already created this person; just bind auth_id + username.
     const { data: linkedRows, error: linkErr } = await supabase
       .from("members")
-      .update({ auth_id: authId })
+      .update({ auth_id: authId, username })
       .eq("id", existing.id)
       .is("auth_id", null)
       .select("id");
@@ -160,6 +177,7 @@ export async function POST(request: Request) {
         role:               "player",
         full_name,
         phone,                          // trigger fills phone_normalized when present
+        username,
         status:             "active",
       })
       .select("id")

@@ -34,8 +34,19 @@ export default function LoginPage() {
   }
 
   async function resolveEmail(id: string): Promise<string | null> {
-    if (!isPhoneInput(id)) return null;
-    return phoneToEmail(id);
+    // Phone path: derive the synthetic email directly. Works whether
+    // the member row exists or not (Supabase Auth will reject if not).
+    if (isPhoneInput(id)) return phoneToEmail(id);
+
+    // Username path: look up the real auth email via the resolve API.
+    try {
+      const r = await fetch(`/api/auth/resolve?username=${encodeURIComponent(id)}`);
+      if (!r.ok) return null;
+      const j = await r.json();
+      return j?.email ?? null;
+    } catch {
+      return null;
+    }
   }
 
   async function handleLogin(e: React.FormEvent) {
@@ -44,15 +55,14 @@ export default function LoginPage() {
     setError("");
 
     const id = identifier.trim();
-    if (!id)       { setError("يرجى إدخال رقم الهاتف"); return; }
-    if (!isPhoneInput(id)) { setError("سجّل الدخول باستخدام رقم الهاتف وكلمة المرور حالياً"); return; }
+    if (!id)       { setError("يرجى إدخال رقم الهاتف أو اسم المستخدم"); return; }
     if (!password) { setError("يرجى إدخال كلمة المرور"); return; }
 
     setLoading(true);
 
     const email = await resolveEmail(id);
     if (!email) {
-      setError("رقم الهاتف غير موجود");
+      setError("اسم المستخدم أو رقم الهاتف غير صحيح");
       setLoading(false);
       return;
     }
@@ -65,14 +75,14 @@ export default function LoginPage() {
       if (status === 429) {
         startCountdown(60);
       } else {
-        setError("رقم الهاتف أو كلمة المرور غير صحيحة");
+        setError("اسم المستخدم/رقم الهاتف أو كلمة المرور غير صحيحة");
       }
       setLoading(false);
       return;
     }
 
     if (!authData.user) {
-      setError("رقم الهاتف أو كلمة المرور غير صحيحة");
+      setError("اسم المستخدم/رقم الهاتف أو كلمة المرور غير صحيحة");
       setLoading(false);
       return;
     }
@@ -108,7 +118,7 @@ export default function LoginPage() {
         تسجيل الدخول
       </h2>
       <p className="text-[13px] text-muted mb-8">
-        سجّل الدخول حالياً باستخدام رقم الهاتف وكلمة المرور
+        سجّل الدخول باسم المستخدم أو رقم الهاتف
       </p>
 
       <form onSubmit={handleLogin} className="space-y-5">
@@ -125,7 +135,7 @@ export default function LoginPage() {
 
         <div>
           <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-2">
-            رقم الهاتف
+            اسم المستخدم أو رقم الهاتف
           </label>
           <input
             type="text"
@@ -133,8 +143,11 @@ export default function LoginPage() {
             onChange={(e) => setIdentifier(e.target.value)}
             required
             autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             className="w-full h-12 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
-            placeholder="0912345678"
+            placeholder="ahmad.k  /  0912345678"
             dir="ltr"
           />
         </div>

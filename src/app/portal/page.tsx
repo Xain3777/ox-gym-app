@@ -14,6 +14,7 @@ import {
 import { daysUntilExpiry, getDetailedStatus } from "@/lib/subscription";
 import type { DetailedSubStatus } from "@/lib/subscription";
 import { ActivationSection } from "@/components/portal/ActivationSection";
+import { GYM_RECEPTION_PHONE, GYM_RECEPTION_PHONE_TEL } from "@/lib/gym-contact";
 
 interface UserData {
   name: string;
@@ -311,7 +312,11 @@ export default function PortalHome() {
                 {rawDays === -1
                   ? "لا يزال بإمكانك الوصول لمدة يوم واحد إضافي."
                   : "لا يزال بإمكانك الوصول لمدة يومين إضافيين."}
-                {" "}تفضّل بزيارة الاستقبال للتجديد.
+                {" "}تفضّل بزيارة الاستقبال للتجديد أو اتصل على{" "}
+                <a href={GYM_RECEPTION_PHONE_TEL} className="text-danger font-semibold underline" dir="ltr">
+                  {GYM_RECEPTION_PHONE}
+                </a>
+                .
               </p>
             </div>
           </section>
@@ -379,6 +384,14 @@ export default function PortalHome() {
               <p className="text-white/20 text-[12px] text-center mt-3">
                 اطّلع على الخطط والعروض ثم زُر الاستقبال للاشتراك.
               </p>
+
+              <a
+                href={GYM_RECEPTION_PHONE_TEL}
+                className="mt-3 flex items-center justify-center gap-2 w-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white/80 font-bold text-[13px] py-2.5 transition-colors"
+                dir="ltr"
+              >
+                اتصل بالاستقبال — {GYM_RECEPTION_PHONE}
+              </a>
             </div>
           </section>
         ) : (

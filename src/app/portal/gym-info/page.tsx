@@ -7,6 +7,7 @@ import { BackArrow } from "@/components/portal/BackArrow";
 import {
   OxDumbbell, OxFork, OxStar, OxCheck, OxClock, OxShield,
 } from "@/components/icons/OxIcons";
+import { GYM_RECEPTION_PHONE, GYM_RECEPTION_PHONE_TEL } from "@/lib/gym-contact";
 
 // ── Subscription plans ──────────────────────────────────────────
 const plans = [
@@ -163,6 +164,23 @@ export default function GymInfoPage() {
       </div>
 
       <div className="max-w-lg mx-auto px-5 pt-8 space-y-10">
+
+        {/* ── Reception contact ──────────────────────── */}
+        <section>
+          <p className="text-gold/50 text-[10px] font-bold uppercase tracking-[0.15em] mb-1">للتواصل</p>
+          <p className="text-white font-display text-[22px] tracking-wider leading-none mb-5">رقم الاستقبال</p>
+          <a
+            href={GYM_RECEPTION_PHONE_TEL}
+            className="flex items-center justify-between border border-gold/30 bg-gold/[0.06] hover:bg-gold/[0.12] p-4 transition-colors"
+            dir="ltr"
+          >
+            <span className="text-white/60 text-[12px] font-mono uppercase tracking-[0.14em]">CALL</span>
+            <span className="text-gold text-[18px] font-bold tracking-wider">{GYM_RECEPTION_PHONE}</span>
+          </a>
+          <p className="text-white/30 text-[12px] mt-2 leading-relaxed text-right" dir="rtl">
+            للاشتراك أو الاستفسار أو طلب وجبة، يمكنك زيارة الاستقبال أو الاتصال على الرقم أعلاه.
+          </p>
+        </section>
 
         {/* ── Subscription plans ──────────────────────── */}
         <section>

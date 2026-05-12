@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { BackArrow } from "@/components/portal/BackArrow";
 import { formatSyp } from "@/data/meal-cost";
+import { GYM_RECEPTION_PHONE, GYM_RECEPTION_PHONE_TEL } from "@/lib/gym-contact";
 
 type CatalogItem = {
   id: string;
@@ -89,11 +90,20 @@ export default function OrderMealPage() {
         )}
 
         {showNotice && (
-          <div className="bg-gold/[0.06] border border-gold/20 p-4 text-center">
-            <p className="text-gold text-[15px] font-semibold">يرجى زيارة الاستقبال</p>
-            <p className="text-white/50 text-[13px] mt-1">
-              لتأكيد الطلب وإتمام الدفع، تحدث مع موظف الاستقبال في النادي.
-            </p>
+          <div className="bg-gold/[0.06] border border-gold/20 p-4 text-center space-y-3">
+            <div>
+              <p className="text-gold text-[15px] font-semibold">يرجى زيارة الاستقبال أو الاتصال بنا</p>
+              <p className="text-white/50 text-[13px] mt-1">
+                لتأكيد الطلب وإتمام الدفع، تحدث مع موظف الاستقبال في النادي أو اتصل على الرقم التالي.
+              </p>
+            </div>
+            <a
+              href={GYM_RECEPTION_PHONE_TEL}
+              className="block w-full bg-gold/15 hover:bg-gold/25 border border-gold/30 text-gold font-bold text-[15px] py-3 transition-colors"
+              dir="ltr"
+            >
+              {GYM_RECEPTION_PHONE}
+            </a>
           </div>
         )}
 

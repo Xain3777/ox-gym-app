@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { GYM_RECEPTION_PHONE, GYM_RECEPTION_PHONE_TEL } from "@/lib/gym-contact";
 
 // Subscription information page. Players reach this from "Subscribe Now"
 // or "Renew" buttons in the portal. There is no online checkout — the
@@ -51,12 +52,21 @@ export default function SubscribeInfoPage() {
         </div>
 
         {/* Visit-reception CTA at the top — what the user actually needs to do */}
-        <section className="bg-[#F5C100]/[0.06] border border-[#F5C100]/25 p-5">
-          <p className="text-[#F5C100] text-[18px] font-bold leading-snug">للاشتراك، يرجى زيارة الاستقبال</p>
-          <p className="text-white/55 text-[13px] mt-1.5 leading-relaxed">
-            اطّلع على الخطط والعروض في الأسفل، ثم تواصل مع موظف الاستقبال في النادي لإتمام الدفع وتفعيل الاشتراك.
-            لا يوجد دفع إلكتروني داخل التطبيق.
-          </p>
+        <section className="bg-[#F5C100]/[0.06] border border-[#F5C100]/25 p-5 space-y-4">
+          <div>
+            <p className="text-[#F5C100] text-[18px] font-bold leading-snug">للاشتراك، يرجى زيارة الاستقبال أو الاتصال بنا</p>
+            <p className="text-white/55 text-[13px] mt-1.5 leading-relaxed">
+              اطّلع على الخطط والعروض في الأسفل، ثم تواصل مع موظف الاستقبال في النادي لإتمام الدفع وتفعيل الاشتراك.
+              لا يوجد دفع إلكتروني داخل التطبيق.
+            </p>
+          </div>
+          <a
+            href={GYM_RECEPTION_PHONE_TEL}
+            className="block w-full bg-[#F5C100]/15 hover:bg-[#F5C100]/25 border border-[#F5C100]/40 text-[#F5C100] font-bold text-[16px] py-3 text-center transition-colors tracking-wider"
+            dir="ltr"
+          >
+            {GYM_RECEPTION_PHONE}
+          </a>
         </section>
 
         {/* Plans */}

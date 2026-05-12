@@ -3,7 +3,14 @@ import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import { normalizePhone, phoneToEmail } from "@/lib/phone";
+import { generateUniqueActivationCode } from "@/lib/activation-code";
 import type { ApiResponse } from "@/types";
+
+const GYM_SUBSCRIPTION_PLAN_TYPE: Record<"monthly" | "quarterly" | "annual", string> = {
+  monthly:   "1_month",
+  quarterly: "3_month",
+  annual:    "12_month",
+};
 
 const MIN_PRICE = 1;
 
@@ -126,16 +133,66 @@ export async function POST(request: NextRequest) {
     return NextResponse.json<ApiResponse>({ success: false, error: "Failed to create subscription" }, { status: 500 });
   }
 
+  // Mirror the subscription into gym_subscriptions, which is the canonical
+  // table the reception dashboard, coach eligibility, and activation flow
+  // all read from. Borrow created_by from an existing row to satisfy the
+  // FK to public.profiles(id) — the dashboard's staff table that this app
+  // does not write to. If gym_subscriptions is empty we leave created_by
+  // null and rely on the column being nullable in that environment.
+  const { data: refRow } = await supabase
+    .from("gym_subscriptions")
+    .select("created_by")
+    .not("created_by", "is", null)
+    .limit(1)
+    .maybeSingle();
+
+  let activationCode: string | null = null;
+  try {
+    activationCode = await generateUniqueActivationCode(supabase);
+  } catch {
+    // Falling back to null here is safe because the partial unique index
+    // skips NULL rows. The reception list will simply show "—" until the
+    // next backfill/manual fix.
+  }
+
+  const { error: gymError } = await supabase.from("gym_subscriptions").insert({
+    member_id:      member.id,
+    member_name:    full_name,
+    phone,
+    plan_type:      GYM_SUBSCRIPTION_PLAN_TYPE[plan_type],
+    start_date,
+    end_date,
+    status:         "active",
+    amount:         price,
+    paid_amount:    price,
+    payment_status: "paid",
+    payment_method: "cash",
+    currency:       "usd",
+    activation_code: activationCode,
+    created_by:      refRow?.created_by ?? null,
+  });
+
+  if (gymError) {
+    // The legacy `subscriptions` row was created successfully — we leave it
+    // in place rather than rolling back the auth/member creation, because
+    // the cron job and legacy admin pages still rely on it. Surface the
+    // gym_subscriptions failure to the caller so reception sees it.
+    return NextResponse.json<ApiResponse>(
+      { success: false, error: `Member created but gym subscription failed: ${gymError.message}` },
+      { status: 500 },
+    );
+  }
+
   await supabase.from("audit_logs").insert({
     actor_id:    ctx.memberId,
     action:      "member.create",
     target_id:   member.id,
     target_type: "member",
-    meta: { full_name, phone, plan_type },
+    meta: { full_name, phone, plan_type, activation_code: activationCode },
   }).then(() => {});
 
-  return NextResponse.json<ApiResponse<{ id: string; email: string }>>(
-    { success: true, data: { id: member.id, email: internalEmail } },
+  return NextResponse.json<ApiResponse<{ id: string; email: string; activation_code: string | null }>>(
+    { success: true, data: { id: member.id, email: internalEmail, activation_code: activationCode } },
     { status: 201 },
   );
 }

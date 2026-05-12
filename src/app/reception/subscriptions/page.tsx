@@ -14,6 +14,7 @@ interface SubWithMember {
   end_date: string;
   status: string;
   price: number | null;
+  activation_code?: string | null;
   member: { full_name: string; phone: string | null } | null;
 }
 
@@ -32,7 +33,23 @@ export default function ReceptionSubscriptionsPage() {
           .select("*, member:members(full_name, phone)")
           .order("end_date", { ascending: true });
 
-        if (data) setSubs(data as SubWithMember[]);
+        // Pull activation_code directly from gym_subscriptions in case the
+        // member_subscriptions view doesn't expose it.
+        const { data: codes } = await supabase
+          .from("gym_subscriptions")
+          .select("id, activation_code");
+        const codeById = new Map<string, string | null>(
+          (codes ?? []).map((row: { id: string; activation_code: string | null }) => [row.id, row.activation_code]),
+        );
+
+        if (data) {
+          setSubs(
+            (data as SubWithMember[]).map((row) => ({
+              ...row,
+              activation_code: row.activation_code ?? codeById.get(row.id) ?? null,
+            })),
+          );
+        }
       } catch {
         // empty
       } finally {
@@ -85,6 +102,9 @@ export default function ReceptionSubscriptionsPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-white text-[14px] font-medium truncate">{sub.member?.full_name ?? "—"}</p>
                 <p className="text-white/40 text-[12px]">{sub.plan_type} · {sub.start_date} → {sub.end_date}</p>
+                <p className="text-white/60 text-[11px] font-mono tracking-wider mt-1" dir="ltr">
+                  <span className="text-white/30">CODE</span> {sub.activation_code ?? "—"}
+                </p>
               </div>
               <div className="text-right flex-shrink-0">
                 <span className={cn(

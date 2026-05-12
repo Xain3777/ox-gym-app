@@ -13,6 +13,7 @@ import {
 } from "@/components/icons/OxIcons";
 import { daysUntilExpiry, getDetailedStatus } from "@/lib/subscription";
 import type { DetailedSubStatus } from "@/lib/subscription";
+import { ActivationSection } from "@/components/portal/ActivationSection";
 
 interface UserData {
   name: string;
@@ -430,6 +431,9 @@ export default function PortalHome() {
             </div>
           </section>
         )}
+
+        {/* ── Activation code section (hidden once already activated) ── */}
+        <ActivationSection />
 
         {/* ── Daily Workout Card ── */}
         <section className="relative bg-white/[0.04] border border-white/[0.06] overflow-hidden">

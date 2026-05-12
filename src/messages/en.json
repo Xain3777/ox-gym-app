@@ -263,6 +263,19 @@
     "planExpired": "Plan Expired",
     "renewUnlock": "Renew to unlock all features"
   },
+  "activation": {
+    "label": "ACTIVATION CODE",
+    "prompt": "Please enter the activation code you got from reception.",
+    "submit": "Activate",
+    "submitting": "Activating...",
+    "success": "Your account is now activated.",
+    "errorGeneric": "Couldn't activate. Please try again.",
+    "errorFormat": "Invalid code format. 2 uppercase letters followed by 6 digits.",
+    "errorNotFound": "Activation code not found. Check with reception.",
+    "errorAlreadyUsed": "This code is already used by another account.",
+    "errorCancelled": "This subscription has been cancelled.",
+    "errorNoDays": "No workout days remaining on this subscription."
+  },
   "auth": {
     "signIn": "SIGN IN",
     "signInDesc": "Enter your credentials to access your account.",

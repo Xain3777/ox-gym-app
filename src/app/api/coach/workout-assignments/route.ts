@@ -2,13 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
-import {
-  buildAppProfileIndexes,
-  buildGymSubscriptionIndexes,
-  matchAppProfileToGymSubscription,
-  matchMemberToAppProfile,
-  normalizedMemberPhone,
-} from "@/lib/player-matching";
 
 const COACH_ROLES = ["manager", "admin", "head_coach", "coach"] as const;
 
@@ -50,50 +43,46 @@ export async function POST(request: NextRequest) {
   if (!member) return NextResponse.json({ success: false, error: "Player not found" }, { status: 404 });
   if (!template) return NextResponse.json({ success: false, error: "Program not found" }, { status: 404 });
 
-  const [{ data: allPlayers }, { data: appProfiles }, { data: gymSubscriptions }] = await Promise.all([
-    supabase
-      .from("members")
-      .select("id, phone, phone_normalized")
-      .eq("role", "player"),
-    supabase
-      .from("member_app_profiles")
-      .select("id, linked_member_id, app_user_id, full_name, phone, phone_normalized, name_normalized, app_registered_at"),
-    supabase
-      .from("gym_subscriptions")
-      .select("id, member_id, member_name, phone, plan_type, start_date, end_date, status"),
-  ]);
+  // Code-only sendable check: the player must have signed up in the
+  // app AND claimed an activation code that points to a non-cancelled,
+  // non-expired gym subscription. No fuzzy phone/name matching here —
+  // that produced false "different dashboard member" conflicts after
+  // signup stopped silently auto-linking by phone.
 
-  const normalizedPhoneCounts = new Map<string, number>();
-  for (const player of allPlayers ?? []) {
-    const normalized = normalizedMemberPhone(player);
-    if (!normalized) continue;
-    normalizedPhoneCounts.set(normalized, (normalizedPhoneCounts.get(normalized) ?? 0) + 1);
-  }
-
-  const profileIndexes = buildAppProfileIndexes(appProfiles ?? []);
-  const match = matchMemberToAppProfile(member, profileIndexes, normalizedPhoneCounts);
-
-  if (!match.safe || !match.profile) {
+  if (!member.auth_id) {
     return NextResponse.json(
-      { success: false, error: `Player is not safely linked to an App profile. ${match.reason}` },
+      { success: false, error: "Player has no app account yet." },
       { status: 403 },
     );
   }
 
-  if (!match.profile.app_registered_at) {
+  const [{ data: appProfile }, { data: activatedSub }] = await Promise.all([
+    supabase
+      .from("member_app_profiles")
+      .select("id, app_user_id, app_registered_at")
+      .eq("app_user_id", member.auth_id)
+      .maybeSingle(),
+    supabase
+      .from("gym_subscriptions")
+      .select("id, end_date, cancelled_at")
+      .eq("activated_user_id", member.auth_id)
+      .is("cancelled_at", null)
+      .gte("end_date", new Date().toISOString().slice(0, 10))
+      .order("end_date", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (!appProfile?.app_registered_at) {
     return NextResponse.json(
       { success: false, error: "Player must register in the Web App before assignment." },
       { status: 403 },
     );
   }
 
-  const activeGymSubscriptions = (gymSubscriptions ?? []).filter(isActiveGymSubscription);
-  const gymIndexes = buildGymSubscriptionIndexes(activeGymSubscriptions);
-  const gymMatch = matchAppProfileToGymSubscription(match.profile, gymIndexes);
-
-  if (!gymMatch.safe || !gymMatch.subscription) {
+  if (!activatedSub) {
     return NextResponse.json(
-      { success: false, error: `Player must have an active Dashboard subscription in gym_subscriptions before assignment. ${gymMatch.reason}` },
+      { success: false, error: "Player has no active activated subscription. They must enter their activation code from reception first." },
       { status: 403 },
     );
   }
@@ -168,11 +157,4 @@ export async function DELETE(request: NextRequest) {
   }
 
   return NextResponse.json({ success: true, data: { cleared: cleared?.length ?? 0 } });
-}
-
-function isActiveGymSubscription(subscription: { status?: string | null; end_date?: string | null }) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (subscription.status !== "active" || !subscription.end_date) return false;
-  return new Date(subscription.end_date) >= today;
 }

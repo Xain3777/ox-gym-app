@@ -72,6 +72,25 @@ export async function POST(request: Request) {
   }
   const username = full_name;
 
+  // Phone uniqueness for app accounts only. Dashboard-only stub
+  // members (auth_id IS NULL) don't count — they don't reserve the
+  // phone for their eventual owner. Mirror of the partial unique
+  // index members_player_phone_normalized_unique from migration 037.
+  const { data: phoneMatch } = await supabase
+    .from("members")
+    .select("id")
+    .eq("role", "player")
+    .eq("phone_normalized", phoneNormalized)
+    .not("auth_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+  if (phoneMatch) {
+    return NextResponse.json(
+      { success: false, error: "هذا الرقم مستخدم بالفعل في حساب آخر. سجّل الدخول أو استخدم رقماً مختلفاً." },
+      { status: 409 },
+    );
+  }
+
   // ── Create the auth user with a UUID-based synthetic email ────
   // Avoids any collision when two app accounts share a phone.
   const internalEmail = `${randomUUID()}@member.oxgym.app`;

@@ -156,7 +156,7 @@ export default function PortalHome() {
         const memberId = member.id;
 
         // Parallel fetches
-        const [subRes, assignmentRes, planSendRes, mealSendRes, logRes, mealOrderRes, activationRes] = await Promise.all([
+        const [subRes, assignmentRes, planSendRes, mealSendRes, logRes, mealOrderRes] = await Promise.all([
           supabase.from("member_subscriptions").select("plan_type, start_date, end_date, status, price")
             .eq("member_id", memberId).eq("status", "active")
             .order("end_date", { ascending: false }).limit(1).maybeSingle(),
@@ -171,25 +171,9 @@ export default function PortalHome() {
             .order("sent_at", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("workout_logs").select("id").eq("member_id", memberId).limit(1).maybeSingle(),
           supabase.from("meal_orders").select("id").eq("member_id", memberId).limit(1).maybeSingle(),
-          // Activation-linked subscription is the source of truth when present.
-          // Goes through the API (service-role) so it bypasses RLS cleanly.
-          fetch("/api/portal/activate")
-            .then((r) => r.ok ? r.json() : null)
-            .catch(() => null),
         ]);
 
-        const activatedSub = activationRes?.success && activationRes?.data?.activated
-          ? activationRes.data.subscription
-          : null;
-        const sub = activatedSub
-          ? {
-              plan_type: activatedSub.plan_type,
-              start_date: activatedSub.start_date,
-              end_date: activatedSub.end_date,
-              status: activatedSub.status,
-              price: activatedSub.price ?? null,
-            }
-          : subRes.data;
+        const sub = subRes.data;
         let workout = null;
 
         const assignedTemplate = Array.isArray(assignmentRes.data?.template)
@@ -341,7 +325,52 @@ export default function PortalHome() {
         </section>
 
         {/* ── Plan / Subscription card ── */}
-        {isExpired ? null : (
+        {isExpired ? (
+          /* Not subscribed state */
+          <section className="relative bg-white/[0.03] border border-white/[0.08] overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-[6px] overflow-hidden">
+              <div className="w-full h-full danger-tape-thin opacity-20" />
+            </div>
+            <div className="p-5">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-white/[0.04] border border-white/[0.08] flex items-center justify-center flex-shrink-0">
+                  <OxClock size={22} className="text-white/25" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-white/70 text-[16px] font-semibold leading-snug">No subscription found for this phone number</p>
+                  <p className="text-white/35 text-[13px] mt-1 leading-relaxed">
+                    انضم الآن للوصول إلى برامج التمرين والتغذية وتتبع تقدمك.
+                  </p>
+                </div>
+              </div>
+
+              {/* Pricing hint — full ladder lives on /renew */}
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {[
+                  { label: "شهر",    price: "$35"  },
+                  { label: "٣ أشهر", price: "$90"  },
+                  { label: "٦ أشهر", price: "$170" },
+                ].map(({ label, price }) => (
+                  <div key={label} className="bg-white/[0.03] border border-white/[0.06] p-3 text-center">
+                    <p className="text-white/50 text-[11px] font-mono uppercase tracking-wider">{label}</p>
+                    <p className="text-gold text-[14px] font-bold mt-1">{price}</p>
+                  </div>
+                ))}
+              </div>
+
+              <Link
+                href="/renew"
+                className="mt-4 flex items-center justify-center gap-2 w-full bg-gold hover:bg-yellow-400 text-[#0A0A0A] font-bold text-[15px] py-3.5 transition-all duration-200 uppercase tracking-widest"
+              >
+                اشترك الآن
+              </Link>
+
+              <p className="text-white/20 text-[12px] text-center mt-3">
+                اطّلع على الخطط والعروض ثم زُر الاستقبال للاشتراك.
+              </p>
+            </div>
+          </section>
+        ) : (
           /* Active / expiring subscription */
           <section className={cn(
             "relative p-5 flex items-center justify-between border overflow-hidden",

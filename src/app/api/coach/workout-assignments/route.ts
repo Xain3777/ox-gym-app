@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
-import { normalizePhone } from "@/lib/phone";
+import {
+  buildAppProfileIndexes,
+  buildGymSubscriptionIndexes,
+  matchAppProfileToGymSubscription,
+  matchMemberToAppProfile,
+  normalizedMemberPhone,
+} from "@/lib/player-matching";
 
 const COACH_ROLES = ["manager", "admin", "head_coach", "coach"] as const;
 
@@ -34,7 +40,7 @@ export async function POST(request: NextRequest) {
   const [{ data: member }, { data: template }] = await Promise.all([
     supabase
       .from("members")
-      .select("id, auth_id, phone, phone_normalized, subscription:member_subscriptions(plan_type, start_date, end_date, status)")
+      .select("id, auth_id, full_name, phone, phone_normalized")
       .eq("id", member_id)
       .eq("role", "player")
       .maybeSingle(),
@@ -44,61 +50,50 @@ export async function POST(request: NextRequest) {
   if (!member) return NextResponse.json({ success: false, error: "Player not found" }, { status: 404 });
   if (!template) return NextResponse.json({ success: false, error: "Program not found" }, { status: 404 });
 
-  const normalizedPhone = (member.phone_normalized as string | null) || normalizePhone((member.phone as string | null) ?? "");
-  if (!normalizedPhone) {
+  const [{ data: allPlayers }, { data: appProfiles }, { data: gymSubscriptions }] = await Promise.all([
+    supabase
+      .from("members")
+      .select("id, phone, phone_normalized")
+      .eq("role", "player"),
+    supabase
+      .from("member_app_profiles")
+      .select("id, linked_member_id, app_user_id, full_name, phone, phone_normalized, name_normalized, app_registered_at"),
+    supabase
+      .from("gym_subscriptions")
+      .select("id, member_id, member_name, phone, plan_type, start_date, end_date, status"),
+  ]);
+
+  const normalizedPhoneCounts = new Map<string, number>();
+  for (const player of allPlayers ?? []) {
+    const normalized = normalizedMemberPhone(player);
+    if (!normalized) continue;
+    normalizedPhoneCounts.set(normalized, (normalizedPhoneCounts.get(normalized) ?? 0) + 1);
+  }
+
+  const profileIndexes = buildAppProfileIndexes(appProfiles ?? []);
+  const match = matchMemberToAppProfile(member, profileIndexes, normalizedPhoneCounts);
+
+  if (!match.safe || !match.profile) {
     return NextResponse.json(
-      { success: false, error: "Player must have a valid normalized phone before assignment." },
+      { success: false, error: `Player is not safely linked to an App profile. ${match.reason}` },
       { status: 403 },
     );
   }
 
-  const { data: phoneMatches } = await supabase
-    .from("members")
-    .select("id")
-    .eq("role", "player")
-    .eq("phone_normalized", normalizedPhone)
-    .limit(2);
-
-  if ((phoneMatches?.length ?? 0) > 1) {
-    return NextResponse.json(
-      { success: false, error: "Duplicate phone number found, staff must fix" },
-      { status: 403 },
-    );
-  }
-
-  const subscription = pickActiveSubscription(member.subscription);
-  if (!member.auth_id || !subscription) {
-    return NextResponse.json(
-      { success: false, error: "Player must be subscribed and linked to the Web App before assignment." },
-      { status: 403 },
-    );
-  }
-
-  const { data: appProfile } = await supabase
-    .from("member_app_profiles")
-    .select("id, phone, app_registered_at")
-    .eq("linked_member_id", member_id)
-    .eq("app_user_id", member.auth_id)
-    .maybeSingle();
-
-  if (!appProfile) {
-    return NextResponse.json(
-      { success: false, error: "Player has not completed Web App profile linking." },
-      { status: 403 },
-    );
-  }
-
-  if (!appProfile.app_registered_at) {
+  if (!match.profile.app_registered_at) {
     return NextResponse.json(
       { success: false, error: "Player must register in the Web App before assignment." },
       { status: 403 },
     );
   }
 
-  const profilePhoneNormalized = normalizePhone((appProfile.phone as string | null) ?? "");
-  if (profilePhoneNormalized && profilePhoneNormalized !== normalizedPhone) {
+  const activeGymSubscriptions = (gymSubscriptions ?? []).filter(isActiveGymSubscription);
+  const gymIndexes = buildGymSubscriptionIndexes(activeGymSubscriptions);
+  const gymMatch = matchAppProfileToGymSubscription(match.profile, gymIndexes);
+
+  if (!gymMatch.safe || !gymMatch.subscription) {
     return NextResponse.json(
-      { success: false, error: "Player app profile phone does not match dashboard phone." },
+      { success: false, error: `Player must have an active Dashboard subscription in gym_subscriptions before assignment. ${gymMatch.reason}` },
       { status: 403 },
     );
   }
@@ -175,14 +170,9 @@ export async function DELETE(request: NextRequest) {
   return NextResponse.json({ success: true, data: { cleared: cleared?.length ?? 0 } });
 }
 
-function pickActiveSubscription(subscription: unknown) {
-  const rows = Array.isArray(subscription) ? subscription : subscription ? [subscription] : [];
+function isActiveGymSubscription(subscription: { status?: string | null; end_date?: string | null }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
-  return rows.find((row) => {
-    const sub = row as { status?: string; end_date?: string };
-    if (sub.status !== "active" || !sub.end_date) return false;
-    return new Date(sub.end_date) >= today;
-  }) ?? null;
+  if (subscription.status !== "active" || !subscription.end_date) return false;
+  return new Date(subscription.end_date) >= today;
 }

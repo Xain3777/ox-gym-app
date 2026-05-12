@@ -46,24 +46,11 @@ export function ActivationSection({ onActivated }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: trimmed }),
       });
-      const json = await res.json().catch(() => null);
-      if (res.ok && json?.success) {
+      const json = await res.json();
+      if (json?.success) {
         setActivated(true);
         setSuccessMsg(t("activation.success"));
         onActivated?.();
-        // Force a fresh load so the subscription card on the portal
-        // home reflects the newly-claimed row immediately.
-        setTimeout(() => { window.location.reload(); }, 600);
-        return;
-      }
-      // Auth-layer rejections show the bare HTTP reason — translate them
-      // so the user sees something actionable instead of "Forbidden".
-      if (res.status === 401) {
-        setErrorMsg("سجّل الدخول مرة أخرى ثم حاول التفعيل.");
-        return;
-      }
-      if (res.status === 403) {
-        setErrorMsg("لم يُسمح بالتفعيل. حدّث الصفحة أو سجّل الدخول مرة أخرى.");
         return;
       }
       switch (json?.code) {

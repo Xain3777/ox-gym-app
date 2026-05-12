@@ -53,32 +53,12 @@ export async function GET(request: Request) {
 
   const { data: gymSubscriptions } = await supabase
     .from("gym_subscriptions")
-    .select(
-      "id, member_id, member_name, phone, plan_type, start_date, end_date, status, activated_user_id, activated_at",
-    );
+    .select("id, member_id, member_name, phone, plan_type, start_date, end_date, status");
 
   const profileIndexes = buildAppProfileIndexes(appProfiles ?? []);
   const activeGymSubscriptions = (gymSubscriptions ?? []).filter(isActiveGymSubscription);
   const activeGymIndexes = buildGymSubscriptionIndexes(activeGymSubscriptions);
   const allGymIndexes = buildGymSubscriptionIndexes(gymSubscriptions ?? []);
-
-  // Deterministic activation indexes — preferred over fuzzy phone/name
-  // matching whenever a row's activated_user_id is set.
-  type AppProfile = NonNullable<typeof appProfiles>[number];
-  type GymSubscription = NonNullable<typeof gymSubscriptions>[number];
-
-  const profileByAppUserId = new Map<string, AppProfile>();
-  for (const profile of appProfiles ?? []) {
-    if (profile.app_user_id) profileByAppUserId.set(profile.app_user_id as string, profile);
-  }
-  const activeSubByActivatedUserId = new Map<string, GymSubscription>();
-  for (const sub of activeGymSubscriptions) {
-    if (sub.activated_user_id) activeSubByActivatedUserId.set(sub.activated_user_id as string, sub);
-  }
-  const allSubByActivatedUserId = new Map<string, GymSubscription>();
-  for (const sub of gymSubscriptions ?? []) {
-    if (sub.activated_user_id) allSubByActivatedUserId.set(sub.activated_user_id as string, sub);
-  }
 
   const normalizedPhoneCounts = new Map<string, number>();
   for (const member of members ?? []) {
@@ -88,32 +68,18 @@ export async function GET(request: Request) {
   }
 
   const allPlayers = (members ?? []).map((member) => {
-    // Prefer deterministic activation link when present.
-    const activatedSub = member.auth_id ? activeSubByActivatedUserId.get(member.auth_id as string) ?? null : null;
-    const activatedProfile = member.auth_id ? profileByAppUserId.get(member.auth_id as string) ?? null : null;
-
-    const fuzzyMatch = matchMemberToAppProfile(member, profileIndexes, normalizedPhoneCounts);
-    const appProfile = activatedProfile ?? fuzzyMatch.profile;
+    const match = matchMemberToAppProfile(member, profileIndexes, normalizedPhoneCounts);
+    const appProfile = match.profile;
     const normalizedPhone = normalizedMemberPhone(member);
     const appPhoneNormalized = appProfile ? normalizedProfilePhone(appProfile) : "";
-
-    const fuzzyGymMatch = appProfile ? matchAppProfileToGymSubscription(appProfile, activeGymIndexes) : null;
+    const gymMatch = appProfile ? matchAppProfileToGymSubscription(appProfile, activeGymIndexes) : null;
     const directGymSubscription = activeGymSubscriptions.find((subscription) => subscription.member_id === member.id) ?? null;
-    const gymSubscription = activatedSub ?? fuzzyGymMatch?.subscription ?? directGymSubscription;
+    const gymSubscription = gymMatch?.subscription ?? directGymSubscription;
     const subscription = gymSubscription ? gymSubscriptionSummary(gymSubscription) : null;
-
     const hasDashboardSubscription = Boolean(gymSubscription);
     const hasAppProfile = Boolean(appProfile);
     const hasAppRegistration = Boolean(hasAppProfile && appProfile?.app_registered_at);
-
-    // Activation link is always safe — auth.users.id is the most stable identifier we have.
-    const linkedByActivation = Boolean(activatedSub);
-    const safeMatch = linkedByActivation ? true : fuzzyMatch.safe;
-    const matchStatus = linkedByActivation ? "activation_link" : fuzzyMatch.status;
-    const matchReason = linkedByActivation
-      ? "Linked deterministically via gym_subscriptions.activated_user_id."
-      : fuzzyMatch.reason;
-    const matchConflict = linkedByActivation ? false : fuzzyMatch.conflict || fuzzyMatch.status === "ambiguous";
+    const safeMatch = match.safe;
     const eligible = hasDashboardSubscription && hasAppRegistration && safeMatch;
 
     return {
@@ -121,10 +87,9 @@ export async function GET(request: Request) {
       auth_id: member.auth_id,
       phone_normalized: normalizedPhone || null,
       app_phone_normalized: appPhoneNormalized || null,
-      full_name: appProfile?.full_name ?? gymSubscription?.member_name ?? member.full_name,
+      full_name: appProfile?.full_name ?? member.full_name,
       phone: appProfile?.phone ?? member.phone,
-      dashboard_phone: gymSubscription?.phone ?? member.phone,
-      dashboard_full_name: gymSubscription?.member_name ?? member.full_name ?? null,
+      dashboard_phone: member.phone,
       app_phone: appProfile?.phone ?? null,
       status: member.status,
       goals: member.goals,
@@ -133,14 +98,12 @@ export async function GET(request: Request) {
       has_dashboard_subscription: hasDashboardSubscription,
       has_app_profile: hasAppProfile,
       has_app_registration: hasAppRegistration,
-      safe_phone_link: linkedByActivation ? true : fuzzyMatch.phoneMatch,
+      safe_phone_link: match.phoneMatch,
       safe_match: safeMatch,
-      duplicate_phone: linkedByActivation ? false : fuzzyMatch.duplicatePhone,
-      match_status: matchStatus,
-      match_reason: matchReason,
-      match_conflict: matchConflict,
-      link_source: linkedByActivation ? "activation_link" : (gymSubscription ? "fuzzy" : "none"),
-      activated_at: gymSubscription?.activated_at ?? null,
+      duplicate_phone: match.duplicatePhone,
+      match_status: match.status,
+      match_reason: match.reason,
+      match_conflict: match.conflict || match.status === "ambiguous",
       eligible,
       height_cm: appProfile?.height_cm ?? null,
       weight_kg: appProfile?.weight_kg ?? null,
@@ -157,25 +120,18 @@ export async function GET(request: Request) {
   });
 
   const gymDashboardRows = (gymSubscriptions ?? []).map((subscription) => {
-    // Prefer deterministic activation link.
-    const activatedProfile = subscription.activated_user_id
-      ? profileByAppUserId.get(subscription.activated_user_id as string) ?? null
-      : null;
-    const fuzzyMatch = activatedProfile ? null : matchGymSubscriptionToAppProfile(subscription, profileIndexes);
-    const appProfile = activatedProfile ?? fuzzyMatch?.profile ?? null;
-    const linkedByActivation = Boolean(activatedProfile);
-
+    const match = matchGymSubscriptionToAppProfile(subscription, profileIndexes);
+    const appProfile = match.profile;
     const normalizedPhone = normalizedGymSubscriptionPhone(subscription);
     const appPhoneNormalized = appProfile ? normalizedProfilePhone(appProfile) : "";
     return {
       id: `gym-${subscription.id}`,
-      auth_id: appProfile?.app_user_id ?? subscription.activated_user_id ?? null,
+      auth_id: appProfile?.app_user_id ?? null,
       phone_normalized: normalizedPhone || null,
       app_phone_normalized: appPhoneNormalized || null,
-      full_name: appProfile?.full_name ?? subscription.member_name ?? "Dashboard subscriber",
+      full_name: subscription.member_name ?? appProfile?.full_name ?? "Dashboard subscriber",
       phone: subscription.phone ?? appProfile?.phone ?? null,
       dashboard_phone: subscription.phone ?? null,
-      dashboard_full_name: subscription.member_name ?? null,
       app_phone: appProfile?.phone ?? null,
       status: subscription.status ?? "unknown",
       goals: null,
@@ -184,18 +140,12 @@ export async function GET(request: Request) {
       has_dashboard_subscription: true,
       has_app_profile: Boolean(appProfile),
       has_app_registration: Boolean(appProfile?.app_registered_at),
-      safe_phone_link: linkedByActivation ? true : Boolean(fuzzyMatch?.phoneMatch),
-      safe_match: linkedByActivation ? true : Boolean(fuzzyMatch?.safe),
-      duplicate_phone: linkedByActivation ? false : Boolean(fuzzyMatch?.duplicatePhone),
-      match_status: linkedByActivation ? "activation_link" : fuzzyMatch?.status ?? "no_match",
-      match_reason: linkedByActivation
-        ? "Linked deterministically via gym_subscriptions.activated_user_id."
-        : fuzzyMatch?.reason ?? "No app profile linked yet.",
-      match_conflict: linkedByActivation
-        ? false
-        : Boolean(fuzzyMatch?.conflict || fuzzyMatch?.status === "ambiguous"),
-      link_source: linkedByActivation ? "activation_link" : (appProfile ? "fuzzy" : "none"),
-      activated_at: subscription.activated_at ?? null,
+      safe_phone_link: match.phoneMatch,
+      safe_match: match.safe,
+      duplicate_phone: match.duplicatePhone,
+      match_status: match.status,
+      match_reason: match.reason,
+      match_conflict: match.conflict || match.status === "ambiguous",
       eligible: false,
       height_cm: appProfile?.height_cm ?? null,
       weight_kg: appProfile?.weight_kg ?? null,
@@ -212,14 +162,8 @@ export async function GET(request: Request) {
   });
 
   const appAccountRows = (appProfiles ?? []).map((profile) => {
-    // Prefer deterministic activation link.
-    const activatedSub = profile.app_user_id
-      ? allSubByActivatedUserId.get(profile.app_user_id as string) ?? null
-      : null;
-    const fuzzyGymMatch = activatedSub ? null : matchAppProfileToGymSubscription(profile, allGymIndexes);
-    const subscription = activatedSub ?? fuzzyGymMatch?.subscription ?? null;
-    const linkedByActivation = Boolean(activatedSub);
-
+    const gymMatch = matchAppProfileToGymSubscription(profile, allGymIndexes);
+    const subscription = gymMatch.subscription;
     const appPhoneNormalized = normalizedProfilePhone(profile);
     return {
       id: `app-${profile.id}`,
@@ -229,7 +173,6 @@ export async function GET(request: Request) {
       full_name: profile.full_name,
       phone: profile.phone,
       dashboard_phone: subscription?.phone ?? null,
-      dashboard_full_name: subscription?.member_name ?? null,
       app_phone: profile.phone,
       status: subscription?.status ?? "app_only",
       goals: null,
@@ -238,18 +181,12 @@ export async function GET(request: Request) {
       has_dashboard_subscription: Boolean(subscription),
       has_app_profile: true,
       has_app_registration: Boolean(profile.app_registered_at),
-      safe_phone_link: linkedByActivation
-        ? true
-        : Boolean(subscription && normalizedGymSubscriptionPhone(subscription) && normalizedGymSubscriptionPhone(subscription) === appPhoneNormalized),
-      safe_match: linkedByActivation ? true : Boolean(fuzzyGymMatch?.safe),
+      safe_phone_link: Boolean(subscription && normalizedGymSubscriptionPhone(subscription) && normalizedGymSubscriptionPhone(subscription) === appPhoneNormalized),
+      safe_match: gymMatch.safe,
       duplicate_phone: false,
-      match_status: linkedByActivation ? "activation_link" : fuzzyGymMatch?.status ?? "no_match",
-      match_reason: linkedByActivation
-        ? "Linked deterministically via gym_subscriptions.activated_user_id."
-        : fuzzyGymMatch?.reason ?? "No gym subscription matched this app profile.",
-      match_conflict: linkedByActivation ? false : (fuzzyGymMatch?.status === "ambiguous"),
-      link_source: linkedByActivation ? "activation_link" : (subscription ? "fuzzy" : "none"),
-      activated_at: subscription?.activated_at ?? null,
+      match_status: gymMatch.status,
+      match_reason: gymMatch.reason,
+      match_conflict: gymMatch.status === "ambiguous",
       eligible: false,
       height_cm: profile.height_cm ?? null,
       weight_kg: profile.weight_kg ?? null,
@@ -266,7 +203,7 @@ export async function GET(request: Request) {
   });
 
   const data = allPlayers.filter((player) => player.eligible);
-  const identityMatchStatuses = ["activation_link", "phone", "full_name", "first_last_name"];
+  const identityMatchStatuses = ["phone", "full_name", "first_last_name"];
 
   // Coach dashboard card "مشتركون من الاستقبال" reads
   // diagnostics.active_dashboard_subscribed_count. Definition: any

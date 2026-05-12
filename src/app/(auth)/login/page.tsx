@@ -34,15 +34,8 @@ export default function LoginPage() {
   }
 
   async function resolveEmail(id: string): Promise<string | null> {
-    if (isPhoneInput(id)) {
-      // Phone: derive email directly without a round-trip
-      return phoneToEmail(id);
-    }
-    // Username: look up via server
-    const res = await fetch(`/api/auth/resolve?username=${encodeURIComponent(id)}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.email ?? null;
+    if (!isPhoneInput(id)) return null;
+    return phoneToEmail(id);
   }
 
   async function handleLogin(e: React.FormEvent) {
@@ -51,14 +44,15 @@ export default function LoginPage() {
     setError("");
 
     const id = identifier.trim();
-    if (!id)       { setError("يرجى إدخال اسم المستخدم أو رقم الهاتف"); return; }
+    if (!id)       { setError("يرجى إدخال رقم الهاتف"); return; }
+    if (!isPhoneInput(id)) { setError("سجّل الدخول باستخدام رقم الهاتف وكلمة المرور حالياً"); return; }
     if (!password) { setError("يرجى إدخال كلمة المرور"); return; }
 
     setLoading(true);
 
     const email = await resolveEmail(id);
     if (!email) {
-      setError("اسم المستخدم أو رقم الهاتف غير موجود");
+      setError("رقم الهاتف غير موجود");
       setLoading(false);
       return;
     }
@@ -71,14 +65,14 @@ export default function LoginPage() {
       if (status === 429) {
         startCountdown(60);
       } else {
-        setError("اسم المستخدم أو كلمة المرور غير صحيحة");
+        setError("رقم الهاتف أو كلمة المرور غير صحيحة");
       }
       setLoading(false);
       return;
     }
 
     if (!authData.user) {
-      setError("اسم المستخدم أو كلمة المرور غير صحيحة");
+      setError("رقم الهاتف أو كلمة المرور غير صحيحة");
       setLoading(false);
       return;
     }

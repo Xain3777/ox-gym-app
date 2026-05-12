@@ -10,7 +10,9 @@ const ActivateSchema = z.object({
 });
 
 // GET — check whether the current player is already activated, so the
-// portal can hide the activation card without a flash.
+// portal can hide the activation card without a flash. Also returns the
+// full subscription card data the portal home renders for activated
+// users (plan, status, dates, price, reception-registered name/phone).
 export async function GET() {
   const { ctx, error } = await requireAuth(["player"]);
   if (error) return error;
@@ -18,7 +20,9 @@ export async function GET() {
   const supabase = createServiceClient();
   const { data: row } = await supabase
     .from("gym_subscriptions")
-    .select("id, activation_code, status, end_date, activated_at")
+    .select(
+      "id, activation_code, plan_type, status, start_date, end_date, price, member_name, phone, activated_at",
+    )
     .eq("activated_user_id", ctx.userId)
     .order("activated_at", { ascending: false })
     .limit(1)
@@ -26,7 +30,23 @@ export async function GET() {
 
   return NextResponse.json({
     success: true,
-    data: { activated: Boolean(row), subscription: row ?? null },
+    data: {
+      activated: Boolean(row),
+      subscription: row
+        ? {
+            id: row.id,
+            activation_code: row.activation_code,
+            plan_type: row.plan_type,
+            status: row.status,
+            start_date: row.start_date,
+            end_date: row.end_date,
+            price: row.price,
+            member_name: row.member_name,
+            phone: row.phone,
+            activated_at: row.activated_at,
+          }
+        : null,
+    },
   });
 }
 

@@ -21,8 +21,12 @@ type CoachPlayer = {
   id: string;
   auth_id?: string | null;
   phone_normalized?: string | null;
+  app_phone_normalized?: string | null;
   full_name: string;
   phone: string | null;
+  dashboard_phone?: string | null;
+  dashboard_full_name?: string | null;
+  app_phone?: string | null;
   status: string;
   height_cm: number | null;
   weight_kg: number | null;
@@ -40,7 +44,13 @@ type CoachPlayer = {
   has_app_profile: boolean;
   has_app_registration: boolean;
   safe_phone_link: boolean;
+  safe_match?: boolean;
   duplicate_phone: boolean;
+  match_status?: string;
+  match_reason?: string;
+  match_conflict?: boolean;
+  link_source?: "activation_link" | "fuzzy" | "none";
+  activated_at?: string | null;
   subscription: {
     plan_type: string;
     start_date: string;
@@ -55,6 +65,9 @@ type CoachPlayer = {
 };
 
 type PlayerGroups = {
+  subscribed_in_gym_dashboard: CoachPlayer[];
+  confirmed_phone_match: CoachPlayer[];
+  unconfirmed_phone_link: CoachPlayer[];
   subscribed_dashboard_not_app: CoachPlayer[];
   subscribed_dashboard_and_app: CoachPlayer[];
   not_subscribed_in_dashboard_but_app: CoachPlayer[];
@@ -69,6 +82,9 @@ export default function CoachPlayersPage() {
   const { success, error: toastError } = useToast();
   const [players, setPlayers] = useState<CoachPlayer[]>([]);
   const [groups, setGroups] = useState<PlayerGroups>({
+    subscribed_in_gym_dashboard: [],
+    confirmed_phone_match: [],
+    unconfirmed_phone_link: [],
     subscribed_dashboard_not_app: [],
     subscribed_dashboard_and_app: [],
     not_subscribed_in_dashboard_but_app: [],
@@ -103,6 +119,9 @@ export default function CoachPlayersPage() {
       setPlayers(eligiblePlayers);
       setGroups(playersJson.groups ?? {
         subscribed_dashboard_not_app: [],
+        subscribed_in_gym_dashboard: eligiblePlayers,
+        confirmed_phone_match: [],
+        unconfirmed_phone_link: [],
         subscribed_dashboard_and_app: eligiblePlayers,
         not_subscribed_in_dashboard_but_app: [],
         duplicate_phone_needs_staff_fix: [],
@@ -359,6 +378,10 @@ export default function CoachPlayersPage() {
 function PlayerProfile({ player, onUnassign }: { player: CoachPlayer; onUnassign: () => void }) {
   const subDays = player.subscription?.end_date ? daysUntil(player.subscription.end_date) : null;
   const notCompleted = "not completed";
+  const linkedByActivation = player.link_source === "activation_link";
+  const showsDistinctReceptionName =
+    player.dashboard_full_name && player.dashboard_full_name !== player.full_name;
+  const activatedDate = player.activated_at ? new Date(player.activated_at).toLocaleDateString() : null;
   return (
     <div className="bg-white/[0.04] border border-white/[0.06] p-5">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -369,6 +392,21 @@ function PlayerProfile({ player, onUnassign }: { player: CoachPlayer; onUnassign
             <Phone size={13} />
             {player.phone ?? "No phone"}
           </p>
+          {showsDistinctReceptionName && (
+            <p className="text-white/30 text-[12px] mt-1">
+              Reception name: <span className="text-white/55">{player.dashboard_full_name}</span>
+            </p>
+          )}
+          {player.dashboard_phone && player.dashboard_phone !== player.phone && (
+            <p className="text-white/30 text-[12px]" dir="ltr">
+              Reception phone: <span className="text-white/55">{player.dashboard_phone}</span>
+            </p>
+          )}
+          {linkedByActivation && (
+            <p className="mt-2 inline-flex items-center gap-1 bg-gold/10 text-gold text-[10px] font-bold uppercase tracking-wider px-2 py-1">
+              Activation linked{activatedDate ? ` · ${activatedDate}` : ""}
+            </p>
+          )}
         </div>
         <div className="text-right">
           <p className="text-white/35 text-[10px] font-mono uppercase tracking-[0.12em]">Current workout</p>
@@ -411,24 +449,29 @@ function DiagnosticGroups({ groups }: { groups: PlayerGroups }) {
   return (
     <div className="space-y-2 pt-2">
       <DiagnosticGroup
-        title="Registered in App"
+        title="All rows in gym_subscriptions"
+        players={groups.subscribed_in_gym_dashboard}
+        tone="gold"
+      />
+      <DiagnosticGroup
+        title="All accounts made in App"
         players={groups.registered_in_app}
         tone="blue"
+      />
+      <DiagnosticGroup
+        title="Confirmed gym/app name or phone match"
+        players={groups.confirmed_phone_match}
+        tone="blue"
+      />
+      <DiagnosticGroup
+        title="Unconfirmed gym/app link"
+        players={groups.unconfirmed_phone_link}
+        tone="danger"
       />
       <DiagnosticGroup
         title="Auth account without app profile"
         players={groups.auth_account_without_app_profile}
         tone="muted"
-      />
-      <DiagnosticGroup
-        title="Subscribed in Dashboard, not in App"
-        players={groups.subscribed_dashboard_not_app}
-        tone="gold"
-      />
-      <DiagnosticGroup
-        title="In App, not subscribed in Dashboard"
-        players={groups.not_subscribed_in_dashboard_but_app}
-        tone="danger"
       />
       <DiagnosticGroup
         title="Duplicate phone / needs staff fix"
@@ -463,9 +506,16 @@ function DiagnosticGroup({ title, players, tone }: { title: string; players: Coa
         ) : players.map((player) => (
           <div key={player.id} className="bg-black/15 border border-white/[0.05] p-2">
             <p className="text-white/70 text-[12px] font-semibold">{player.full_name}</p>
-            <p className="text-white/35 text-[11px]" dir="ltr">{player.phone ?? "No phone"}</p>
+            <p className="text-white/35 text-[11px]" dir="ltr">Dashboard: {player.dashboard_phone ?? player.phone ?? "No phone"}</p>
+            <p className="text-white/35 text-[11px]" dir="ltr">App: {player.app_phone ?? "No app phone"}</p>
             {player.phone_normalized && (
-              <p className="text-white/25 text-[10px]" dir="ltr">Normalized: {player.phone_normalized}</p>
+              <p className="text-white/25 text-[10px]" dir="ltr">Dashboard normalized: {player.phone_normalized}</p>
+            )}
+            {player.app_phone_normalized && (
+              <p className="text-white/25 text-[10px]" dir="ltr">App normalized: {player.app_phone_normalized}</p>
+            )}
+            {player.match_status && (
+              <p className="text-white/25 text-[10px]">Match: {player.match_status}</p>
             )}
             {player.app_registered_at && (
               <p className="text-white/25 text-[10px]" dir="ltr">App: {new Date(player.app_registered_at).toLocaleDateString()}</p>

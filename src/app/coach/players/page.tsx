@@ -456,7 +456,7 @@ function DiagnosticGroups({ groups }: { groups: PlayerGroups }) {
   return (
     <div className="space-y-2 pt-2">
       <DiagnosticGroup
-        title="All rows in gym_subscriptions"
+        title="Dashboard subscriptions (not cancelled)"
         players={groups.subscribed_in_gym_dashboard}
         tone="gold"
       />

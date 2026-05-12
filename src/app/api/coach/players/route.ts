@@ -51,21 +51,26 @@ export async function GET(request: Request) {
     .from("member_app_profiles")
     .select("id, linked_member_id, app_user_id, full_name, phone, phone_normalized, name_normalized, height_cm, weight_kg, fitness_goal, training_level, illnesses, injuries, medical_notes, limitations, onboarding_complete, app_registered_at, active, activation_code");
 
-  const { data: gymSubscriptions } = await supabase
+  // Pull every gym_subscriptions row so cancelled ones can still be
+  // counted in the raw diagnostic, then filter to non-cancelled for
+  // everything that drives the player list / dashboard counts. Same
+  // rule used by the dashboard cards.
+  const { data: gymSubscriptionsRaw } = await supabase
     .from("gym_subscriptions")
     .select(
       "id, member_id, member_name, phone, plan_type, start_date, end_date, status, activated_user_id, activated_at, activation_code, cancelled_at",
     );
+  const gymSubscriptions = (gymSubscriptionsRaw ?? []).filter((s) => s.cancelled_at == null);
 
   const profileIndexes = buildAppProfileIndexes(appProfiles ?? []);
-  const activeGymSubscriptions = (gymSubscriptions ?? []).filter(isActiveGymSubscription);
+  const activeGymSubscriptions = gymSubscriptions.filter(isActiveGymSubscription);
   const activeGymIndexes = buildGymSubscriptionIndexes(activeGymSubscriptions);
-  const allGymIndexes = buildGymSubscriptionIndexes(gymSubscriptions ?? []);
+  const allGymIndexes = buildGymSubscriptionIndexes(gymSubscriptions);
 
   // Deterministic activation indexes — preferred over fuzzy phone/name
   // matching whenever a row's activated_user_id is set.
   type AppProfile = NonNullable<typeof appProfiles>[number];
-  type GymSubscription = NonNullable<typeof gymSubscriptions>[number];
+  type GymSubscription = (typeof gymSubscriptions)[number];
 
   const profileByAppUserId = new Map<string, AppProfile>();
   for (const profile of appProfiles ?? []) {
@@ -76,7 +81,7 @@ export async function GET(request: Request) {
     if (sub.activated_user_id) activeSubByActivatedUserId.set(sub.activated_user_id as string, sub);
   }
   const allSubByActivatedUserId = new Map<string, GymSubscription>();
-  for (const sub of gymSubscriptions ?? []) {
+  for (const sub of gymSubscriptions) {
     if (sub.activated_user_id) allSubByActivatedUserId.set(sub.activated_user_id as string, sub);
   }
 
@@ -87,7 +92,15 @@ export async function GET(request: Request) {
     normalizedPhoneCounts.set(normalized, (normalizedPhoneCounts.get(normalized) ?? 0) + 1);
   }
 
-  const allPlayers = (members ?? []).map((member) => {
+  // Only iterate auth-side members. Dashboard-only stub members
+  // (auth_id IS NULL) are not real users — they're the reception's
+  // record of a person and are reachable through their owner's app
+  // profile via activation linking. Including them produced duplicate
+  // rows in the player list (e.g. once as "جوج" + once as the dashboard
+  // member "جولي صقور 2").
+  const membersWithAuth = (members ?? []).filter((m) => m.auth_id);
+
+  const allPlayers = membersWithAuth.map((member) => {
     // Prefer deterministic activation link when present.
     const activatedSub = member.auth_id ? activeSubByActivatedUserId.get(member.auth_id as string) ?? null : null;
     const activatedProfile = member.auth_id ? profileByAppUserId.get(member.auth_id as string) ?? null : null;
@@ -274,13 +287,13 @@ export async function GET(request: Request) {
   const data = allPlayers.filter((player) => player.eligible);
   const identityMatchStatuses = ["activation_link", "phone", "full_name", "first_last_name"];
 
-  // Coach dashboard counts — all classification keys on
-  // gym_subscriptions rows that are NOT cancelled.
+  // Coach dashboard counts — gymSubscriptions is already filtered to
+  // non-cancelled at the source.
   //   A: activated      → has activated_user_id (sendable now)
   //   B: profile_no_code → no activated_user_id, but an app profile
   //                        exists for the same dashboard member_id
   //   C: dashboard_only  → no activated_user_id, no app profile
-  const nonCancelledGym = (gymSubscriptions ?? []).filter((s) => s.cancelled_at == null);
+  const nonCancelledGym = gymSubscriptions;
   const profileMemberIds = new Set<string>();
   for (const profile of appProfiles ?? []) {
     if (profile.linked_member_id) profileMemberIds.add(profile.linked_member_id as string);
@@ -330,7 +343,8 @@ export async function GET(request: Request) {
   return NextResponse.json({ success: true, data, groups, all: allPlayers, diagnostics });
 }
 
-function isActiveGymSubscription(subscription: { status?: string | null; end_date?: string | null }) {
+function isActiveGymSubscription(subscription: { status?: string | null; end_date?: string | null; cancelled_at?: string | null }) {
+  if (subscription.cancelled_at) return false;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   if (subscription.status !== "active" || !subscription.end_date) return false;

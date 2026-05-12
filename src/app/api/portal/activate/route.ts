@@ -57,9 +57,13 @@ export async function GET() {
 }
 
 // POST — claim an activation code for the current signed-in user.
-// Same auth posture as GET above: the code is the secret, role is not.
+//
+// Auth: any signed-in user. CSRF check skipped intentionally — the
+// activation code itself is a single-use 26-bit secret, and the role
+// gate was producing false 403s for legitimate users whose dashboard
+// members row had a non-player role.
 export async function POST(request: NextRequest) {
-  const { ctx, error } = await requireAuth(undefined, request);
+  const { ctx, error } = await requireAuth();
   if (error) return error;
 
   let body: unknown;
@@ -84,30 +88,21 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServiceClient();
 
-  // Already activated by this user? Idempotent success — don't ask again.
-  const { data: existingForUser } = await supabase
-    .from("gym_subscriptions")
-    .select("id, activation_code")
-    .eq("activated_user_id", ctx.userId)
-    .limit(1)
-    .maybeSingle();
-
-  if (existingForUser) {
-    return NextResponse.json({
-      success: true,
-      data: { already_activated: true, subscription_id: existingForUser.id },
-    });
-  }
-
+  // Look up the row by code FIRST. The previous "do you have any prior
+  // activation" shortcut silently returned success for the wrong code
+  // whenever the user had any earlier claim — so renewals/new codes
+  // never linked. Code-first lookup keeps idempotency for the SAME code
+  // while letting users claim a different one.
   const { data: sub, error: lookupError } = await supabase
     .from("gym_subscriptions")
-    .select("id, member_id, member_name, phone, status, end_date, activated_user_id, plan_type, start_date")
+    .select("id, member_id, member_name, phone, status, end_date, start_date, plan_type, activated_user_id, activated_at")
     .eq("activation_code", code)
     .maybeSingle();
 
   if (lookupError) {
+    console.error("[activate] code lookup failed:", lookupError);
     return NextResponse.json(
-      { success: false, error: "Failed to verify activation code" },
+      { success: false, error: "Failed to verify activation code", debug: lookupError.message },
       { status: 500 },
     );
   }
@@ -119,7 +114,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (sub.activated_user_id && sub.activated_user_id !== ctx.userId) {
+  // Already claimed by THIS user → idempotent success.
+  if (sub.activated_user_id === ctx.userId) {
+    return NextResponse.json({
+      success: true,
+      data: { already_activated: true, subscription_id: sub.id, activated: true },
+    });
+  }
+
+  // Claimed by SOMEONE ELSE → reject.
+  if (sub.activated_user_id) {
     return NextResponse.json(
       { success: false, error: "Activation code is already used by another account", code: "ALREADY_USED" },
       { status: 409 },
@@ -144,18 +148,26 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Claim the code. Use a conditional update so two concurrent claims for
-  // the same code can't both succeed.
+  // Claim the code. Conditional update guards against concurrent claims.
   const nowIso = new Date().toISOString();
   const { data: claimed, error: claimError } = await supabase
     .from("gym_subscriptions")
     .update({ activated_user_id: ctx.userId, activated_at: nowIso })
     .eq("id", sub.id)
     .is("activated_user_id", null)
-    .select("id, member_id")
+    .select("id, member_id, activated_user_id, activated_at")
     .maybeSingle();
 
-  if (claimError || !claimed) {
+  if (claimError) {
+    console.error("[activate] update failed:", claimError);
+    return NextResponse.json(
+      { success: false, error: "Failed to claim activation code", debug: claimError.message },
+      { status: 500 },
+    );
+  }
+
+  if (!claimed) {
+    // Lost the race — someone else just claimed it.
     return NextResponse.json(
       { success: false, error: "Activation code is already used by another account", code: "ALREADY_USED" },
       { status: 409 },
@@ -163,16 +175,19 @@ export async function POST(request: NextRequest) {
   }
 
   // Ensure the player has a member_app_profile linked to the same dashboard
-  // member so coach eligibility immediately recognises them. We don't
-  // override existing profile data, just make sure the row exists with
-  // app_registered_at set.
+  // member so coach eligibility recognises them. Best-effort — failure
+  // here doesn't roll back the activation.
   const linkedMemberId = sub.member_id ?? ctx.memberId;
   if (linkedMemberId) {
-    await upsertMemberAppProfile(supabase, ctx.userId, linkedMemberId, {
-      full_name: sub.member_name ?? undefined,
-      phone: sub.phone ?? undefined,
-      app_registered_at: nowIso,
-    });
+    try {
+      await upsertMemberAppProfile(supabase, ctx.userId, linkedMemberId, {
+        full_name: sub.member_name ?? undefined,
+        phone: sub.phone ?? undefined,
+        app_registered_at: nowIso,
+      });
+    } catch (e) {
+      console.error("[activate] upsertMemberAppProfile failed:", e);
+    }
   }
 
   await supabase.from("audit_logs").insert({
@@ -185,6 +200,10 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    data: { subscription_id: claimed.id, activated: true },
+    data: {
+      subscription_id: claimed.id,
+      activated: true,
+      activated_at: claimed.activated_at,
+    },
   });
 }

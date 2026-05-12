@@ -54,7 +54,7 @@ export async function GET(request: Request) {
   const { data: gymSubscriptions } = await supabase
     .from("gym_subscriptions")
     .select(
-      "id, member_id, member_name, phone, plan_type, start_date, end_date, status, activated_user_id, activated_at, activation_code",
+      "id, member_id, member_name, phone, plan_type, start_date, end_date, status, activated_user_id, activated_at, activation_code, cancelled_at",
     );
 
   const profileIndexes = buildAppProfileIndexes(appProfiles ?? []);
@@ -274,27 +274,41 @@ export async function GET(request: Request) {
   const data = allPlayers.filter((player) => player.eligible);
   const identityMatchStatuses = ["activation_link", "phone", "full_name", "first_last_name"];
 
-  // Coach dashboard card "مشتركون من الاستقبال" reads
-  // diagnostics.active_dashboard_subscribed_count. Definition: any
-  // non-cancelled gym_subscriptions row with workout days remaining,
-  // PLUS players in `members` who are coach-assignable but don't have
-  // their own gym_subscriptions row yet (deduped by member_id).
-  const activeGymMemberIds = new Set<string>();
-  for (const sub of activeGymSubscriptions) {
-    if (sub.member_id) activeGymMemberIds.add(sub.member_id as string);
+  // Coach dashboard counts — all classification keys on
+  // gym_subscriptions rows that are NOT cancelled.
+  //   A: activated      → has activated_user_id (sendable now)
+  //   B: profile_no_code → no activated_user_id, but an app profile
+  //                        exists for the same dashboard member_id
+  //   C: dashboard_only  → no activated_user_id, no app profile
+  const nonCancelledGym = (gymSubscriptions ?? []).filter((s) => s.cancelled_at == null);
+  const profileMemberIds = new Set<string>();
+  for (const profile of appProfiles ?? []) {
+    if (profile.linked_member_id) profileMemberIds.add(profile.linked_member_id as string);
   }
-  const eligiblePlayersWithoutGymRow = allPlayers.filter(
-    (player) => player.eligible && !activeGymMemberIds.has(player.id as string),
-  );
-  const activeDashboardSubscribedCount =
-    activeGymSubscriptions.length + eligiblePlayersWithoutGymRow.length;
+
+  let aActivated = 0;
+  let bProfileNoCode = 0;
+  let cDashboardOnly = 0;
+  for (const sub of nonCancelledGym) {
+    if (sub.activated_user_id) {
+      aActivated++;
+    } else if (sub.member_id && profileMemberIds.has(sub.member_id as string)) {
+      bProfileNoCode++;
+    } else {
+      cDashboardOnly++;
+    }
+  }
+
   const diagnostics = {
-    active_dashboard_subscribed_count: activeDashboardSubscribedCount,
-    paid_dashboard_with_app_count: data.length,
-    paid_dashboard_without_app_count: allPlayers.filter(
-      (player) => player.has_dashboard_subscription && !player.eligible && !player.match_conflict,
-    ).length,
-    assignable_count: data.length,
+    total_dashboard_non_cancelled: nonCancelledGym.length,
+    activated:                     aActivated,
+    app_profile_no_code:           bProfileNoCode,
+    dashboard_only_no_profile:     cDashboardOnly,
+    // Back-compat keys for older callers — same semantics they had.
+    active_dashboard_subscribed_count: nonCancelledGym.length,
+    paid_dashboard_with_app_count:     aActivated,
+    paid_dashboard_without_app_count:  bProfileNoCode + cDashboardOnly,
+    assignable_count:                  aActivated,
   };
 
   const groups = {

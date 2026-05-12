@@ -7,21 +7,19 @@ import { createBrowserSupabase } from "@/lib/supabase";
 import { Users, Dumbbell, UserCheck, UserX } from "lucide-react";
 
 interface Stats {
-  activePlayers: number;
-  appRegisteredPlayers: number;
-  dashboardOnlyPlayers: number;
-  assignablePlayers: number;
-  plansSent: number;
+  totalNonCancelled: number;
+  activated: number;
+  appProfileNoCode: number;
+  dashboardOnlyNoProfile: number;
 }
 
 export default function CoachDashboard() {
   const { t } = useTranslation();
   const [stats, setStats] = useState<Stats>({
-    activePlayers: 0,
-    appRegisteredPlayers: 0,
-    dashboardOnlyPlayers: 0,
-    assignablePlayers: 0,
-    plansSent: 0,
+    totalNonCancelled: 0,
+    activated: 0,
+    appProfileNoCode: 0,
+    dashboardOnlyNoProfile: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -32,37 +30,15 @@ export default function CoachDashboard() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Same source as /coach/players: only subscribed + app-linked players
-        // are returned in data. The card itself shows the Dashboard-paid
-        // active player count from member_subscriptions.
         const playersRes = await fetch("/api/coach/players");
-        const playersJson = await playersRes.json().catch(() => ({ data: [] }));
-        const playerCount = typeof playersJson.diagnostics?.active_dashboard_subscribed_count === "number"
-          ? playersJson.diagnostics.active_dashboard_subscribed_count
-          : Array.isArray(playersJson.data) ? playersJson.data.length : 0;
-        const appRegisteredCount = typeof playersJson.diagnostics?.paid_dashboard_with_app_count === "number"
-          ? playersJson.diagnostics.paid_dashboard_with_app_count
-          : Array.isArray(playersJson.groups?.subscribed_dashboard_and_app) ? playersJson.groups.subscribed_dashboard_and_app.length : 0;
-        const dashboardOnlyCount = typeof playersJson.diagnostics?.paid_dashboard_without_app_count === "number"
-          ? playersJson.diagnostics.paid_dashboard_without_app_count
-          : Array.isArray(playersJson.groups?.subscribed_dashboard_not_app) ? playersJson.groups.subscribed_dashboard_not_app.length : 0;
-        const assignableCount = typeof playersJson.diagnostics?.assignable_count === "number"
-          ? playersJson.diagnostics.assignable_count
-          : appRegisteredCount;
-
-        // Get plans sent today
-        const today = new Date().toISOString().split("T")[0];
-        const { count: sentCount } = await supabase
-          .from("plan_sends")
-          .select("*", { count: "exact", head: true })
-          .gte("sent_at", today);
+        const playersJson = await playersRes.json().catch(() => ({}));
+        const d = playersJson.diagnostics ?? {};
 
         setStats({
-          activePlayers: playerCount,
-          appRegisteredPlayers: appRegisteredCount,
-          dashboardOnlyPlayers: dashboardOnlyCount,
-          assignablePlayers: assignableCount,
-          plansSent: sentCount ?? 0,
+          totalNonCancelled:     Number(d.total_dashboard_non_cancelled ?? 0),
+          activated:             Number(d.activated ?? 0),
+          appProfileNoCode:      Number(d.app_profile_no_code ?? 0),
+          dashboardOnlyNoProfile: Number(d.dashboard_only_no_profile ?? 0),
         });
       } catch {
         // Stats stay at 0
@@ -74,10 +50,10 @@ export default function CoachDashboard() {
   }, []);
 
   const cards = [
-    { label: "مشتركون من الاستقبال", value: stats.activePlayers, icon: Users, href: "/coach/players", color: "text-[#FF6B35]", bg: "bg-[#FF6B35]/10" },
-    { label: "لديهم حساب تطبيق", value: stats.appRegisteredPlayers, icon: UserCheck, href: "/coach/players", color: "text-green-400", bg: "bg-green-400/10" },
-    { label: "بدون حساب تطبيق", value: stats.dashboardOnlyPlayers, icon: UserX, href: "/coach/players", color: "text-gold", bg: "bg-gold/10" },
-    { label: "قابلون للتعيين", value: stats.assignablePlayers, icon: Dumbbell, href: "/coach/players", color: "text-blue-400", bg: "bg-blue-400/10" },
+    { label: "مشتركون من الاستقبال (غير ملغى)", value: stats.totalNonCancelled, icon: Users, href: "/coach/players", color: "text-[#FF6B35]", bg: "bg-[#FF6B35]/10" },
+    { label: "يمكن إرسال خطة (مفعّل)",          value: stats.activated,         icon: UserCheck, href: "/coach/players", color: "text-green-400", bg: "bg-green-400/10" },
+    { label: "عمل حساب ولم يفعّل بعد",          value: stats.appProfileNoCode,  icon: Dumbbell, href: "/coach/players", color: "text-gold",       bg: "bg-gold/10" },
+    { label: "بالاستقبال بدون حساب تطبيق",      value: stats.dashboardOnlyNoProfile, icon: UserX, href: "/coach/players", color: "text-blue-400", bg: "bg-blue-400/10" },
   ];
 
   return (

@@ -55,7 +55,7 @@ export default function LoginPage() {
     setError("");
 
     const id = identifier.trim();
-    if (!id)       { setError("يرجى إدخال رقم الهاتف أو اسم المستخدم"); return; }
+    if (!id)       { setError("يرجى إدخال الاسم أو رقم الهاتف"); return; }
     if (!password) { setError("يرجى إدخال كلمة المرور"); return; }
 
     setLoading(true);
@@ -75,14 +75,14 @@ export default function LoginPage() {
       if (status === 429) {
         startCountdown(60);
       } else {
-        setError("اسم المستخدم/رقم الهاتف أو كلمة المرور غير صحيحة");
+        setError("الاسم/رقم الهاتف أو كلمة المرور غير صحيحة");
       }
       setLoading(false);
       return;
     }
 
     if (!authData.user) {
-      setError("اسم المستخدم/رقم الهاتف أو كلمة المرور غير صحيحة");
+      setError("الاسم/رقم الهاتف أو كلمة المرور غير صحيحة");
       setLoading(false);
       return;
     }
@@ -118,7 +118,7 @@ export default function LoginPage() {
         تسجيل الدخول
       </h2>
       <p className="text-[13px] text-muted mb-8">
-        سجّل الدخول باسم المستخدم أو رقم الهاتف
+        سجّل الدخول بالاسم أو رقم الهاتف
       </p>
 
       <form onSubmit={handleLogin} className="space-y-5">
@@ -135,7 +135,7 @@ export default function LoginPage() {
 
         <div>
           <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted block mb-2">
-            اسم المستخدم أو رقم الهاتف
+            الاسم أو رقم الهاتف
           </label>
           <input
             type="text"
@@ -143,12 +143,10 @@ export default function LoginPage() {
             onChange={(e) => setIdentifier(e.target.value)}
             required
             autoComplete="username"
-            autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
             className="w-full h-12 px-4 bg-iron border border-steel text-offwhite text-[14px] placeholder:text-slate focus:border-gold focus:outline-none transition-colors"
-            placeholder="ahmad.k  /  0912345678"
-            dir="ltr"
+            placeholder="أحمد خليل  /  0912345678"
           />
         </div>
 

@@ -31,6 +31,8 @@ export default function MachinesPage() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Machine | null>(null);
 
+  // Search still matches against the Arabic name so an Arabic user can
+  // type Arabic and find it — but the displayed name is always English.
   const filtered = MACHINES.filter((m) => {
     const matchGroup = filter === "All" || m.muscleGroup === filter;
     const q = search.trim().toLowerCase();
@@ -82,11 +84,11 @@ export default function MachinesPage() {
             {filtered.map((machine) => (
               <button key={machine.id} onClick={() => setSelected(machine)} className="rounded-lg bg-white/[0.03] border border-white/[0.06] overflow-hidden text-left hover:bg-white/[0.05] hover:border-gold/10 active:scale-[0.98] transition-all duration-200">
                 <div className="bg-white h-44 overflow-hidden">
-                  <Image src={machine.image} alt={isAr ? machine.nameAr : machine.name} width={400} height={250} className="w-full h-full object-contain p-4" />
+                  <Image src={machine.image} alt={machine.name} width={400} height={250} className="w-full h-full object-contain p-4" />
                 </div>
                 <div className="p-4">
-                  <h3 className="text-white text-[15px] font-semibold leading-snug" dir={isAr ? "rtl" : "ltr"}>
-                    {isAr ? machine.nameAr : machine.name}
+                  <h3 className="text-white text-[15px] font-semibold leading-snug" dir="ltr">
+                    {machine.name}
                   </h3>
                   <span className={cn("inline-block mt-2 text-[11px] font-medium px-2.5 py-1 rounded-sm", groupColor[machine.muscleGroup])}>
                     {isAr ? groupLabelAr[machine.muscleGroup] : machine.muscleGroup}
@@ -106,34 +108,70 @@ export default function MachinesPage() {
 function MachineModal({ machine, isAr, onClose }: { machine: Machine; isAr: boolean; onClose: () => void }) {
   const [playing, setPlaying] = useState(false);
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-iron w-full max-w-md sm:rounded-lg rounded-t-2xl max-h-[90vh] overflow-y-auto border border-white/[0.08]" onClick={(e) => e.stopPropagation()}>
-        <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mt-3 mb-2 sm:hidden" />
-        <div className="bg-white sm:rounded-t-lg overflow-hidden">
-          <Image src={machine.image} alt={isAr ? machine.nameAr : machine.name} width={480} height={300} className="w-full h-52 object-contain p-6" priority />
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4"
+      onClick={onClose}
+    >
+      <div
+        className="relative bg-iron w-full max-w-md rounded-2xl border border-white/[0.10] shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh-2rem)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close icon — top right, always reachable */}
+        <button
+          onClick={onClose}
+          aria-label={isAr ? "إغلاق" : "Close"}
+          className="absolute top-6 right-6 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-black/45 hover:bg-black/65 backdrop-blur-sm text-white/85 transition-colors"
+        >
+          <OxClose size={18} />
+        </button>
+
+        {/* Media area — image or playing demo */}
+        <div className="bg-white overflow-hidden flex-shrink-0">
+          {machine.demo && playing ? (
+            <div className="w-full aspect-video bg-black">
+              <iframe
+                src={`https://www.youtube.com/embed/${machine.demo}?autoplay=1&rel=0`}
+                allow="autoplay; encrypted-media"
+                allowFullScreen
+                className="w-full h-full"
+              />
+            </div>
+          ) : (
+            <Image
+              src={machine.image}
+              alt={machine.name}
+              width={480}
+              height={300}
+              className="w-full h-52 object-contain p-6"
+              priority
+            />
+          )}
         </div>
-        <div className="p-6 space-y-4" dir={isAr ? "rtl" : "ltr"}>
+
+        {/* Body — scrolls if content overflows */}
+        <div className="p-6 space-y-4 overflow-y-auto" dir={isAr ? "rtl" : "ltr"}>
           <div>
-            <h2 className="text-white text-[22px] font-bold">
-              {isAr ? machine.nameAr : machine.name}
+            <h2 className="text-white text-[22px] font-bold" dir="ltr">
+              {machine.name}
             </h2>
             <span className={cn("inline-block mt-2 text-[11px] font-medium px-2.5 py-1 rounded-sm", groupColor[machine.muscleGroup])}>
               {isAr ? groupLabelAr[machine.muscleGroup] : machine.muscleGroup}
             </span>
           </div>
-          <p className="text-white/40 text-[15px] leading-relaxed">{isAr ? machine.descriptionAr : machine.description}</p>
-          {machine.demo && !playing ? (
-            <button onClick={() => setPlaying(true)} className="w-full bg-gold hover:bg-gold-high text-void font-bold text-[16px] py-4 rounded-lg transition-colors flex items-center justify-center gap-2" style={{ minHeight: "56px" }}>
-              <OxPlay size={20} />{isAr ? "شغّل العرض" : "PLAY DEMO"}
+          <p className="text-white/55 text-[15px] leading-relaxed">
+            {isAr ? machine.descriptionAr : machine.description}
+          </p>
+
+          {machine.demo && !playing && (
+            <button
+              onClick={() => setPlaying(true)}
+              className="w-full bg-gold hover:bg-gold-high text-void font-bold text-[16px] py-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+              style={{ minHeight: "56px" }}
+            >
+              <OxPlay size={20} />
+              {isAr ? "شغّل عرض الفيديو" : "PLAY DEMO"}
             </button>
-          ) : machine.demo && playing ? (
-            <div className="w-full aspect-video bg-black rounded-lg overflow-hidden">
-              <iframe src={`https://www.youtube.com/embed/${machine.demo}?autoplay=1&rel=0`} allow="autoplay; encrypted-media" allowFullScreen className="w-full h-full" />
-            </div>
-          ) : null}
-          <button onClick={onClose} className="w-full bg-white/[0.06] hover:bg-white/[0.10] text-white font-semibold text-[16px] py-4 rounded-lg transition-colors" style={{ minHeight: "56px" }}>
-            {isAr ? "إغلاق" : "Close"}
-          </button>
+          )}
         </div>
       </div>
     </div>

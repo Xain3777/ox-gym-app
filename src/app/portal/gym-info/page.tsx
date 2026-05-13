@@ -402,11 +402,44 @@ export default function GymInfoPage() {
           <p className="text-white font-display text-[22px] tracking-wider leading-none mb-5">عن الجيم</p>
 
           <div className="space-y-3">
-            {/* Owner */}
+            {/* Owners */}
             <div className="border border-gold/20 bg-gold/[0.03] p-5">
-              <p className="text-gold/50 text-[10px] font-bold uppercase tracking-[0.12em] mb-2">المالك والمدير</p>
-              <p className="text-white text-[18px] font-bold">كوتش أدهم زيدان</p>
-              <p className="text-white/40 text-[13px] mt-1">مالك OX GYM و WE SWIM — مدرب متخصص في التدريب الرياضي وإعادة التأهيل</p>
+              <p className="text-gold/50 text-[10px] font-bold uppercase tracking-[0.12em] mb-3">المالكون</p>
+
+              <div className="space-y-2">
+                <p className="text-white text-[18px] font-bold">أحمد عمر زيدان</p>
+                <ul className="space-y-1.5">
+                  {[
+                    "بطل ألمانيا فيزيك",
+                    "مهندس كهرباء",
+                  ].map((line) => (
+                    <li key={line} className="flex items-start gap-2.5">
+                      <OxCheck size={13} className="text-gold shrink-0 mt-1" />
+                      <span className="text-white/65 text-[13px] leading-relaxed">{line}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="border-t border-gold/15 mt-4 pt-4 space-y-2">
+                <p className="text-white text-[18px] font-bold">أدهم عمر زيدان</p>
+                <ul className="space-y-1.5">
+                  {[
+                    "بطل عرب وآسيا وغرب آسيا",
+                    "مدرب دولي بالسباحة من الاتحاد الدولي FINA",
+                    "عضو لجنة المدربين الأمريكي AC",
+                    "عضو الاتحاد العربي السوري للألعاب المائية",
+                    "دبلوم في كلية التربية الرياضية",
+                    "ماجستير في علم التدريب — اختصاص سباحة",
+                    "مدرس مادة السباحة في جامعة تشرين — كلية التربية الرياضية",
+                  ].map((line) => (
+                    <li key={line} className="flex items-start gap-2.5">
+                      <OxCheck size={13} className="text-gold shrink-0 mt-1" />
+                      <span className="text-white/65 text-[13px] leading-relaxed">{line}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
 
             {/* Designer */}

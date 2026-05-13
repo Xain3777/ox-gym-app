@@ -67,16 +67,10 @@ type CoachPlayer = {
 };
 
 type PlayerGroups = {
-  subscribed_in_gym_dashboard: CoachPlayer[];
-  confirmed_phone_match: CoachPlayer[];
-  unconfirmed_phone_link: CoachPlayer[];
-  subscribed_dashboard_not_app: CoachPlayer[];
-  subscribed_dashboard_and_app: CoachPlayer[];
-  not_subscribed_in_dashboard_but_app: CoachPlayer[];
-  duplicate_phone_needs_staff_fix: CoachPlayer[];
-  incomplete_app_profile: CoachPlayer[];
-  registered_in_app: CoachPlayer[];
-  auth_account_without_app_profile: CoachPlayer[];
+  assignable: CoachPlayer[];
+  signed_up_no_code: CoachPlayer[];
+  dashboard_only: CoachPlayer[];
+  needs_intervention: CoachPlayer[];
 };
 
 export default function CoachPlayersPage() {
@@ -84,16 +78,10 @@ export default function CoachPlayersPage() {
   const { success, error: toastError } = useToast();
   const [players, setPlayers] = useState<CoachPlayer[]>([]);
   const [groups, setGroups] = useState<PlayerGroups>({
-    subscribed_in_gym_dashboard: [],
-    confirmed_phone_match: [],
-    unconfirmed_phone_link: [],
-    subscribed_dashboard_not_app: [],
-    subscribed_dashboard_and_app: [],
-    not_subscribed_in_dashboard_but_app: [],
-    duplicate_phone_needs_staff_fix: [],
-    incomplete_app_profile: [],
-    registered_in_app: [],
-    auth_account_without_app_profile: [],
+    assignable: [],
+    signed_up_no_code: [],
+    dashboard_only: [],
+    needs_intervention: [],
   });
   const [programs, setPrograms] = useState<WorkoutProgramTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,16 +108,10 @@ export default function CoachPlayersPage() {
       const eligiblePlayers = playersJson.data ?? [];
       setPlayers(eligiblePlayers);
       setGroups(playersJson.groups ?? {
-        subscribed_dashboard_not_app: [],
-        subscribed_in_gym_dashboard: eligiblePlayers,
-        confirmed_phone_match: [],
-        unconfirmed_phone_link: [],
-        subscribed_dashboard_and_app: eligiblePlayers,
-        not_subscribed_in_dashboard_but_app: [],
-        duplicate_phone_needs_staff_fix: [],
-        incomplete_app_profile: [],
-        registered_in_app: eligiblePlayers,
-        auth_account_without_app_profile: [],
+        assignable: eligiblePlayers,
+        signed_up_no_code: [],
+        dashboard_only: [],
+        needs_intervention: [],
       });
       setPrograms((programsJson.data ?? []).filter((program: WorkoutProgramTemplate) => program.is_active));
       setSelectedPlayerId((current) => eligiblePlayers.some((player: CoachPlayer) => player.id === current) ? current : eligiblePlayers[0]?.id ?? null);
@@ -241,15 +223,15 @@ export default function CoachPlayersPage() {
               />
             </div>
 
-            {groups.duplicate_phone_needs_staff_fix.length > 0 && (
+            {groups.needs_intervention.length > 0 && (
               <section className="border border-danger/30 bg-danger/[0.04] p-4 mb-1">
                 <p className="text-danger text-[13px] font-bold mb-1">
-                  تكرار رقم الهاتف — تحتاج تدخّل
+                  يحتاج تدخّل من الاستقبال
                 </p>
                 <p className="text-white/55 text-[12px] mb-3">
-                  هؤلاء الأعضاء لديهم نفس رقم الهاتف. عدّل بيانات أحدهم في صفحة الأعضاء قبل إرسال أي برنامج.
+                  حسابات بحالة غير سليمة (تكرار هاتف أو ربط معطوب). صحّح الحالة من الاستقبال قبل أي إسناد.
                 </p>
-                {groups.duplicate_phone_needs_staff_fix.map((p) => (
+                {groups.needs_intervention.map((p) => (
                   <div key={p.id} className="text-white/70 text-[13px] py-0.5">{p.full_name} — {p.phone}</div>
                 ))}
               </section>
@@ -325,7 +307,7 @@ export default function CoachPlayersPage() {
             ) : (
               <div className="text-center py-16 bg-white/[0.03] border border-white/[0.06]">
                 <User size={40} className="mx-auto text-white/10 mb-4" />
-                <p className="text-white/40 text-[14px]">{t("coach.noPlayersDesc")}</p>
+                <p className="text-white/40 text-[14px]">اختر لاعباً من القائمة لإرسال خطة</p>
               </div>
             )}
           </section>
@@ -433,8 +415,8 @@ function PlayerListSections({
   if (players.length === 0) {
     return (
       <div className="bg-white/[0.03] border border-white/[0.06] p-5 text-center">
-        <p className="text-white/45 text-[13px]">No active Dashboard subscribers found.</p>
-        <p className="text-white/25 text-[11px] mt-1">App-only players are listed below for diagnosis.</p>
+        <p className="text-white/45 text-[13px]">لا يوجد لاعبون يمكن إرسال خطة لهم بعد</p>
+        <p className="text-white/25 text-[11px] mt-1">سيظهر اللاعب هنا فور إدخاله كود التفعيل من الاستقبال</p>
       </div>
     );
   }
@@ -531,40 +513,27 @@ function DiagnosticGroups({ groups }: { groups: PlayerGroups }) {
   return (
     <div className="space-y-2 pt-2">
       <DiagnosticGroup
-        title="Dashboard subscriptions (not cancelled)"
-        players={groups.subscribed_in_gym_dashboard}
+        title="يمكن إرسال خطة الآن"
+        players={groups.assignable}
         tone="gold"
       />
       <DiagnosticGroup
-        title="All accounts made in App"
-        players={groups.registered_in_app}
+        title="سجّلوا في التطبيق — لم يدخلوا كود التفعيل"
+        players={groups.signed_up_no_code}
         tone="blue"
       />
       <DiagnosticGroup
-        title="Confirmed gym/app name or phone match"
-        players={groups.confirmed_phone_match}
-        tone="blue"
-      />
-      <DiagnosticGroup
-        title="Unconfirmed gym/app link"
-        players={groups.unconfirmed_phone_link}
-        tone="danger"
-      />
-      <DiagnosticGroup
-        title="Auth account without app profile"
-        players={groups.auth_account_without_app_profile}
+        title="مشتركو الاستقبال — لم ينشئوا حساب بعد"
+        players={groups.dashboard_only}
         tone="muted"
       />
-      <DiagnosticGroup
-        title="Duplicate phone / needs staff fix"
-        players={groups.duplicate_phone_needs_staff_fix}
-        tone="danger"
-      />
-      <DiagnosticGroup
-        title="Incomplete app profile"
-        players={groups.incomplete_app_profile}
-        tone="muted"
-      />
+      {groups.needs_intervention.length > 0 && (
+        <DiagnosticGroup
+          title="يحتاج تدخّل من الاستقبال"
+          players={groups.needs_intervention}
+          tone="danger"
+        />
+      )}
     </div>
   );
 }

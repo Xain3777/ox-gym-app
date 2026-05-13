@@ -289,7 +289,6 @@ export async function GET(request: Request) {
   });
 
   const data = allPlayers.filter((player) => player.eligible);
-  const identityMatchStatuses = ["activation_link", "phone", "full_name", "first_last_name"];
 
   // Coach dashboard counts — gymSubscriptions is already filtered to
   // non-cancelled at the source.
@@ -328,20 +327,16 @@ export async function GET(request: Request) {
     assignable_count:                  aActivated,
   };
 
+  // Four-group shape — replaces the 7-group fuzzy-era layout.
+  // - assignable:         the only group a coach acts on (mirror of `data`)
+  // - signed_up_no_code:  app accounts to nudge ("enter your code")
+  // - dashboard_only:     paid gym subs with no app account yet (context only)
+  // - needs_intervention: only ever non-empty if data is broken
   const groups = {
-    subscribed_in_gym_dashboard: gymDashboardRows,
-    registered_in_app: appAccountRows,
-    confirmed_phone_match: gymDashboardRows.filter((player) => player.has_app_registration && identityMatchStatuses.includes(player.match_status)),
-    unconfirmed_phone_link: [
-      ...gymDashboardRows.filter((player) => !identityMatchStatuses.includes(player.match_status)),
-      ...appAccountRows.filter((player) => !identityMatchStatuses.includes(player.match_status)),
-    ],
-    subscribed_dashboard_and_app: data,
-    subscribed_dashboard_not_app: allPlayers.filter((player) => player.has_dashboard_subscription && !player.eligible && !player.match_conflict),
-    not_subscribed_in_dashboard_but_app: allPlayers.filter((player) => !player.has_dashboard_subscription && player.has_app_registration),
-    duplicate_phone_needs_staff_fix: allPlayers.filter((player) => player.duplicate_phone || player.match_conflict),
-    incomplete_app_profile: allPlayers.filter((player) => player.has_dashboard_subscription && player.has_app_registration && player.safe_match && !player.onboarding_complete),
-    auth_account_without_app_profile: allPlayers.filter((player) => Boolean(player.auth_id) && !player.has_app_registration),
+    assignable:         data,
+    signed_up_no_code:  appAccountRows.filter((p) => p.has_app_registration && !p.activated_at),
+    dashboard_only:     gymDashboardRows.filter((p) => !p.activated_at),
+    needs_intervention: allPlayers.filter((p) => p.duplicate_phone || p.match_conflict),
   };
 
   return NextResponse.json({ success: true, data, groups, all: allPlayers, diagnostics });

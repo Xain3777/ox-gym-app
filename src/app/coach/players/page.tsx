@@ -255,45 +255,11 @@ export default function CoachPlayersPage() {
               </section>
             )}
 
-            <div className="space-y-2 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
-              {filteredPlayers.length === 0 && (
-                <div className="bg-white/[0.03] border border-white/[0.06] p-5 text-center">
-                  <p className="text-white/45 text-[13px]">No active Dashboard subscribers found.</p>
-                  <p className="text-white/25 text-[11px] mt-1">App-only players are listed below for diagnosis.</p>
-                </div>
-              )}
-              {filteredPlayers.map((player) => (
-                <button
-                  key={player.id}
-                  type="button"
-                  onClick={() => setSelectedPlayerId(player.id)}
-                  className={cn(
-                    "w-full flex items-center gap-3 p-4 text-right border transition-colors",
-                    selectedPlayer?.id === player.id
-                      ? "bg-[#FF6B35]/10 border-[#FF6B35]/35"
-                      : "bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.06]",
-                  )}
-                >
-                  <div className="w-10 h-10 bg-[#FF6B35]/10 flex items-center justify-center text-[#FF6B35] font-bold text-[14px]">
-                    {player.full_name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-[14px] font-medium truncate">{player.full_name}</p>
-                    <p className="text-white/40 text-[12px] truncate">{player.phone ?? "No phone"}</p>
-                  </div>
-                  {player.current_assignment?.template && (
-                    <span className="text-[9px] font-mono uppercase text-gold bg-gold/10 px-1.5 py-0.5">
-                      Assigned
-                    </span>
-                  )}
-                  {!player.eligible && (
-                    <span className="text-[9px] font-mono uppercase text-white/40 bg-white/[0.06] px-1.5 py-0.5">
-                      {player.has_app_registration ? "Blocked" : "No App"}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
+            <PlayerListSections
+              players={filteredPlayers}
+              selectedPlayerId={selectedPlayer?.id ?? null}
+              onSelect={setSelectedPlayerId}
+            />
             <DiagnosticGroups groups={groups} />
           </section>
 
@@ -449,6 +415,115 @@ function PlayerProfile({ player, onUnassign }: { player: CoachPlayer; onUnassign
         <FreeNoteBlock title="Limitations" value={player.limitations} />
       </div>
     </div>
+  );
+}
+
+function PlayerListSections({
+  players,
+  selectedPlayerId,
+  onSelect,
+}: {
+  players: CoachPlayer[];
+  selectedPlayerId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const assigned    = players.filter((p) => p.current_assignment?.template);
+  const notAssigned = players.filter((p) => !p.current_assignment?.template);
+
+  if (players.length === 0) {
+    return (
+      <div className="bg-white/[0.03] border border-white/[0.06] p-5 text-center">
+        <p className="text-white/45 text-[13px]">No active Dashboard subscribers found.</p>
+        <p className="text-white/25 text-[11px] mt-1">App-only players are listed below for diagnosis.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
+      <details open className="border border-gold/25 bg-gold/[0.04]">
+        <summary className="cursor-pointer px-3 py-2.5 flex items-center justify-between text-[12px] font-bold text-gold uppercase tracking-wider">
+          <span>مع برنامج · Assigned</span>
+          <span className="bg-gold/15 text-gold text-[11px] font-mono px-2 py-0.5">{assigned.length}</span>
+        </summary>
+        <div className="p-2 space-y-2">
+          {assigned.length === 0 ? (
+            <p className="text-white/30 text-[12px] py-2 text-center">لا يوجد لاعبون بخطّة حالية</p>
+          ) : assigned.map((player) => (
+            <PlayerRow
+              key={player.id}
+              player={player}
+              selected={player.id === selectedPlayerId}
+              onSelect={onSelect}
+              showProgramName
+            />
+          ))}
+        </div>
+      </details>
+
+      <details open className="border border-white/10 bg-white/[0.02]">
+        <summary className="cursor-pointer px-3 py-2.5 flex items-center justify-between text-[12px] font-bold text-white/60 uppercase tracking-wider">
+          <span>بدون برنامج · Not assigned</span>
+          <span className="bg-white/10 text-white/60 text-[11px] font-mono px-2 py-0.5">{notAssigned.length}</span>
+        </summary>
+        <div className="p-2 space-y-2">
+          {notAssigned.length === 0 ? (
+            <p className="text-white/30 text-[12px] py-2 text-center">كل اللاعبين معيَّن لهم برنامج</p>
+          ) : notAssigned.map((player) => (
+            <PlayerRow
+              key={player.id}
+              player={player}
+              selected={player.id === selectedPlayerId}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function PlayerRow({
+  player,
+  selected,
+  onSelect,
+  showProgramName,
+}: {
+  player: CoachPlayer;
+  selected: boolean;
+  onSelect: (id: string) => void;
+  showProgramName?: boolean;
+}) {
+  const programName = player.current_assignment?.template?.name ?? null;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(player.id)}
+      className={cn(
+        "w-full flex items-center gap-3 p-3 text-right border transition-colors",
+        selected
+          ? "bg-[#FF6B35]/10 border-[#FF6B35]/35"
+          : "bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.06]",
+      )}
+    >
+      <div className="w-10 h-10 bg-[#FF6B35]/10 flex items-center justify-center text-[#FF6B35] font-bold text-[14px] flex-shrink-0">
+        {player.full_name.charAt(0).toUpperCase()}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-white text-[14px] font-medium truncate">{player.full_name}</p>
+        <p className="text-white/40 text-[12px] truncate" dir="ltr">{player.phone ?? "No phone"}</p>
+        {showProgramName && programName && (
+          <p className="text-gold/80 text-[11px] font-mono uppercase tracking-wider truncate mt-1" title={programName}>
+            <span className="text-gold/40">▸</span> {programName}
+          </p>
+        )}
+      </div>
+      {!player.eligible && (
+        <span className="text-[9px] font-mono uppercase text-white/40 bg-white/[0.06] px-1.5 py-0.5 flex-shrink-0">
+          {player.has_app_registration ? "Blocked" : "No App"}
+        </span>
+      )}
+    </button>
   );
 }
 

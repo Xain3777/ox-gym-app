@@ -31,6 +31,7 @@ interface UserData {
     price: number | null;
   } | null;
   workout: { name: string; subtitle: string; exerciseCount: number } | null;
+  mealProgram: { name: string; subtitle: string; dayCount: number } | null;
   hasLoggedProgress: boolean;
   hasMealPlan: boolean;
   hasProfileFilled: boolean;
@@ -157,13 +158,16 @@ export default function PortalHome() {
         const memberId = member.id;
 
         // Parallel fetches
-        const [subRes, assignmentRes, planSendRes, mealSendRes, logRes, mealOrderRes, activationRes] = await Promise.all([
+        const [subRes, assignmentRes, mealAssignmentRes, planSendRes, mealSendRes, logRes, mealOrderRes, activationRes] = await Promise.all([
           supabase.from("member_subscriptions").select("plan_type, start_date, end_date, status, price")
             .eq("member_id", memberId).eq("status", "active")
             .order("end_date", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("member_workout_programs").select("template:workout_program_templates(name, category)")
             .eq("member_id", memberId).eq("status", "active")
             .order("assigned_at", { ascending: false }).limit(1).maybeSingle(),
+          fetch("/api/portal/meal-program")
+            .then((r) => r.ok ? r.json() : null)
+            .catch(() => null),
           supabase.from("plan_sends").select("plan_id").eq("member_id", memberId)
             .eq("plan_type", "workout").eq("status", "sent")
             .order("sent_at", { ascending: false }).limit(1).maybeSingle(),
@@ -227,6 +231,21 @@ export default function PortalHome() {
           (member.illnesses?.length && !member.illnesses.includes("None")) ||
           (member.injuries?.length && !member.injuries.includes("None")));
 
+        // Resolve assigned meal program (from new system)
+        let mealProgram: UserData["mealProgram"] = null;
+        if (mealAssignmentRes?.success && mealAssignmentRes?.data?.template) {
+          const tpl = mealAssignmentRes.data.template as {
+            name: string;
+            category?: string | null;
+            days?: Array<unknown>;
+          };
+          mealProgram = {
+            name: tpl.name,
+            subtitle: tpl.category ?? "",
+            dayCount: tpl.days?.length ?? 0,
+          };
+        }
+
         setData({
           name: fullName,
           firstName,
@@ -242,8 +261,9 @@ export default function PortalHome() {
             price: sub.price,
           } : null,
           workout,
+          mealProgram,
           hasLoggedProgress: !!logRes.data,
-          hasMealPlan: !!mealSendRes.data,
+          hasMealPlan: !!mealSendRes.data || !!mealProgram,
           hasProfileFilled,
           hasOrderedMeal: !!mealOrderRes.data,
         });
@@ -503,6 +523,49 @@ export default function PortalHome() {
             </Link>
           </div>
           <div className="h-[4px] danger-tape-thin" />
+        </section>
+
+        {/* ── Meal Plan Card ── */}
+        <section className="relative bg-white/[0.04] border border-emerald-500/15 overflow-hidden">
+          <div className="flex items-center">
+            <div className="flex-1 h-[6px]"
+              style={{ backgroundImage: "repeating-linear-gradient(90deg,#10b981 0px,#10b981 14px,transparent 14px,transparent 28px)", opacity: 0.5 }} />
+          </div>
+          <div className="relative p-6 pb-4">
+            <p className="text-emerald-400 text-[11px] font-bold uppercase tracking-[0.15em]">
+              OX NUTRITION
+            </p>
+            {data?.mealProgram ? (
+              <>
+                <h2 className="text-white font-display text-[28px] tracking-wider leading-none mt-2">
+                  {data.mealProgram.name}
+                </h2>
+                <p className="text-white/40 text-[15px] mt-2">
+                  {data.mealProgram.subtitle}
+                  {data.mealProgram.dayCount > 0 ? ` · ${data.mealProgram.dayCount} يوم` : ""}
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-white/60 font-display text-[22px] tracking-wider leading-none mt-2">
+                  لم يتم تعيين برنامج غذائي
+                </h2>
+                <p className="text-white/30 text-[14px] mt-2">
+                  احجز استشارة من صفحة البرنامج الغذائي لتحصل على خطة مخصصة.
+                </p>
+              </>
+            )}
+          </div>
+          <div className="relative px-6 pb-6">
+            <Link href="/portal/meals"
+              className="relative flex items-center justify-center gap-2 w-full bg-emerald-500 hover:bg-emerald-400 text-void font-bold text-[16px] py-4 transition-all duration-200"
+              style={{ minHeight: "56px" }}>
+              <OxFork size={20} />
+              برنامج غذائي
+            </Link>
+          </div>
+          <div className="h-[4px]"
+            style={{ backgroundImage: "repeating-linear-gradient(90deg,#10b981 0px,#10b981 14px,transparent 14px,transparent 28px)", opacity: 0.3 }} />
         </section>
 
         {/* ── Quick Actions ── */}

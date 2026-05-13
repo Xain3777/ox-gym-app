@@ -1,139 +1,59 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Image from "next/image";
-import { cn } from "@/lib/utils";
-import { BackArrow } from "@/components/portal/BackArrow";
-import { OxCheck, OxRefresh } from "@/components/icons/OxIcons";
-import { formatSyp } from "@/data/meal-cost";
+import { UtensilsCrossed, ChevronLeft, Sparkles, Activity, Heart, TrendingUp, Send, Check } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
+import { createBrowserSupabase } from "@/lib/supabase";
+import { SubscriptionGate } from "@/components/portal/SubscriptionGate";
+import type { MealProgramTemplate } from "@/lib/meal-programs";
+import { MEAL_SLOT_LABELS_AR } from "@/lib/meal-programs";
 
-type MealItem = {
-  name: string;
-  quantity: string;
-  calories?: number;
-};
+type AssignmentInfo = { id: string; assigned_at: string } | null;
 
-type Meal = {
-  name: string;
-  time: string;
-  items: MealItem[];
-  done: boolean;
-};
-
-type CatalogItem = {
-  id: string;
-  kind: "meal" | "addon";
-  name_ar: string;
-  description_ar: string | null;
-  unit_label_ar: string | null;
-  price_syp: number;
-};
-
-const originalMeals: Meal[] = [
-  {
-    name: "وجبة 1 - الفطور",
-    time: "7:00 ص",
-    items: [
-      { name: "شوفان", quantity: "80 غ" },
-      { name: "بيض كامل", quantity: "3 بيضات" },
-      { name: "موزة", quantity: "1 متوسطة" },
-      { name: "عسل", quantity: "1 ملعقة" },
-    ],
-    done: false,
-  },
-  {
-    name: "وجبة 2 - الغداء",
-    time: "1:00 م",
-    items: [
-      { name: "صدر دجاج مشوي", quantity: "200 غ" },
-      { name: "أرز بسمتي", quantity: "200 غ" },
-      { name: "سلطة مشكلة", quantity: "وعاء" },
-      { name: "زيت زيتون", quantity: "1 ملعقة" },
-    ],
-    done: false,
-  },
-  {
-    name: "وجبة 3 - العشاء",
-    time: "7:30 م",
-    items: [
-      { name: "سلمون", quantity: "180 غ" },
-      { name: "بطاطا حلوة", quantity: "200 غ" },
-      { name: "بروكلي مطهو على البخار", quantity: "150 غ" },
-    ],
-    done: false,
-  },
-  {
-    name: "سناك",
-    time: "3:00 م",
-    items: [
-      { name: "زبادي يوناني", quantity: "200 غ" },
-      { name: "مكسرات مشكلة", quantity: "30 غ" },
-    ],
-    done: false,
-  },
-];
-
-function todayKey() {
-  return `ox-meals-${new Date().toISOString().split("T")[0]}`;
-}
-
-function readDoneState(count: number): boolean[] {
-  try {
-    const saved = localStorage.getItem(todayKey());
-    if (saved) return JSON.parse(saved) as boolean[];
-  } catch { /* ignore */ }
-  return Array.from({ length: count }, () => false);
-}
-
-function planContentToMeals(content: unknown): Meal[] {
-  if (!Array.isArray(content)) return [];
-  const firstDay = content[0] as { meals?: unknown[] } | undefined;
-  const meals = Array.isArray(firstDay?.meals) ? firstDay.meals : [];
-
-  return meals.map((meal, index) => {
-    const row = meal as {
-      name?: string;
-      time?: string;
-      items?: Array<{ name?: string; portion?: string; quantity?: string; calories?: number }>;
-    };
-    return {
-      name: row.name ?? `وجبة ${index + 1}`,
-      time: row.time ?? "",
-      done: false,
-      items: (row.items ?? []).map((item) => ({
-        name: item.name ?? "عنصر",
-        quantity: item.portion ?? item.quantity ?? "",
-        calories: item.calories,
-      })),
-    };
-  });
-}
-
-export default function MealsPage() {
-  const [meals, setMeals] = useState<Meal[]>(originalMeals);
-  const [addons, setAddons] = useState<CatalogItem[]>([]);
-  const [planName, setPlanName] = useState<string | null>(null);
+export default function PortalMealsPage() {
+  const { success, error: toastError } = useToast();
+  const [endDate, setEndDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [changeRequested, setChangeRequested] = useState(false);
+  const [template, setTemplate] = useState<MealProgramTemplate | null>(null);
+  const [assignment, setAssignment] = useState<AssignmentInfo>(null);
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     async function load() {
       try {
-        const [planRes, catalogRes] = await Promise.all([
-          fetch("/api/portal/meals"),
-          fetch("/api/portal/meal-catalog"),
-        ]);
-        const planJson = await planRes.json();
-        const catalogJson = await catalogRes.json();
+        const supabase = createBrowserSupabase();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: member } = await supabase
+            .from("members")
+            .select("id")
+            .eq("auth_id", user.id)
+            .single();
 
-        const assignedMeals = planJson.success ? planContentToMeals(planJson.data?.content) : [];
-        const nextMeals = assignedMeals.length > 0 ? assignedMeals : originalMeals;
-        const done = readDoneState(nextMeals.length);
-        setMeals(nextMeals.map((meal, index) => ({ ...meal, done: done[index] ?? false })));
-        setPlanName(assignedMeals.length > 0 ? planJson.data?.name ?? null : null);
+          if (member) {
+            const { data: sub } = await supabase
+              .from("member_subscriptions")
+              .select("end_date")
+              .eq("member_id", member.id)
+              .eq("status", "active")
+              .order("end_date", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (sub?.end_date) setEndDate(sub.end_date);
+          }
+        }
 
-        if (catalogJson.success) {
-          setAddons((catalogJson.data ?? []).filter((item: CatalogItem) => item.kind === "addon"));
+        const res = await fetch("/api/portal/meal-program");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success) {
+            setTemplate(json.data?.template ?? null);
+            setAssignment(json.data?.assignment ?? null);
+          }
         }
       } finally {
         setLoading(false);
@@ -142,145 +62,217 @@ export default function MealsPage() {
     load();
   }, []);
 
-  function toggleMeal(idx: number) {
-    setMeals((prev) => {
-      const next = prev.map((meal, i) => (i === idx ? { ...meal, done: !meal.done } : meal));
-      try {
-        localStorage.setItem(todayKey(), JSON.stringify(next.map((meal) => meal.done)));
-      } catch { /* ignore */ }
-      return next;
-    });
+  async function submitConsultation() {
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/portal/meal-consultation-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: note.trim() || undefined }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        toastError("فشل الإرسال", json.error ?? "حاول مرة أخرى.");
+        return;
+      }
+      setSubmitted(true);
+      success(
+        json.duplicate ? "طلبك السابق قيد المعالجة" : "تم إرسال طلبك",
+        "سيتواصل معك الكوتش قريباً.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  const completedCount = meals.filter((meal) => meal.done).length;
-  const progress = meals.length > 0 ? Math.round((completedCount / meals.length) * 100) : 0;
-
   return (
-    <div className="min-h-full pb-28 lg:pb-10">
-      <div className="relative w-full overflow-hidden bg-[#071a12]" style={{ height: 200 }}>
-        <div className="absolute top-0 left-0 right-0 h-[6px] z-10"
-          style={{ backgroundImage: "repeating-linear-gradient(90deg,#10b981 0,#10b981 14px,#071a12 14px,#071a12 28px)", opacity: 0.9 }} />
-        <div className="absolute inset-0 pointer-events-none"
-          style={{ backgroundImage: "repeating-linear-gradient(45deg,transparent 0,transparent 28px,rgba(16,185,129,0.04) 28px,rgba(16,185,129,0.04) 30px)" }} />
-        <div className="absolute inset-0 flex items-end" dir="ltr">
-          <div className="relative w-36 h-full flex-shrink-0 pointer-events-none select-none opacity-55">
-            <Image src="/fig-charge.png" alt="" fill className="object-contain object-bottom" unoptimized />
+    <div className="relative min-h-full pb-28 lg:pb-10" dir="rtl">
+      <div className="relative z-10 max-w-lg mx-auto px-5 pt-14 lg:pt-10 space-y-5">
+        <header className="flex items-center justify-between">
+          <Link href="/portal" className="text-white/40 hover:text-white text-[12px] font-mono uppercase tracking-wider flex items-center gap-1.5">
+            <ChevronLeft size={14} />
+            الرئيسية
+          </Link>
+          <div className="text-right">
+            <p className="text-emerald-400 text-[11px] font-mono uppercase tracking-[0.16em]">OX NUTRITION</p>
+            <h1 className="text-white font-display text-[26px] tracking-wider leading-tight mt-1">برنامج غذائي</h1>
           </div>
-          <div className="flex-1 pb-8 px-5 z-10" dir="rtl">
-            <BackArrow href="/portal/workouts" className="mb-2" />
-            <p className="font-display text-[38px] leading-none tracking-wider text-emerald-400">وجباتي</p>
-            <p className="text-white/40 text-[13px] mt-1">
-              {planName ? `خطة: ${planName}` : "خطة التغذية اليومية"}
-            </p>
-          </div>
-        </div>
-        <div className="absolute bottom-0 left-0 right-0 h-[5px] z-10"
-          style={{ backgroundImage: "repeating-linear-gradient(90deg,#10b981 0,#10b981 14px,transparent 14px,transparent 28px)", opacity: 0.4 }} />
-      </div>
+        </header>
 
-      <div className="max-w-lg mx-auto px-5 pt-6" dir="rtl">
-        {loading ? (
-          <div className="text-white/35 text-[14px] text-center py-12">جاري تحميل الوجبات...</div>
-        ) : (
-          <>
-            <div className="bg-white/[0.04] border border-white/[0.06] p-4 mb-6">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-white/40 text-[13px]">تقدم اليوم</p>
-                <p className="text-white text-[15px] font-semibold" dir="ltr">{completedCount}/{meals.length}</p>
-              </div>
-              <div className="w-full h-2 bg-white/[0.06] overflow-hidden">
-                <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${progress}%` }} />
-              </div>
-            </div>
+        <SubscriptionGate endDate={endDate}>
+          {loading ? (
+            <div className="text-center text-white/40 text-[14px] py-16">جار التحميل...</div>
+          ) : !template ? (
+            <NoPlanCard />
+          ) : (
+            <PlanView template={template} assignment={assignment} />
+          )}
 
-            <div className="space-y-3">
-              {meals.map((meal, idx) => (
-                <MealCard key={`${meal.name}-${idx}`} meal={meal} onToggle={() => toggleMeal(idx)} />
-              ))}
-            </div>
-
-            <section className="mt-6 bg-white/[0.03] border border-white/[0.06] p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-emerald-400 text-[13px] font-bold">إضافات متاحة</p>
-                <p className="text-white/25 text-[11px]">من الكتالوج</p>
-              </div>
-              {addons.length === 0 ? (
-                <p className="text-white/35 text-[13px]">لا توجد إضافات متاحة حالياً.</p>
-              ) : (
-                <div className="space-y-2">
-                  {addons.map((addon) => (
-                    <div key={addon.id} className="flex items-center justify-between gap-3 border border-white/[0.05] bg-black/10 px-3 py-2">
-                      <div className="min-w-0">
-                        <p className="text-white/75 text-[13px] font-semibold">{addon.name_ar}</p>
-                        <p className="text-white/35 text-[11px]">{addon.description_ar ?? addon.unit_label_ar ?? ""}</p>
-                      </div>
-                      <p className="text-emerald-400 text-[13px] font-bold shrink-0" dir="ltr">{formatSyp(addon.price_syp)}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            {!changeRequested ? (
-              <button
-                onClick={() => setChangeRequested(true)}
-                className="mt-6 w-full flex items-center justify-center gap-2 bg-white/[0.04] border border-white/[0.06] text-white/50 hover:text-white hover:border-emerald-500/20 font-medium text-[15px] py-4 transition-all"
-                style={{ minHeight: 56 }}
-              >
-                <OxRefresh size={16} />
-                طلب تغيير خطة الوجبات
-              </button>
-            ) : (
-              <div className="mt-6 bg-emerald-950/30 border border-emerald-500/20 p-6 text-center">
-                <OxCheck size={28} className="text-emerald-400 mx-auto mb-3" />
-                <p className="text-white text-[17px] font-semibold">تم إرسال الطلب</p>
-                <p className="text-white/35 text-[14px] mt-1">سيقوم مدربك بمراجعة وتحديث خطة وجباتك.</p>
-              </div>
-            )}
-          </>
-        )}
+          <ConsultationCard
+            note={note}
+            setNote={setNote}
+            onSubmit={submitConsultation}
+            submitting={submitting}
+            submitted={submitted}
+          />
+        </SubscriptionGate>
       </div>
     </div>
   );
 }
 
-function MealCard({ meal, onToggle }: { meal: Meal; onToggle: () => void }) {
+function NoPlanCard() {
   return (
-    <div
-      className={cn(
-        "border p-4 transition-all duration-200",
-        meal.done ? "bg-emerald-950/30 border-emerald-500/20" : "bg-white/[0.03] border-white/[0.06]",
-      )}
-    >
-      <div className="flex items-center justify-between mb-3">
-        <button
-          onClick={onToggle}
-          className={cn(
-            "w-11 h-11 flex items-center justify-center transition-all duration-200 flex-shrink-0",
-            meal.done
-              ? "bg-emerald-500 text-white"
-              : "bg-white/[0.06] border border-white/[0.08] text-white/20 hover:border-emerald-500/40",
-          )}
-        >
-          <OxCheck size={18} />
-        </button>
-        <div className="text-right">
-          <p className={cn("text-[17px] font-semibold", meal.done ? "text-white/40" : "text-white")}>
-            {meal.name}
+    <section className="relative bg-white/[0.03] border border-white/[0.08] p-6 overflow-hidden">
+      <div className="absolute top-0 left-0 right-0 h-[3px] opacity-30" style={{
+        backgroundImage: "repeating-linear-gradient(90deg,#10b981 0px,#10b981 6px,transparent 6px,transparent 12px)",
+      }} />
+      <div className="flex items-start gap-4">
+        <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
+          <UtensilsCrossed size={22} className="text-emerald-400" />
+        </div>
+        <div className="flex-1">
+          <p className="text-white text-[16px] font-semibold">لم يتم تعيين برنامج غذائي بعد</p>
+          <p className="text-white/40 text-[13px] mt-1 leading-relaxed">
+            تواصل مع الكوتش أو اطلب استشارة من الأسفل لتحصل على خطة غذائية مخصصة لك.
           </p>
-          {meal.time && <p className="text-white/25 text-[13px] mt-0.5">{meal.time}</p>}
         </div>
       </div>
-      <div className="space-y-1.5">
-        {meal.items.map((item, itemIdx) => (
-          <div key={`${item.name}-${itemIdx}`} className="flex items-center justify-between gap-3">
-            <span className="text-emerald-400/60 text-[13px] font-medium shrink-0" dir="ltr">{item.quantity}</span>
-            <span className={cn("text-[14px] text-right", meal.done ? "text-white/25 line-through" : "text-white/60")}>
-              {item.name}
-            </span>
-          </div>
-        ))}
+    </section>
+  );
+}
+
+function PlanView({ template, assignment }: { template: MealProgramTemplate; assignment: AssignmentInfo }) {
+  void assignment;
+  return (
+    <section className="space-y-5">
+      <div className="relative bg-emerald-500/[0.06] border border-emerald-500/20 p-5 overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-[3px] opacity-40" style={{
+          backgroundImage: "repeating-linear-gradient(90deg,#10b981 0px,#10b981 6px,transparent 6px,transparent 12px)",
+        }} />
+        <p className="text-emerald-400 text-[11px] font-bold uppercase tracking-[0.15em]">برنامجك الغذائي</p>
+        <h2 className="text-white font-display text-[26px] tracking-wider leading-none mt-2">{template.name}</h2>
+        {template.description && (
+          <p className="text-white/55 text-[13px] mt-2 leading-relaxed">{template.description}</p>
+        )}
+        <p className="text-white/40 text-[12px] mt-2 font-mono">{template.category} · {template.days.length} يوم</p>
       </div>
-    </div>
+
+      {template.days.map((day) => (
+        <article key={day.id} className="border border-white/[0.06] bg-white/[0.04] overflow-hidden">
+          <header className="p-4 border-b border-white/[0.06] flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+              <UtensilsCrossed size={17} className="text-emerald-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-[16px] font-semibold">
+                {day.day_number ? `اليوم ${day.day_number} · ` : ""}{day.name}
+              </p>
+              <p className="text-white/35 text-[11px] mt-0.5">{day.meals.length} وجبة</p>
+            </div>
+          </header>
+
+          <div className="p-4 space-y-3">
+            {day.meals.map((meal) => (
+              <div key={meal.id} className="border border-white/[0.05] bg-iron/60 p-4">
+                <p className="text-emerald-400 text-[10px] font-bold uppercase tracking-[0.14em]">
+                  {MEAL_SLOT_LABELS_AR[meal.meal_slot] ?? meal.meal_slot}
+                </p>
+                <p className="text-white text-[16px] font-semibold mt-1">{meal.name}</p>
+                {meal.description && (
+                  <p className="text-white/65 text-[13px] mt-2 leading-relaxed">{meal.description}</p>
+                )}
+                {meal.example && (
+                  <div className="mt-3 bg-emerald-500/[0.05] border border-emerald-500/15 p-3">
+                    <p className="text-emerald-400 text-[10px] font-bold uppercase tracking-[0.14em] mb-1">مثال</p>
+                    <p className="text-white/80 text-[13px]">{meal.example}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function ConsultationCard({
+  note, setNote, onSubmit, submitting, submitted,
+}: { note: string; setNote: (v: string) => void; onSubmit: () => void; submitting: boolean; submitted: boolean }) {
+  const features = [
+    { icon: <Sparkles size={14} />,   label: "خطة غذائية مخصصة" },
+    { icon: <Activity size={14} />,   label: "تحليل InBody احترافي" },
+    { icon: <Heart size={14} />,      label: "متابعة دورية ودعم مستمر" },
+    { icon: <TrendingUp size={14} />, label: "نتائج حقيقية وصحية" },
+  ];
+
+  return (
+    <section className="relative bg-gradient-to-br from-emerald-500/[0.08] to-emerald-900/10 border border-emerald-500/25 overflow-hidden">
+      <div className="absolute top-0 left-0 right-0 h-[6px] overflow-hidden">
+        <div className="w-full h-full" style={{
+          backgroundImage: "repeating-linear-gradient(90deg,#10b981 0px,#10b981 8px,transparent 8px,transparent 16px)",
+        }} />
+      </div>
+      <div className="absolute -top-2 -left-6 w-24 h-24 opacity-40 pointer-events-none select-none">
+        <Image src="/fig-charge.png" alt="" fill className="object-contain" unoptimized />
+      </div>
+
+      <div className="relative p-6">
+        <p className="text-emerald-400 text-[10px] font-mono uppercase tracking-[0.2em] mb-2">
+          PROFESSIONAL MEAL PLAN + INBODY TEST
+        </p>
+        <h3 className="text-white font-display text-[24px] tracking-wider leading-tight">
+          احجز استشارتك الخاصة الآن
+        </h3>
+        <p className="text-white/55 text-[13px] mt-3 leading-relaxed">
+          خطة تغذية مخصصة + تحليل InBody دقيق لمتابعة التقدم وتحقيق أفضل النتائج.
+        </p>
+
+        <ul className="grid grid-cols-2 gap-2 mt-5">
+          {features.map((f) => (
+            <li key={f.label} className="flex items-center gap-2 bg-white/[0.03] border border-emerald-500/15 px-3 py-2">
+              <span className="text-emerald-400 flex-shrink-0">{f.icon}</span>
+              <span className="text-white/80 text-[12px] leading-tight">{f.label}</span>
+            </li>
+          ))}
+        </ul>
+
+        {submitted ? (
+          <div className="mt-5 bg-emerald-500/15 border border-emerald-500/30 p-4 flex items-center gap-3">
+            <div className="w-9 h-9 bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+              <Check size={16} className="text-emerald-300" />
+            </div>
+            <div>
+              <p className="text-emerald-200 text-[14px] font-semibold">تم استلام طلبك</p>
+              <p className="text-emerald-200/70 text-[12px] mt-0.5">سيتواصل معك الكوتش قريباً.</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <label className="block mt-5">
+              <span className="text-white/35 text-[10px] font-bold uppercase tracking-[0.14em]">ملاحظات (اختياري)</span>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                rows={2}
+                placeholder="مثال: أهدف لتنشيف 5 كجم قبل الصيف"
+                className="mt-1.5 w-full bg-iron border border-emerald-500/20 text-white text-[13px] p-3 placeholder:text-white/25 focus:border-emerald-500/50 focus:outline-none"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={submitting}
+              className="mt-4 w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-void font-bold text-[15px] py-3.5 transition-all"
+            >
+              <Send size={16} />
+              {submitting ? "جار الإرسال..." : "احجز استشارتك الآن"}
+            </button>
+          </>
+        )}
+      </div>
+    </section>
   );
 }

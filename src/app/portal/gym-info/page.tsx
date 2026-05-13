@@ -122,7 +122,7 @@ const fallbackWeSwim: PartnerCard = {
   center_phone: "0937727442",
   center_phone_2: "0968593100",
   cta_label: "زيارة صفحة WE SWIM",
-  cta_url: "https://www.instagram.com/weswim",
+  cta_url: "https://www.facebook.com/Weswim1forlife?mibextid=ZbWKwL",
 };
 
 export default function GymInfoPage() {
@@ -446,14 +446,28 @@ export default function GymInfoPage() {
             <div className="border border-white/10 bg-white/[0.02] p-5">
               <p className="text-white/40 text-[10px] font-bold uppercase tracking-[0.12em] mb-2">التصميم والهندسة المعمارية</p>
               <p className="text-white text-[18px] font-bold">جولي لؤي صقور</p>
-              <p className="text-white/40 text-[13px] mt-1">المهندسة المعمارية المصممة للجيم</p>
+              <p className="text-white/40 text-[13px] mt-1 mb-3">المهندسة المعمارية المصممة للجيم</p>
+              <a
+                href="tel:0987273196"
+                className="inline-flex items-center gap-2 border border-gold/25 bg-gold/[0.06] hover:bg-gold/[0.12] text-gold text-[13px] font-bold tracking-wider px-3 py-2 transition-colors"
+                dir="ltr"
+              >
+                0987273196
+              </a>
             </div>
 
             {/* Software / Computer engineer */}
             <div className="border border-white/10 bg-white/[0.02] p-5">
               <p className="text-white/40 text-[10px] font-bold uppercase tracking-[0.12em] mb-2">هندسة الحاسوب والتطبيق</p>
               <p className="text-white text-[18px] font-bold">زين حيدر</p>
-              <p className="text-white/40 text-[13px] mt-1">مهندس الحاسوب الذي طوّر تطبيق OX GYM</p>
+              <p className="text-white/40 text-[13px] mt-1 mb-3">مهندس الحاسوب الذي طوّر تطبيق OX GYM</p>
+              <a
+                href="tel:0997103903"
+                className="inline-flex items-center gap-2 border border-gold/25 bg-gold/[0.06] hover:bg-gold/[0.12] text-gold text-[13px] font-bold tracking-wider px-3 py-2 transition-colors"
+                dir="ltr"
+              >
+                0997103903
+              </a>
             </div>
           </div>
         </section>
@@ -464,17 +478,32 @@ export default function GymInfoPage() {
           <p className="text-white font-display text-[22px] tracking-wider leading-none mb-5">تواصل معنا</p>
 
           <div className="bg-white/[0.03] border border-white/[0.06] p-5 space-y-3">
-            {[
-              { label: "الهاتف",        value: "+966 XX XXX XXXX", ltr: true },
-              { label: "واتساب",        value: "+966 XX XXX XXXX", ltr: true },
-              { label: "العنوان",       value: "اللاذقية — مشروع الأوقاف" },
-              { label: "مواعيد العمل", value: "من السادسة صباحاً حتى الثانية عشرة مساءً" },
-            ].map(({ label, value, ltr }) => (
-              <div key={label} className="flex items-start justify-between gap-4">
-                <span className="text-white/40 text-[14px] shrink-0">{label}</span>
-                <span className="text-white text-[14px] font-medium text-left" dir={ltr ? "ltr" : "rtl"}>{value}</span>
-              </div>
-            ))}
+            <div className="flex items-start justify-between gap-4">
+              <span className="text-white/40 text-[14px] shrink-0">الهاتف</span>
+              <a href={GYM_RECEPTION_PHONE_TEL} className="text-gold text-[14px] font-bold tracking-wider text-left" dir="ltr">
+                {GYM_RECEPTION_PHONE}
+              </a>
+            </div>
+            <div className="flex items-start justify-between gap-4">
+              <span className="text-white/40 text-[14px] shrink-0">واتساب</span>
+              <a
+                href="https://wa.me/963936755515"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-emerald-400 text-[14px] font-bold tracking-wider text-left"
+                dir="ltr"
+              >
+                {GYM_RECEPTION_PHONE}
+              </a>
+            </div>
+            <div className="flex items-start justify-between gap-4">
+              <span className="text-white/40 text-[14px] shrink-0">العنوان</span>
+              <span className="text-white text-[14px] font-medium text-left" dir="rtl">اللاذقية — مشروع الأوقاف</span>
+            </div>
+            <div className="flex items-start justify-between gap-4">
+              <span className="text-white/40 text-[14px] shrink-0">مواعيد العمل</span>
+              <span className="text-white text-[14px] font-medium text-left" dir="rtl">من السادسة صباحاً حتى الثانية عشرة مساءً</span>
+            </div>
           </div>
         </section>
 

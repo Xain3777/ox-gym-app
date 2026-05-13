@@ -7,7 +7,7 @@ import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
 import {
   OxGear, OxTrainer, OxUser, OxChevronRight,
-  OxTrendUp, OxPulse, OxChat, OxStar, OxLogout, OxInfo,
+  OxTrendUp, OxPulse, OxStar, OxLogout, OxInfo,
 } from "@/components/icons/OxIcons";
 
 interface MoreItem {
@@ -37,7 +37,8 @@ const sections: { titleKey: string; items: MoreItem[] }[] = [
   {
     titleKey: "more.support",
     items: [
-      { labelKey: "more.messages", subtitleKey: "more.messagesSub", href: "/portal/messages", icon: OxChat, iconBg: "bg-sky-500/10", iconColor: "text-sky-400" },
+      // Messages feature is hidden until player↔coach chat is wired up
+      // (no DB / API yet — see plan memoized-waddling-avalanche.md).
       { labelKey: "more.feedback", subtitleKey: "more.feedbackSub", href: "/portal/feedback", icon: OxStar, iconBg: "bg-gold/10", iconColor: "text-gold" },
     ],
   },

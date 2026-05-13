@@ -76,7 +76,7 @@ function CoachCard({ coach }: { coach: CoachAr }) {
       className={cn(
         "rounded-2xl border bg-void/80 overflow-hidden flex flex-col",
         isHead
-          ? "col-span-2 border-2 border-gold shadow-[0_0_28px_rgba(245,188,0,0.25)]"
+          ? "border-2 border-gold shadow-[0_0_22px_rgba(245,188,0,0.22)]"
           : "border-gold/15"
       )}
     >
@@ -91,47 +91,39 @@ function CoachCard({ coach }: { coach: CoachAr }) {
       </div>
 
       {/* Body */}
-      <div className={cn("flex-1", isHead ? "p-4" : "p-3")}>
+      <div className="flex-1 p-3">
         <p
           className={cn(
             "text-white font-display tracking-wider leading-tight",
-            isHead ? "text-[22px]" : "text-[15px]"
+            isHead ? "text-[17px]" : "text-[15px]"
           )}
         >
           {fullTitle}
         </p>
 
-        <dl className={cn("mt-3", isHead ? "space-y-2.5" : "space-y-1.5")}>
+        <dl className="mt-3 space-y-1.5">
           <Field
             label="التخصص"
             value={coach.specialty.length > 0 ? coach.specialty.join("، ") : "سيتم التحديث قريباً"}
-            compact={!isHead}
+            compact
           />
-          <Field label="الخبرة" value={coach.experience} compact={!isHead} />
-          <Field label="الدراسة" value={coach.education} compact={!isHead} />
+          <Field label="الخبرة" value={coach.experience} compact />
+          <Field label="الدراسة" value={coach.education} compact />
         </dl>
 
         {coach.achievements.length > 0 && (
-          <div className={cn("mt-3 pt-3 border-t border-white/[0.06]")}>
+          <div className="mt-3 pt-3 border-t border-white/[0.06]">
             <div className="flex items-center gap-1.5 mb-1.5">
-              <OxAward size={isHead ? 14 : 11} className="text-gold" />
-              <p
-                className={cn(
-                  "text-gold/70 font-bold uppercase tracking-[0.15em]",
-                  isHead ? "text-[10px]" : "text-[9px]"
-                )}
-              >
+              <OxAward size={11} className="text-gold" />
+              <p className="text-gold/70 font-bold uppercase tracking-[0.15em] text-[9px]">
                 الإنجازات
               </p>
             </div>
-            <ul className={cn(isHead ? "space-y-1.5" : "space-y-1")}>
+            <ul className="space-y-1">
               {coach.achievements.map((ach) => (
                 <li
                   key={ach}
-                  className={cn(
-                    "text-white/70 leading-snug flex gap-1.5",
-                    isHead ? "text-[13px]" : "text-[11.5px]"
-                  )}
+                  className="text-white/70 leading-snug flex gap-1.5 text-[11.5px]"
                 >
                   <span className="text-gold flex-shrink-0">•</span>
                   <span>{ach}</span>

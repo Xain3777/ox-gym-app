@@ -293,11 +293,13 @@ export default function GymInfoPage() {
           <div className="border border-blue-500/30 bg-blue-500/[0.04] p-5 space-y-4">
             <div className="flex items-center gap-3 mb-1">
               <div className="relative w-10 h-10 bg-blue-500/20 border border-blue-400/20 flex items-center justify-center shrink-0 overflow-hidden">
-                {weSwim.logo_url ? (
-                  <Image src={weSwim.logo_url} alt={`${weSwim.title} logo`} fill className="object-contain" unoptimized />
-                ) : (
-                  <span className="text-blue-400 text-[18px]">🌊</span>
-                )}
+                <Image
+                  src={weSwim.logo_url || "/Partners/we-swim-logo.png"}
+                  alt={`${weSwim.title} logo`}
+                  fill
+                  className="object-contain"
+                  unoptimized
+                />
               </div>
               <div>
                 <p className="text-white font-display text-[18px] tracking-wider">{weSwim.title}</p>

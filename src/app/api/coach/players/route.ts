@@ -58,7 +58,7 @@ export async function GET(request: Request) {
   const { data: gymSubscriptionsRaw } = await supabase
     .from("gym_subscriptions")
     .select(
-      "id, member_id, member_name, phone, plan_type, start_date, end_date, status, activated_user_id, activated_at, activation_code, cancelled_at",
+      "id, member_id, member_name, phone, plan_type, start_date, end_date, status, activated_user_id, activated_at, activation_code, cancelled_at, private_coach_name, private_coach_phone, private_group_size",
     );
   const gymSubscriptions = (gymSubscriptionsRaw ?? []).filter((s) => s.cancelled_at == null);
 
@@ -161,6 +161,11 @@ export async function GET(request: Request) {
       active: appProfile?.active ?? linkedByActivation,
       activation_code: appProfile?.activation_code ?? gymSubscription?.activation_code ?? null,
       eligible,
+      // Private-training linkage (set by reception form). When non-null,
+      // this player is part of a coach's تدريب خاص group.
+      private_coach_name:  gymSubscription?.private_coach_name  ?? null,
+      private_coach_phone: gymSubscription?.private_coach_phone ?? null,
+      private_group_size:  gymSubscription?.private_group_size  ?? null,
       height_cm: appProfile?.height_cm ?? null,
       weight_kg: appProfile?.weight_kg ?? null,
       fitness_goal: appProfile?.fitness_goal ?? null,
@@ -315,11 +320,20 @@ export async function GET(request: Request) {
     }
   }
 
+  // Private-training metrics: count active subscriptions that are
+  // linked to a private coach (either AS a player under a coach, or
+  // AS the coach with a group_size set).
+  const activeNonCancelled = activeGymSubscriptions;
+  const privatePlayerCount = activeNonCancelled.filter((s) => s.private_coach_name).length;
+  const privateCoachCount  = activeNonCancelled.filter((s) => (s.private_group_size ?? 0) > 0).length;
+
   const diagnostics = {
     total_dashboard_non_cancelled: nonCancelledGym.length,
     activated:                     aActivated,
     app_profile_no_code:           bProfileNoCode,
     dashboard_only_no_profile:     cDashboardOnly,
+    private_training_players:      privatePlayerCount,
+    private_training_coaches:      privateCoachCount,
     // Back-compat keys for older callers — same semantics they had.
     active_dashboard_subscribed_count: nonCancelledGym.length,
     paid_dashboard_with_app_count:     aActivated,

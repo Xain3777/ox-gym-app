@@ -371,7 +371,7 @@ async function getDashboardData(): Promise<DashboardData> {
 export default async function DashboardPage() {
   const data = await getDashboardData();
 
-  const today = new Date().toLocaleDateString("ar-SA", {
+  const today = new Date().toLocaleDateString("ar-EG", {
     weekday: "long",
     month:   "long",
     day:     "numeric",

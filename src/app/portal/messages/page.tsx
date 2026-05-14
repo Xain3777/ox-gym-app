@@ -63,7 +63,7 @@ export default function MessagesPage() {
         id: prev.length + 1,
         sender: "you",
         text: input.trim(),
-        time: new Date().toLocaleTimeString("ar-SA", { hour: "numeric", minute: "2-digit", hour12: true }),
+        time: new Date().toLocaleTimeString("ar-EG", { hour: "numeric", minute: "2-digit", hour12: true }),
       },
     ]);
     setInput("");

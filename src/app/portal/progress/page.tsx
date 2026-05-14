@@ -30,7 +30,7 @@ function getWeekBuckets(logs: WorkoutLog[]): WeekBucket[] {
       return d >= weekStart && d < weekEnd;
     }).length;
 
-    const label = weekStart.toLocaleDateString("ar-SA", { month: "short", day: "numeric" });
+    const label = weekStart.toLocaleDateString("ar-EG", { month: "short", day: "numeric" });
     return { week: `أ${i + 1}`, count, label };
   });
 }
@@ -79,7 +79,7 @@ export default function ProgressPage() {
     { label: "التمارين المكتملة", value: String(totalDone), icon: OxDumbbell },
     { label: "جلسات جزئية", value: String(partialLogs.length), icon: OxFlame },
     { label: "إجمالي السجلات", value: String(logs.length), icon: OxScale },
-    { label: "آخر تمرين", value: logs[0] ? new Date(logs[0].logged_at).toLocaleDateString("ar-SA", { month: "short", day: "numeric" }) : "—", icon: OxCalendar },
+    { label: "آخر تمرين", value: logs[0] ? new Date(logs[0].logged_at).toLocaleDateString("ar-EG", { month: "short", day: "numeric" }) : "—", icon: OxCalendar },
   ];
 
   return (
@@ -151,7 +151,7 @@ export default function ProgressPage() {
                   </p>
                   <p className="text-white/30 text-[12px] mt-0.5" dir="ltr">
                     {log.exercises_done}/{log.total_exercises} تمارين ·{" "}
-                    {new Date(log.logged_at).toLocaleDateString("ar-SA", { year: "numeric", month: "short", day: "numeric" })}
+                    {new Date(log.logged_at).toLocaleDateString("ar-EG", { year: "numeric", month: "short", day: "numeric" })}
                   </p>
                 </div>
               </div>

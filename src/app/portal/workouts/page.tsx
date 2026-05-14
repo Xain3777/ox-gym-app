@@ -195,14 +195,62 @@ export default function WorkoutsPage() {
     loadPlan();
   }, []);
 
+  // When the user opens a day, fetch today's per-exercise log from
+  // the DB and prefill the checkmarks. Survives refresh + device swap.
+  useEffect(() => {
+    if (selectedDay === null || days.length === 0) return;
+    const dayTitle = days[selectedDay]?.title;
+    if (!dayTitle) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/portal/workout-exercise-log?day=${encodeURIComponent(dayTitle)}`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!json.success || cancelled) return;
+        const completedMap = new Map<string, boolean>(
+          (json.data ?? []).map((r: { exercise_name: string; completed: boolean }) => [r.exercise_name, r.completed]),
+        );
+        setDays((prev) => prev.map((d, di) => di === selectedDay ? {
+          ...d,
+          exercises: d.exercises.map((ex) => ({
+            ...ex,
+            done: completedMap.get(ex.name) ?? ex.done,
+          })),
+        } : d));
+      } catch { /* network blip — keep local state */ }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDay, days.length]);
+
   function toggleExercise(dayIdx: number, exIdx: number) {
+    const day = days[dayIdx];
+    const ex = day?.exercises[exIdx];
+    if (!day || !ex) return;
+    const nextDone = !ex.done;
+
     setDays((prev) =>
       prev.map((d, di) =>
         di === dayIdx
-          ? { ...d, exercises: d.exercises.map((ex, ei) => ei === exIdx ? { ...ex, done: !ex.done } : ex) }
+          ? { ...d, exercises: d.exercises.map((e, ei) => ei === exIdx ? { ...e, done: nextDone } : e) }
           : d
       )
     );
+
+    // Persist per-exercise state to DB. Fire-and-forget — UI doesn't
+    // need to block on each tap. Daily summary (workout_logs) is still
+    // written separately when the user finishes the workout.
+    fetch("/api/portal/workout-exercise-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        workout_day: day.title,
+        exercise_name: ex.name,
+        completed: nextDone,
+      }),
+    }).catch(() => { /* offline — local state still updated */ });
   }
 
   const getDoneCount = useCallback((dayIdx: number) => days[dayIdx].exercises.filter((e) => e.done).length, [days]);
@@ -487,11 +535,17 @@ export default function WorkoutsPage() {
           </div>
         )}
 
-        {/* Machine Help Modal */}
+        {/* Machine Help Modal — centered on all viewports */}
         {machineHelp && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setMachineHelp(null)}>
-            <div className="bg-iron w-full max-w-md p-6 pb-10 sm:pb-6 border border-white/[0.08]" dir="rtl" onClick={(e) => e.stopPropagation()}>
-              <div className="w-10 h-1 bg-white/20 mx-auto mb-6 sm:hidden" />
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 py-6 overflow-y-auto"
+            onClick={() => setMachineHelp(null)}
+          >
+            <div
+              className="bg-iron w-full max-w-md max-h-full overflow-y-auto p-6 border border-white/[0.08] my-auto"
+              dir="rtl"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="grid grid-cols-2 gap-3 mb-5">
                 <ExerciseImage src={machineHelp.machineImageUrl} alt={`${machineHelp.name} machine`} className="w-full h-40" />
                 <ExerciseImage src={machineHelp.demoImageUrl} alt={`${machineHelp.name} demo`} className="w-full h-40" />

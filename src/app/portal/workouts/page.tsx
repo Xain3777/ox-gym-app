@@ -7,6 +7,7 @@ import { SubscriptionGate } from "@/components/portal/SubscriptionGate";
 import { OxCheck, OxChevronRight, OxPlay, OxInfo, OxTrophy, OxDumbbell } from "@/components/icons/OxIcons";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { ExerciseImage } from "@/components/ui/ExerciseImage";
+import { useToast } from "@/components/ui/Toast";
 
 // ── TYPES ────────────────────────────────────────────────────────
 type Exercise = {
@@ -129,7 +130,12 @@ function planContentToDays(content: Array<{
 }
 
 // ── LOGGING ─────────────────────────────────────────────────────
-async function saveWorkoutLog(dayTitle: string, doneCount: number, totalCount: number, partial: boolean) {
+// Returns true only if the row was persisted to the DB via the
+// server route. localStorage write is best-effort offline cache;
+// the DB write is the source of truth that drives /portal/progress.
+async function saveWorkoutLog(
+  dayTitle: string, doneCount: number, totalCount: number, partial: boolean,
+): Promise<{ ok: boolean; error?: string }> {
   const entry = {
     workout_day: dayTitle,
     exercises_done: doneCount,
@@ -141,19 +147,26 @@ async function saveWorkoutLog(dayTitle: string, doneCount: number, totalCount: n
     const prev = JSON.parse(localStorage.getItem("ox-workout-logs") ?? "[]");
     localStorage.setItem("ox-workout-logs", JSON.stringify([...prev, entry]));
   } catch { /* ignore */ }
+
   try {
-    const supabase = createBrowserSupabase();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data: member } = await supabase.from("members").select("id").eq("auth_id", user.id).single();
-    if (member) {
-      await supabase.from("workout_logs").insert({ member_id: member.id, ...entry });
+    const res = await fetch("/api/portal/workout-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entry),
+    });
+    const json = await res.json().catch(() => ({} as { success?: boolean; error?: string }));
+    if (!res.ok || !json.success) {
+      return { ok: false, error: json.error ?? "تعذّر حفظ السجل" };
     }
-  } catch { /* silent */ }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "تعذّر الاتصال بالخادم" };
+  }
 }
 
 // ── PAGE ─────────────────────────────────────────────────────────
 export default function WorkoutsPage() {
+  const { success: toastSuccess, error: toastError } = useToast();
   const [days, setDays] = useState<WorkoutDay[]>([]);
   const [planName, setPlanName] = useState<string | null>(null);
   const [loadingPlan, setLoadingPlan] = useState(true);
@@ -207,14 +220,25 @@ export default function WorkoutsPage() {
   async function handleLog(partial: boolean) {
     if (selectedDay === null) return;
     setLogging(true);
-    await saveWorkoutLog(
+    const result = await saveWorkoutLog(
       days[selectedDay].title,
       getDoneCount(selectedDay),
       days[selectedDay].exercises.length,
       partial,
     );
     setLogging(false);
+
+    if (!result.ok) {
+      toastError("فشل الحفظ", result.error ?? "لم يتم حفظ السجل. حاول مرة أخرى.");
+      // Keep modals open so the user can retry; do not advance UI.
+      return;
+    }
+
     setLoggedSuccess(true);
+    toastSuccess(
+      partial ? "تم حفظ الجلسة الجزئية" : "تم حفظ التمرين",
+      "ستجد السجل في صفحة التقدم.",
+    );
     setTimeout(() => {
       setLoggedSuccess(false);
       setShowFinishModal(false);

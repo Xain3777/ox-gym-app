@@ -53,10 +53,6 @@ type CoachPlayer = {
   activated_at?: string | null;
   active?: boolean;
   activation_code?: string | null;
-  // Private-training group linkage (when player is under a private coach)
-  private_coach_name?: string | null;
-  private_coach_phone?: string | null;
-  private_group_size?: number | null;
   subscription: {
     plan_type: string;
     start_date: string;
@@ -361,14 +357,6 @@ function PlayerProfile({ player, onUnassign }: { player: CoachPlayer; onUnassign
               Activation linked{activatedDate ? ` · ${activatedDate}` : ""}
             </p>
           )}
-          {player.private_coach_name && (
-            <p className="mt-2 inline-flex items-center gap-1 bg-gold/15 text-gold border border-gold/30 text-[11px] font-bold px-2 py-1">
-              تدريب خاص · تحت إشراف {player.private_coach_name}
-              {player.private_coach_phone ? (
-                <span className="text-gold/60 font-mono" dir="ltr"> · {player.private_coach_phone}</span>
-              ) : null}
-            </p>
-          )}
           {player.activation_code && (
             <p className="text-white/30 text-[12px] mt-1 font-mono tracking-wider" dir="ltr">
               CODE: <span className="text-white/65">{player.activation_code}</span>
@@ -504,17 +492,7 @@ function PlayerRow({
         {player.full_name.charAt(0).toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-white text-[14px] font-medium truncate">{player.full_name}</p>
-          {player.private_coach_name && (
-            <span
-              className="text-[9px] font-bold uppercase text-gold bg-gold/10 border border-gold/25 px-1.5 py-0.5 flex-shrink-0"
-              title={`تدريب خاص — تحت إشراف ${player.private_coach_name}`}
-            >
-              تدريب خاص · {player.private_coach_name}
-            </span>
-          )}
-        </div>
+        <p className="text-white text-[14px] font-medium truncate">{player.full_name}</p>
         <p className="text-white/40 text-[12px] truncate" dir="ltr">{player.phone ?? "No phone"}</p>
         {showProgramName && programName && (
           <p className="text-gold/80 text-[11px] font-mono uppercase tracking-wider truncate mt-1" title={programName}>

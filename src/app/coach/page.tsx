@@ -4,15 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
-import { Users, Dumbbell, UserCheck, UserX, Crown } from "lucide-react";
+import { Users, Dumbbell, UserCheck, UserX } from "lucide-react";
 
 interface Stats {
   totalNonCancelled: number;
   activated: number;
   appProfileNoCode: number;
   dashboardOnlyNoProfile: number;
-  privatePlayers: number;
-  privateCoaches: number;
 }
 
 export default function CoachDashboard() {
@@ -22,8 +20,6 @@ export default function CoachDashboard() {
     activated: 0,
     appProfileNoCode: 0,
     dashboardOnlyNoProfile: 0,
-    privatePlayers: 0,
-    privateCoaches: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -43,8 +39,6 @@ export default function CoachDashboard() {
           activated:             Number(d.activated ?? 0),
           appProfileNoCode:      Number(d.app_profile_no_code ?? 0),
           dashboardOnlyNoProfile: Number(d.dashboard_only_no_profile ?? 0),
-          privatePlayers:        Number(d.private_training_players ?? 0),
-          privateCoaches:        Number(d.private_training_coaches ?? 0),
         });
       } catch {
         // Stats stay at 0
@@ -60,8 +54,6 @@ export default function CoachDashboard() {
     { label: "يمكن إرسال خطة (مفعّل)",          value: stats.activated,         icon: UserCheck, href: "/coach/players", color: "text-green-400", bg: "bg-green-400/10" },
     { label: "عمل حساب ولم يفعّل بعد",          value: stats.appProfileNoCode,  icon: Dumbbell, href: "/coach/players", color: "text-gold",       bg: "bg-gold/10" },
     { label: "بالاستقبال بدون حساب تطبيق",      value: stats.dashboardOnlyNoProfile, icon: UserX, href: "/coach/players", color: "text-blue-400", bg: "bg-blue-400/10" },
-    { label: "تدريب خاص — لاعبون",              value: stats.privatePlayers,    icon: Crown, href: "/coach/players", color: "text-gold",       bg: "bg-gold/15" },
-    { label: "تدريب خاص — كوتشات",              value: stats.privateCoaches,    icon: Crown, href: "/coach/players", color: "text-purple-300",  bg: "bg-purple-400/10" },
   ];
 
   return (

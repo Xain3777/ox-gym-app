@@ -5,16 +5,17 @@ import Link from "next/link";
 import Image from "next/image";
 import { UtensilsCrossed, ChevronLeft, Sparkles, Activity, Heart, TrendingUp, Send, Check } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { createBrowserSupabase } from "@/lib/supabase";
-import { SubscriptionGate } from "@/components/portal/SubscriptionGate";
 import type { MealProgramTemplate } from "@/lib/meal-programs";
 import { MEAL_SLOT_LABELS_AR } from "@/lib/meal-programs";
 
 type AssignmentInfo = { id: string; assigned_at: string } | null;
 
+// Gating mirrors /portal/workouts: no client-side SubscriptionGate.
+// Eligibility (activated + non-expired subscription) is enforced when
+// the coach assigns a plan, so an unassigned player simply sees the
+// empty state. Same model as the workout flow.
 export default function PortalMealsPage() {
   const { success, error: toastError } = useToast();
-  const [endDate, setEndDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [template, setTemplate] = useState<MealProgramTemplate | null>(null);
   const [assignment, setAssignment] = useState<AssignmentInfo>(null);
@@ -25,41 +26,6 @@ export default function PortalMealsPage() {
   useEffect(() => {
     async function load() {
       try {
-        // Source-of-truth for an activated player's subscription is
-        // gym_subscriptions (linked by activated_user_id). Try that
-        // first via /api/portal/activate; fall back to the legacy
-        // member_subscriptions row if no activation was claimed.
-        const [activationRes, supaSub] = await Promise.all([
-          fetch("/api/portal/activate")
-            .then((r) => (r.ok ? r.json() : null))
-            .catch(() => null),
-          (async () => {
-            const supabase = createBrowserSupabase();
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return null;
-            const { data: member } = await supabase
-              .from("members")
-              .select("id")
-              .eq("auth_id", user.id)
-              .single();
-            if (!member) return null;
-            const { data } = await supabase
-              .from("member_subscriptions")
-              .select("end_date")
-              .eq("member_id", member.id)
-              .eq("status", "active")
-              .order("end_date", { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            return data ?? null;
-          })(),
-        ]);
-
-        const activatedEnd = activationRes?.success && activationRes?.data?.activated
-          ? activationRes.data.subscription?.end_date ?? null
-          : null;
-        setEndDate(activatedEnd ?? supaSub?.end_date ?? null);
-
         const res = await fetch("/api/portal/meal-program");
         if (res.ok) {
           const json = await res.json();
@@ -112,23 +78,21 @@ export default function PortalMealsPage() {
           </div>
         </header>
 
-        <SubscriptionGate endDate={endDate}>
-          {loading ? (
-            <div className="text-center text-white/40 text-[14px] py-16">جار التحميل...</div>
-          ) : !template ? (
-            <NoPlanCard />
-          ) : (
-            <PlanView template={template} assignment={assignment} />
-          )}
+        {loading ? (
+          <div className="text-center text-white/40 text-[14px] py-16">جار التحميل...</div>
+        ) : !template ? (
+          <NoPlanCard />
+        ) : (
+          <PlanView template={template} assignment={assignment} />
+        )}
 
-          <ConsultationCard
-            note={note}
-            setNote={setNote}
-            onSubmit={submitConsultation}
-            submitting={submitting}
-            submitted={submitted}
-          />
-        </SubscriptionGate>
+        <ConsultationCard
+          note={note}
+          setNote={setNote}
+          onSubmit={submitConsultation}
+          submitting={submitting}
+          submitted={submitted}
+        />
       </div>
     </div>
   );

@@ -25,17 +25,25 @@ export default function PortalMealsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const supabase = createBrowserSupabase();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: member } = await supabase
-            .from("members")
-            .select("id")
-            .eq("auth_id", user.id)
-            .single();
-
-          if (member) {
-            const { data: sub } = await supabase
+        // Source-of-truth for an activated player's subscription is
+        // gym_subscriptions (linked by activated_user_id). Try that
+        // first via /api/portal/activate; fall back to the legacy
+        // member_subscriptions row if no activation was claimed.
+        const [activationRes, supaSub] = await Promise.all([
+          fetch("/api/portal/activate")
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null),
+          (async () => {
+            const supabase = createBrowserSupabase();
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return null;
+            const { data: member } = await supabase
+              .from("members")
+              .select("id")
+              .eq("auth_id", user.id)
+              .single();
+            if (!member) return null;
+            const { data } = await supabase
               .from("member_subscriptions")
               .select("end_date")
               .eq("member_id", member.id)
@@ -43,9 +51,14 @@ export default function PortalMealsPage() {
               .order("end_date", { ascending: false })
               .limit(1)
               .maybeSingle();
-            if (sub?.end_date) setEndDate(sub.end_date);
-          }
-        }
+            return data ?? null;
+          })(),
+        ]);
+
+        const activatedEnd = activationRes?.success && activationRes?.data?.activated
+          ? activationRes.data.subscription?.end_date ?? null
+          : null;
+        setEndDate(activatedEnd ?? supaSub?.end_date ?? null);
 
         const res = await fetch("/api/portal/meal-program");
         if (res.ok) {

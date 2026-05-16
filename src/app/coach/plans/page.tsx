@@ -632,12 +632,11 @@ function CreateProgramModal({
     category: "",
     gender_focus: "",
     description: "",
-    is_active: "true",
   });
 
   useEffect(() => {
     if (!open) return;
-    setForm({ name: "", category: "", gender_focus: "", description: "", is_active: "true" });
+    setForm({ name: "", category: "", gender_focus: "", description: "" });
   }, [open]);
 
   if (!open) return null;
@@ -658,7 +657,7 @@ function CreateProgramModal({
           category: form.category.trim(),
           gender_focus: clean(form.gender_focus),
           description: clean(form.description),
-          is_active: form.is_active !== "false",
+          is_active: true, // new programs are always created active
         }),
       });
       const json = await res.json();
@@ -680,7 +679,6 @@ function CreateProgramModal({
         <TextInput label="Name" value={form.name ?? ""} onChange={(value) => setField("name", value)} />
         <TextInput label="Category" value={form.category ?? ""} onChange={(value) => setField("category", value)} />
         <TextInput label="Gender focus" value={form.gender_focus ?? ""} onChange={(value) => setField("gender_focus", value)} />
-        <CheckboxInput label="Active program" checked={form.is_active !== "false"} onChange={(checked) => setField("is_active", checked ? "true" : "false")} />
         <TextArea label="Notes" value={form.description ?? ""} onChange={(value) => setField("description", value)} />
         <button
           type="button"

@@ -313,7 +313,9 @@ export async function POST(request: NextRequest) {
       category: payload.category,
       gender_focus: payload.gender_focus ?? null,
       description: payload.description ?? null,
-      is_active: payload.is_active ?? true,
+      // New programs are always created active so they're immediately
+      // assignable. Deactivation is only possible via the edit form.
+      is_active: true,
     };
 
     let { data, error: insertError } = await supabase

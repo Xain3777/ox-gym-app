@@ -541,11 +541,11 @@ function DayCard({
 function CreateProgramModal({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => Promise<void> }) {
   const { error: toastError } = useToast();
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: "", category: "", gender_focus: "", description: "", is_active: "true" });
+  const [form, setForm] = useState({ name: "", category: "", gender_focus: "", description: "" });
 
   useEffect(() => {
     if (!open) return;
-    setForm({ name: "", category: "", gender_focus: "", description: "", is_active: "true" });
+    setForm({ name: "", category: "", gender_focus: "", description: "" });
   }, [open]);
 
   if (!open) return null;
@@ -562,7 +562,7 @@ function CreateProgramModal({ open, onClose, onSaved }: { open: boolean; onClose
           category: form.category.trim(),
           gender_focus: form.gender_focus.trim() || null,
           description: form.description.trim() || null,
-          is_active: form.is_active !== "false",
+          is_active: true, // new programs are always created active
         }),
       });
       const json = await res.json();
@@ -577,7 +577,6 @@ function CreateProgramModal({ open, onClose, onSaved }: { open: boolean; onClose
         <TextInput label="الاسم" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
         <TextInput label="الفئة (bulk / cut / custom)" value={form.category} onChange={(v) => setForm({ ...form, category: v })} />
         <TextInput label="الجنس المستهدف (اختياري)" value={form.gender_focus} onChange={(v) => setForm({ ...form, gender_focus: v })} />
-        <CheckboxInput label="نشط" checked={form.is_active !== "false"} onChange={(c) => setForm({ ...form, is_active: c ? "true" : "false" })} />
         <TextArea label="ملاحظات" value={form.description} onChange={(v) => setForm({ ...form, description: v })} />
         <button
           type="button"

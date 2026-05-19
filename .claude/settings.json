@@ -5,7 +5,9 @@
       "Bash(node --env-file=.env.local -e \"console.log\\('URL:', process.env.NEXT_PUBLIC_SUPABASE_URL\\); console.log\\('Project ref:', \\(process.env.NEXT_PUBLIC_SUPABASE_URL||''\\).match\\(/https:\\\\/\\\\/\\([^.]+\\)/\\)?.[1]\\);\")",
       "Bash(node --env-file=.env.local scripts/check_migration.mjs)",
       "Bash(copy /Y .env.local .env.local.backup-fbfzdebvqkgvsppeuitg)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

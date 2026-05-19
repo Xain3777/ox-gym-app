@@ -248,10 +248,15 @@ export async function PATCH(request: NextRequest) {
     }
     mediaId = media.id as string;
   } else if (payload.media) {
+    // NB: do NOT rewrite exercise_media.exercise_name here. That column
+    // is UNIQUE and a media row can be shared by several exercises, so
+    // renaming an exercise must not touch it — otherwise the rename
+    // fails on a unique collision or silently renames other exercises'
+    // machine help. The exercise's display name lives on
+    // workout_template_exercises.name (updated below), keyed by id.
     const { error: mediaUpdateError } = await supabase
       .from("exercise_media")
       .update({
-        exercise_name: payload.name,
         machine_name: payload.media.machine_name ?? null,
         machine_image_url: payload.media.machine_image_url ?? null,
         demo_image_url: payload.media.demo_image_url ?? null,

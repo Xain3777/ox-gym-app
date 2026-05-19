@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Check,
   ChevronDown,
   Dumbbell,
   Eye,
@@ -283,7 +284,7 @@ export default function CoachPlansPage() {
         program={assigningProgram}
         onClose={() => setAssigningProgram(null)}
         onAssigned={() => {
-          success("تم تعيين البرنامج", assigningProgram?.name ?? "Workout program");
+          // AssignTemplateModal shows its own success/failure toast.
           setAssigningProgram(null);
         }}
       />
@@ -1085,17 +1086,17 @@ function AssignTemplateModal({
   onClose: () => void;
   onAssigned: () => void;
 }) {
-  const { error: toastError } = useToast();
+  const { error: toastError, success: toastSuccess } = useToast();
   const [players, setPlayers] = useState<PlayerOption[]>([]);
   const [search, setSearch] = useState("");
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
 
   useEffect(() => {
     if (!program) return;
     setSearch("");
-    setSelectedPlayerId("");
+    setSelectedIds(new Set());
     setLoading(true);
     fetch("/api/coach/players")
       .then((res) => res.json())
@@ -1116,37 +1117,77 @@ function AssignTemplateModal({
     );
   }, [players, search]);
 
-  const selectedPlayer = players.find((player) => player.id === selectedPlayerId) ?? null;
+  function togglePlayer(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const allFilteredSelected = filteredPlayers.length > 0
+    && filteredPlayers.every((p) => selectedIds.has(p.id));
+
+  function toggleAllFiltered() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        filteredPlayers.forEach((p) => next.delete(p.id));
+      } else {
+        filteredPlayers.forEach((p) => next.add(p.id));
+      }
+      return next;
+    });
+  }
 
   if (!program) return null;
+  const currentProgram = program;
 
   async function assign() {
-    if (!program || !selectedPlayerId) return;
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
     setAssigning(true);
     try {
-      const isLegacyPlan = program.source === "legacy_workout_plans";
-      const res = await fetch(isLegacyPlan ? "/api/send-plan" : "/api/coach/workout-assignments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(isLegacyPlan
-          ? { member_id: selectedPlayerId, plan_id: program.id, plan_type: "workout" }
-          : { member_id: selectedPlayerId, template_id: program.id }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        toastError("Assign failed", json.error ?? "Please try again.");
-        return;
+      const isLegacyPlan = currentProgram.source === "legacy_workout_plans";
+      const endpoint = isLegacyPlan ? "/api/send-plan" : "/api/coach/workout-assignments";
+
+      const results = await Promise.all(ids.map(async (memberId) => {
+        try {
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(isLegacyPlan
+              ? { member_id: memberId, plan_id: currentProgram.id, plan_type: "workout" }
+              : { member_id: memberId, template_id: currentProgram.id }),
+          });
+          const json = await res.json().catch(() => ({}));
+          return { memberId, ok: res.ok && json.success, error: json.error as string | undefined };
+        } catch {
+          return { memberId, ok: false, error: "Network error" };
+        }
+      }));
+
+      const ok = results.filter((r) => r.ok);
+      const failed = results.filter((r) => !r.ok);
+
+      if (ok.length > 0) {
+        toastSuccess("تم تعيين البرنامج", `${ok.length} لاعب${ok.length > 1 ? "ين" : ""}`);
       }
-      onAssigned();
-    } catch {
-      toastError("Network error", "Could not assign workout program.");
+      if (failed.length > 0) {
+        const names = failed
+          .map((f) => players.find((p) => p.id === f.memberId)?.full_name ?? f.memberId)
+          .join("، ");
+        toastError(`تعذّر تعيين ${failed.length}`, names);
+      }
+      if (ok.length > 0) onAssigned();
     } finally {
       setAssigning(false);
     }
   }
 
   return (
-    <ModalFrame title="تعيين برنامج للاعب" onClose={onClose} wide>
+    <ModalFrame title="تعيين برنامج للاعبين" onClose={onClose} wide>
       <div className="grid md:grid-cols-[1fr_280px] gap-4">
         <section className="space-y-3">
           <div className="relative">
@@ -1158,36 +1199,55 @@ function AssignTemplateModal({
               className="w-full h-11 pr-10 pl-3 bg-iron border border-steel text-white text-[13px] placeholder:text-white/25 focus:border-[#FF6B35]/50 focus:outline-none"
             />
           </div>
+          {filteredPlayers.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleAllFiltered}
+              className="w-full flex items-center justify-between px-3 py-2 border border-white/[0.08] bg-white/[0.02] text-[12px] text-white/60 hover:text-white"
+            >
+              <span>{allFilteredSelected ? "إلغاء تحديد الكل" : "تحديد كل المعروضين"}</span>
+              <span className="text-[#FF6B35] font-bold">{selectedIds.size} محدد</span>
+            </button>
+          )}
           <div className="max-h-[360px] overflow-y-auto space-y-2">
             {loading ? (
               <p className="text-white/35 text-[13px] text-center py-10">Loading players...</p>
             ) : filteredPlayers.length === 0 ? (
               <p className="text-white/35 text-[13px] text-center py-10">No players found.</p>
             ) : (
-              filteredPlayers.map((player) => (
-                <button
-                  key={player.id}
-                  type="button"
-                  onClick={() => setSelectedPlayerId(player.id)}
-                  className={cn(
-                    "w-full flex items-center gap-3 p-3 text-right border transition-colors",
-                    selectedPlayerId === player.id
-                      ? "bg-[#FF6B35]/10 border-[#FF6B35]/35"
-                      : "bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06]",
-                  )}
-                >
-                  <div className="w-9 h-9 bg-[#FF6B35]/10 text-[#FF6B35] flex items-center justify-center flex-shrink-0">
-                    <User size={15} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-[13px] font-semibold truncate">{player.full_name}</p>
-                    <p className="text-white/35 text-[11px] truncate">
-                      {player.phone ?? "No phone"}
-                      {player.current_assignment?.template?.name ? ` · ${player.current_assignment.template.name}` : ""}
-                    </p>
-                  </div>
-                </button>
-              ))
+              filteredPlayers.map((player) => {
+                const checked = selectedIds.has(player.id);
+                return (
+                  <button
+                    key={player.id}
+                    type="button"
+                    onClick={() => togglePlayer(player.id)}
+                    className={cn(
+                      "w-full flex items-center gap-3 p-3 text-right border transition-colors",
+                      checked
+                        ? "bg-[#FF6B35]/10 border-[#FF6B35]/35"
+                        : "bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06]",
+                    )}
+                  >
+                    <span className={cn(
+                      "w-5 h-5 flex items-center justify-center border flex-shrink-0",
+                      checked ? "bg-[#FF6B35] border-[#FF6B35] text-void" : "border-white/25",
+                    )}>
+                      {checked && <Check size={13} />}
+                    </span>
+                    <div className="w-9 h-9 bg-[#FF6B35]/10 text-[#FF6B35] flex items-center justify-center flex-shrink-0">
+                      <User size={15} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-[13px] font-semibold truncate">{player.full_name}</p>
+                      <p className="text-white/35 text-[11px] truncate">
+                        {player.phone ?? "No phone"}
+                        {player.current_assignment?.template?.name ? ` · ${player.current_assignment.template.name}` : ""}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })
             )}
           </div>
         </section>
@@ -1207,16 +1267,18 @@ function AssignTemplateModal({
             ))}
           </div>
           <div className="border-t border-white/[0.06] pt-4">
-            <p className="text-white/35 text-[11px]">Selected player</p>
-            <p className="text-white text-[13px] font-semibold mt-1">{selectedPlayer?.full_name ?? "لم يتم اختيار لاعب"}</p>
+            <p className="text-white/35 text-[11px]">اللاعبون المحددون</p>
+            <p className="text-white text-[13px] font-semibold mt-1">
+              {selectedIds.size === 0 ? "لم يتم اختيار لاعب" : `${selectedIds.size} لاعب`}
+            </p>
           </div>
           <button
             type="button"
             onClick={assign}
-            disabled={!selectedPlayerId || assigning}
+            disabled={selectedIds.size === 0 || assigning}
             className="w-full bg-[#FF6B35] text-void py-3 text-[13px] font-bold uppercase tracking-wider hover:bg-[#FF6B35]/90 disabled:opacity-50 transition-colors"
           >
-            {assigning ? "Assigning" : "Assign program"}
+            {assigning ? "جار التعيين..." : `تعيين البرنامج${selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}`}
           </button>
         </aside>
       </div>

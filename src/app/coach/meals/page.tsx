@@ -400,8 +400,8 @@ export default function CoachMealsPage() {
       <AssignModal
         program={assigningProgram}
         onClose={() => setAssigningProgram(null)}
-        onAssigned={(playerName) => {
-          success("تم تعيين البرنامج", playerName ? `للاعب ${playerName}` : "");
+        onAssigned={() => {
+          // AssignModal shows its own success/failure toast.
           setAssigningProgram(null);
         }}
       />
@@ -874,19 +874,19 @@ function AssignModal({
 }: {
   program: MealProgramTemplate | null;
   onClose: () => void;
-  onAssigned: (playerName?: string) => void;
+  onAssigned: (count?: number) => void;
 }) {
-  const { error: toastError } = useToast();
+  const { error: toastError, success: toastSuccess } = useToast();
   const [players, setPlayers] = useState<PlayerOption[]>([]);
   const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
 
   useEffect(() => {
     if (!program) return;
     setSearch("");
-    setSelectedId("");
+    setSelectedIds(new Set());
     setLoading(true);
     fetch("/api/coach/players")
       .then((r) => r.json())
@@ -908,27 +908,64 @@ function AssignModal({
     );
   }, [players, search]);
 
-  const selected = players.find((p) => p.id === selectedId) ?? null;
+  function togglePlayer(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every((p) => selectedIds.has(p.id));
+
+  function toggleAllFiltered() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) filtered.forEach((p) => next.delete(p.id));
+      else filtered.forEach((p) => next.add(p.id));
+      return next;
+    });
+  }
 
   if (!program) return null;
+  const currentProgram = program;
 
   async function assign() {
-    if (!program || !selectedId) return;
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
     setAssigning(true);
     try {
-      const res = await fetch("/api/coach/meal-assignments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ member_id: selectedId, template_id: program.id }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) { toastError("فشل التعيين", json.error ?? ""); return; }
-      onAssigned(selected?.full_name);
+      const results = await Promise.all(ids.map(async (memberId) => {
+        try {
+          const res = await fetch("/api/coach/meal-assignments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ member_id: memberId, template_id: currentProgram.id }),
+          });
+          const json = await res.json().catch(() => ({}));
+          return { memberId, ok: res.ok && json.success, error: json.error as string | undefined };
+        } catch {
+          return { memberId, ok: false, error: "Network error" };
+        }
+      }));
+
+      const ok = results.filter((r) => r.ok);
+      const failed = results.filter((r) => !r.ok);
+
+      if (ok.length > 0) toastSuccess("تم تعيين البرنامج", `${ok.length} لاعب${ok.length > 1 ? "ين" : ""}`);
+      if (failed.length > 0) {
+        const names = failed
+          .map((f) => players.find((p) => p.id === f.memberId)?.full_name ?? f.memberId)
+          .join("، ");
+        toastError(`تعذّر تعيين ${failed.length}`, names);
+      }
+      if (ok.length > 0) onAssigned(ok.length);
     } finally { setAssigning(false); }
   }
 
   return (
-    <ModalFrame title="تعيين برنامج غذائي للاعب" onClose={onClose} wide>
+    <ModalFrame title="تعيين برنامج غذائي للاعبين" onClose={onClose} wide>
       <div className="grid md:grid-cols-[1fr_280px] gap-4">
         <section className="space-y-3">
           <div className="relative">
@@ -940,33 +977,52 @@ function AssignModal({
               className="w-full h-11 pr-10 pl-3 bg-iron border border-steel text-white text-[13px] placeholder:text-white/25 focus:border-emerald-500/50 focus:outline-none"
             />
           </div>
+          {filtered.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleAllFiltered}
+              className="w-full flex items-center justify-between px-3 py-2 border border-white/[0.08] bg-white/[0.02] text-[12px] text-white/60 hover:text-white"
+            >
+              <span>{allFilteredSelected ? "إلغاء تحديد الكل" : "تحديد كل المعروضين"}</span>
+              <span className="text-emerald-300 font-bold">{selectedIds.size} محدد</span>
+            </button>
+          )}
           <div className="max-h-[360px] overflow-y-auto space-y-2">
             {loading ? (
               <p className="text-white/35 text-[13px] text-center py-10">جار التحميل...</p>
             ) : filtered.length === 0 ? (
               <p className="text-white/35 text-[13px] text-center py-10">لا يوجد لاعبون مفعّلون.</p>
             ) : (
-              filtered.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setSelectedId(p.id)}
-                  className={cn(
-                    "w-full flex items-center gap-3 p-3 text-right border transition-colors",
-                    selectedId === p.id
-                      ? "bg-emerald-500/10 border-emerald-500/35"
-                      : "bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06]",
-                  )}
-                >
-                  <div className="w-9 h-9 bg-emerald-500/10 text-emerald-300 flex items-center justify-center flex-shrink-0">
-                    <User size={15} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-[13px] font-semibold truncate">{p.full_name}</p>
-                    <p className="text-white/35 text-[11px] truncate">{p.phone ?? "بدون هاتف"}</p>
-                  </div>
-                </button>
-              ))
+              filtered.map((p) => {
+                const checked = selectedIds.has(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => togglePlayer(p.id)}
+                    className={cn(
+                      "w-full flex items-center gap-3 p-3 text-right border transition-colors",
+                      checked
+                        ? "bg-emerald-500/10 border-emerald-500/35"
+                        : "bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06]",
+                    )}
+                  >
+                    <span className={cn(
+                      "w-5 h-5 flex items-center justify-center border flex-shrink-0",
+                      checked ? "bg-emerald-500 border-emerald-500 text-void" : "border-white/25",
+                    )}>
+                      {checked && <CheckCircle size={13} />}
+                    </span>
+                    <div className="w-9 h-9 bg-emerald-500/10 text-emerald-300 flex items-center justify-center flex-shrink-0">
+                      <User size={15} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-[13px] font-semibold truncate">{p.full_name}</p>
+                      <p className="text-white/35 text-[11px] truncate">{p.phone ?? "بدون هاتف"}</p>
+                    </div>
+                  </button>
+                );
+              })
             )}
           </div>
         </section>
@@ -978,16 +1034,18 @@ function AssignModal({
             <p className="text-white/42 text-[12px] mt-1">{program.category} · {program.days.length} أيام</p>
           </div>
           <div className="border-t border-white/[0.06] pt-4">
-            <p className="text-white/35 text-[11px]">اللاعب المختار</p>
-            <p className="text-white text-[13px] font-semibold mt-1">{selected?.full_name ?? "لم يتم اختيار لاعب"}</p>
+            <p className="text-white/35 text-[11px]">اللاعبون المحددون</p>
+            <p className="text-white text-[13px] font-semibold mt-1">
+              {selectedIds.size === 0 ? "لم يتم اختيار لاعب" : `${selectedIds.size} لاعب`}
+            </p>
           </div>
           <button
             type="button"
             onClick={assign}
-            disabled={!selectedId || assigning}
+            disabled={selectedIds.size === 0 || assigning}
             className="w-full bg-emerald-500 text-void py-3 text-[13px] font-bold uppercase tracking-wider hover:bg-emerald-400 disabled:opacity-50"
           >
-            {assigning ? "جار التعيين" : "تعيين البرنامج"}
+            {assigning ? "جار التعيين..." : `تعيين البرنامج${selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}`}
           </button>
         </aside>
       </div>

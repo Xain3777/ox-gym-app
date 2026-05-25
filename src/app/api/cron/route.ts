@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 import { daysUntilExpiry, EXPIRING_WINDOW_DAYS } from "@/lib/subscription";
+import {
+  buildNotificationsForToday,
+  type CandidatePlayer,
+} from "@/lib/subscription-notifier";
 import { logInfo, logError } from "@/lib/log";
 import type { MemberWithSub } from "@/types";
 
@@ -29,7 +33,15 @@ export async function GET(request: Request) {
   }
 
   const supabase  = createServiceClient();
-  const results   = { skipped_7day: 0, skipped_3day: 0, expired: 0, marked_expiring: 0, pages: 0 };
+  const results   = {
+    skipped_7day: 0,
+    skipped_3day: 0,
+    expired: 0,
+    marked_expiring: 0,
+    pages: 0,
+    sub_notifications_sent: 0,
+    sub_notifications_skipped: 0,
+  };
   const startedAt = Date.now();
 
   try {
@@ -86,6 +98,52 @@ export async function GET(request: Request) {
       }
 
       offset += PAGE_SIZE;
+    }
+
+    // ── Subscription milestone notifications ───────────────────────
+    // Insert one notification per (player, milestone) for T-2/T-1/T-0/T+1/T+2.
+    // The notifier is idempotent at the unique (member_id, milestone_key)
+    // index from migration 042 — re-running the cron the same day cannot
+    // duplicate. Cancelled subs are skipped.
+    try {
+      const { data: subs } = await supabase
+        .from("gym_subscriptions")
+        .select("activated_user_id, end_date, cancelled_at")
+        .not("activated_user_id", "is", null)
+        .is("cancelled_at", null);
+
+      const authIds = Array.from(new Set((subs ?? []).map((s) => s.activated_user_id as string)));
+      const { data: mems } = authIds.length
+        ? await supabase.from("members").select("id, auth_id").in("auth_id", authIds)
+        : { data: [] };
+      const memberByAuth = new Map((mems ?? []).map((m) => [m.auth_id as string, m.id as string]));
+
+      const players: CandidatePlayer[] = [];
+      for (const s of subs ?? []) {
+        const mid = memberByAuth.get(s.activated_user_id as string);
+        if (!mid || !s.end_date) continue;
+        players.push({
+          member_id:    mid,
+          end_date:     s.end_date as string,
+          cancelled_at: (s.cancelled_at as string | null) ?? null,
+        });
+      }
+
+      const rows = buildNotificationsForToday(players);
+      for (const r of rows) {
+        const { error: insertErr } = await supabase
+          .from("notifications")
+          .upsert(r, { onConflict: "member_id,milestone_key", ignoreDuplicates: true });
+        if (insertErr) {
+          results.sub_notifications_skipped++;
+        } else {
+          results.sub_notifications_sent++;
+        }
+      }
+    } catch (err) {
+      // Migration 042 not applied yet, or transient DB error — log and
+      // continue. The rest of the cron still finished.
+      logError("cron:sub-notifier", err);
     }
 
     const duration = Date.now() - startedAt;

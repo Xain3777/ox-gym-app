@@ -321,19 +321,20 @@ export default function PortalHome() {
           </section>
         )}
 
-        {/* ── Grace-period notice ── */}
+        {/* ── Gym-grace notice (subscription ended, app locked, but
+            player still has 1-2 days of physical gym access) ── */}
         {isGrace && (
-          <section className="relative bg-danger/[0.06] border border-danger/20 p-4 flex items-start gap-3 overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-[3px] bg-danger/30" />
-            <OxAlert size={18} className="text-danger flex-shrink-0 mt-0.5" />
+          <section className="relative bg-gold/[0.07] border border-gold/25 p-4 flex items-start gap-3 overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-[3px] danger-tape-thin opacity-50" />
+            <OxAlert size={18} className="text-gold flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <p className="text-danger text-[14px] font-semibold leading-snug">انتهى اشتراكك</p>
-              <p className="text-white/40 text-[12px] mt-1 leading-relaxed">
+              <p className="text-gold text-[14px] font-semibold leading-snug">انتهى اشتراكك</p>
+              <p className="text-white/55 text-[12px] mt-1 leading-relaxed">
                 {rawDays === -1
-                  ? "لا يزال بإمكانك الوصول لمدة يوم واحد إضافي."
-                  : "لا يزال بإمكانك الوصول لمدة يومين إضافيين."}
-                {" "}تفضّل بزيارة الاستقبال للتجديد أو اتصل على{" "}
-                <a href={GYM_RECEPTION_PHONE_TEL} className="text-danger font-semibold underline" dir="ltr">
+                  ? "اليوم آخر يوم تستطيع فيه التدريب في النادي."
+                  : "لديك يومان للتدريب في النادي قبل قفل الوصول."}
+                {" "}الرجاء التجديد من الاستقبال أو الاتصال على{" "}
+                <a href={GYM_RECEPTION_PHONE_TEL} className="text-gold font-semibold underline" dir="ltr">
                   {GYM_RECEPTION_PHONE}
                 </a>
                 .

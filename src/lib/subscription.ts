@@ -56,10 +56,16 @@ export function getDetailedStatus(endDate: string | null): DetailedSubStatus {
 
 /**
  * Check if premium features should be locked.
- * Allows a 2-day grace period after expiry before locking.
+ *
+ * Policy: lock the app the moment the subscription ends (days < 0).
+ * The 2-day grace period from GRACE_PERIOD_DAYS is for PHYSICAL gym
+ * access only — reception still lets the player in for two more days,
+ * but the app surfaces a polite "your subscription ended" screen so
+ * they're nudged to renew. The lock screen copy in SubscriptionGate
+ * differentiates between grace and hard-locked using getDetailedStatus.
  */
 export function isFeatureLocked(endDate: string | null): boolean {
-  return daysUntilExpiry(endDate) < -2;
+  return daysUntilExpiry(endDate) < 0;
 }
 
 /** True only during the 2-day grace window. */

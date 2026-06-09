@@ -92,6 +92,19 @@ export async function GET(request: Request) {
     normalizedPhoneCounts.set(normalized, (normalizedPhoneCounts.get(normalized) ?? 0) + 1);
   }
 
+  // Index every non-cancelled subscription by normalized phone so the
+  // intervention-reason computation below can see expired-but-bound,
+  // unbound-live, and "stolen by another auth" cases for a player.
+  const subsByPhone = new Map<string, GymSubscription[]>();
+  for (const sub of gymSubscriptions) {
+    const normalized = normalizedGymSubscriptionPhone(sub);
+    if (!normalized) continue;
+    const list = subsByPhone.get(normalized) ?? [];
+    list.push(sub);
+    subsByPhone.set(normalized, list);
+  }
+  const todayISO = new Date().toISOString().slice(0, 10);
+
   // Only iterate auth-side members. Dashboard-only stub members
   // (auth_id IS NULL) are not real users — they're the reception's
   // record of a person and are reachable through their owner's app
@@ -133,6 +146,33 @@ export async function GET(request: Request) {
     // the sendable decision. One rule: code linked → sendable.
     const eligible = linkedByActivation && hasAppRegistration;
 
+    // ── Compute the human-readable intervention reason ─────────────
+    // Only meaningful for players in the needs_intervention bucket
+    // (duplicate_phone || match_conflict). Computed for every player
+    // so the UI can surface why each one needs reception attention.
+    let interventionReason: string | null = null;
+    if (!eligible) {
+      const phoneSubs = normalizedPhone ? subsByPhone.get(normalizedPhone) ?? [] : [];
+      const myBoundLive    = phoneSubs.find((s) => s.activated_user_id === member.auth_id && s.end_date >= todayISO);
+      const myBoundExpired = phoneSubs.find((s) => s.activated_user_id === member.auth_id && s.end_date < todayISO);
+      const stolenByOther  = phoneSubs.find((s) => s.activated_user_id && s.activated_user_id !== member.auth_id && s.end_date >= todayISO);
+      const unboundLive    = phoneSubs.find((s) => !s.activated_user_id && s.end_date >= todayISO);
+
+      if (!hasAppRegistration) {
+        interventionReason = "لم يكمل التسجيل في التطبيق";
+      } else if (myBoundExpired) {
+        interventionReason = "انتهى الاشتراك — يحتاج تجديد من الاستقبال";
+      } else if (stolenByOther) {
+        interventionReason = "الكود مأخوذ من حساب آخر — تواصل مع الاستقبال";
+      } else if (unboundLive) {
+        interventionReason = "لم يدخل كود التفعيل بعد";
+      } else if (phoneSubs.length === 0) {
+        interventionReason = "لا يوجد اشتراك في الاستقبال — يحتاج إنشاء";
+      } else if (!myBoundLive) {
+        interventionReason = "حساب مكرر — يحتاج توحيد من الاستقبال";
+      }
+    }
+
     return {
       id: member.id,
       auth_id: member.auth_id,
@@ -172,6 +212,7 @@ export async function GET(request: Request) {
       onboarding_complete: appProfile?.onboarding_complete ?? false,
       app_registered_at: appProfile?.app_registered_at ?? null,
       current_assignment: assignmentsByMember.get(member.id as string) ?? null,
+      intervention_reason: interventionReason,
     };
   });
 

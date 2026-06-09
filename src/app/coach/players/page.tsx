@@ -64,6 +64,7 @@ type CoachPlayer = {
     assigned_at: string;
     template: { id: string; name: string; category: string } | null;
   } | null;
+  intervention_reason?: string | null;
 };
 
 type PlayerGroups = {
@@ -232,7 +233,17 @@ export default function CoachPlayersPage() {
                   حسابات بحالة غير سليمة (تكرار هاتف أو ربط معطوب). صحّح الحالة من الاستقبال قبل أي إسناد.
                 </p>
                 {groups.needs_intervention.map((p) => (
-                  <div key={p.id} className="text-white/70 text-[13px] py-0.5">{p.full_name} — {p.phone}</div>
+                  <div key={p.id} className="py-1.5 border-t border-danger/10 first:border-t-0">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <span className="text-white/80 text-[13px]">{p.full_name}</span>
+                      <span className="text-white/35 text-[12px]" dir="ltr">— {p.phone}</span>
+                    </div>
+                    {p.intervention_reason && (
+                      <div className="text-danger/85 text-[11px] mt-0.5 leading-snug">
+                        ⚠ {p.intervention_reason}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </section>
             )}
@@ -557,6 +568,9 @@ function DiagnosticGroup({ title, players, tone }: { title: string; players: Coa
         ) : players.map((player) => (
           <div key={player.id} className="bg-black/15 border border-white/[0.05] p-2">
             <p className="text-white/70 text-[12px] font-semibold">{player.full_name}</p>
+            {player.intervention_reason && (
+              <p className="text-danger/85 text-[11px] mt-0.5">⚠ {player.intervention_reason}</p>
+            )}
             <p className="text-white/35 text-[11px]" dir="ltr">Dashboard: {player.dashboard_phone ?? player.phone ?? "No phone"}</p>
             <p className="text-white/35 text-[11px]" dir="ltr">App: {player.app_phone ?? "No app phone"}</p>
             {player.phone_normalized && (

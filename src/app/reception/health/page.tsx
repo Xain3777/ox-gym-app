@@ -19,7 +19,13 @@ import {
   Search,
   XCircle,
   UserPlus,
+  Inbox,
+  Users,
 } from "lucide-react";
+
+// ── Types ────────────────────────────────────────────────────────
+type SuggestedAction =
+  | "auto_activate" | "delete_duplicate" | "rebind" | "renew" | "create_sub" | "none";
 
 type InterventionItem = {
   member_id: string;
@@ -29,7 +35,7 @@ type InterventionItem = {
   reason: string;
   reason_text: string;
   actionable: boolean;
-  suggested_action: "auto_activate" | "delete_duplicate" | "rebind" | "renew" | "create_sub" | "none";
+  suggested_action: SuggestedAction;
   orphan_sub_id?: string;
   other_member_id?: string;
 };
@@ -92,13 +98,14 @@ type HealthData = {
   };
 };
 
+// ── Page ─────────────────────────────────────────────────────────
 export default function ReceptionHealthPage() {
   const { success, error: toastError, warning } = useToast();
   const [data, setData] = useState<HealthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [bulkRunning, setBulkRunning] = useState(false);
-  const [search, setSearch] = useState("");
+  const [globalSearch, setGlobalSearch] = useState("");
 
   async function load() {
     setLoading(true);
@@ -109,13 +116,15 @@ export default function ReceptionHealthPage() {
       setData(json);
     } catch (e) {
       toastError("فشل التحميل", e instanceof Error ? e.message : "حاول مرة أخرى.");
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
 
-  async function call(url: string, body: Record<string, unknown>): Promise<{ ok: boolean; json: Record<string, unknown> }> {
+  async function call(url: string, body: Record<string, unknown>) {
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -130,7 +139,7 @@ export default function ReceptionHealthPage() {
     setBusyId(item.member_id);
     const { ok, json } = await call("/api/reception/auto-activate", { mode: "single", member_id: item.member_id, sub_id: item.orphan_sub_id });
     setBusyId(null);
-    if (!ok) { toastError("فشل التفعيل", String(json.error ?? "")); return; }
+    if (!ok) return toastError("فشل التفعيل", String(json.error ?? ""));
     success("تم تفعيل الحساب", item.full_name);
     load();
   }
@@ -140,7 +149,7 @@ export default function ReceptionHealthPage() {
     setBusyId(memberId);
     const { ok, json } = await call("/api/reception/delete-duplicate-member", { member_id: memberId });
     setBusyId(null);
-    if (!ok) { toastError("فشل الحذف", String(json.error ?? "")); return; }
+    if (!ok) return toastError("فشل الحذف", String(json.error ?? ""));
     success("تم الحذف", label);
     load();
   }
@@ -149,7 +158,7 @@ export default function ReceptionHealthPage() {
     setBusyId(sub.sub_id);
     const { ok, json } = await call("/api/reception/link-orphan-sub", { sub_id: sub.sub_id, member_id: sub.matching_member_id });
     setBusyId(null);
-    if (!ok) { toastError("فشل الربط", String(json.error ?? "")); return; }
+    if (!ok) return toastError("فشل الربط", String(json.error ?? ""));
     success("تم الربط", `${sub.member_name} → ${sub.matching_full_name}`);
     load();
   }
@@ -159,7 +168,7 @@ export default function ReceptionHealthPage() {
     setBulkRunning(true);
     const { ok, json } = await call("/api/reception/auto-activate", { mode: "bulk" });
     setBulkRunning(false);
-    if (!ok) { toastError("فشل التفعيل الجماعي", String(json.error ?? "")); return; }
+    if (!ok) return toastError("فشل التفعيل الجماعي", String(json.error ?? ""));
     success(`تم تفعيل ${json.bound} حساب`, Number(json.failed) > 0 ? `فشل ${json.failed}` : "");
     load();
   }
@@ -171,8 +180,8 @@ export default function ReceptionHealthPage() {
     setBusyId(memberId);
     const { ok, json } = await call("/api/reception/set-member-status", { member_id: memberId, status: next });
     setBusyId(null);
-    if (!ok) { toastError(`فشل ${verb}`, String(json.error ?? "")); return; }
-    success(verb === "إيقاف" ? "تم إيقاف الحساب" : "تم إعادة التفعيل", label);
+    if (!ok) return toastError(`فشل ${verb}`, String(json.error ?? ""));
+    success(next === "suspended" ? "تم إيقاف الحساب" : "تم إعادة التفعيل", label);
     load();
   }
 
@@ -181,9 +190,8 @@ export default function ReceptionHealthPage() {
     setBusyId(memberId);
     const { ok, json } = await call("/api/reception/reset-password", { member_id: memberId });
     setBusyId(null);
-    if (!ok) { toastError("فشل إعادة التعيين", String(json.error ?? "")); return; }
+    if (!ok) return toastError("فشل إعادة التعيين", String(json.error ?? ""));
     warning("كلمة المرور المؤقتة", `${label}: ${json.temp_password}`);
-    // Also copy to clipboard for easy paste
     try { await navigator.clipboard?.writeText(String(json.temp_password)); } catch { /* ignore */ }
   }
 
@@ -193,325 +201,491 @@ export default function ReceptionHealthPage() {
     setBusyId(subId);
     const { ok, json } = await call("/api/reception/cancel-subscription", { sub_id: subId, reason: reason || undefined });
     setBusyId(null);
-    if (!ok) { toastError("فشل الإلغاء", String(json.error ?? "")); return; }
+    if (!ok) return toastError("فشل الإلغاء", String(json.error ?? ""));
     success("تم إلغاء الاشتراك", label);
     load();
   }
 
-  const filteredAll = useMemo<AllPlayer[]>(() => {
-    if (!data) return [];
-    const q = search.trim().toLowerCase();
-    if (!q) return data.data.all_players;
-    return data.data.all_players.filter((p) =>
-      p.full_name.toLowerCase().includes(q) || (p.phone?.toLowerCase().includes(q) ?? false),
-    );
-  }, [data, search]);
+  // ── Global search filter applied across all visible buckets ────
+  const q = globalSearch.trim().toLowerCase();
+  const matchesQ = (...fields: Array<string | null | undefined>) =>
+    !q || fields.some((f) => (f ?? "").toLowerCase().includes(q));
+
+  const filteredIntervention = useMemo<InterventionItem[]>(
+    () => (data?.data.intervention ?? []).filter((p) => matchesQ(p.full_name, p.phone)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, q],
+  );
+  const filteredDuplicates = useMemo<DuplicateGroup[]>(
+    () => (data?.data.duplicates ?? []).filter((g) =>
+      matchesQ(g.phone_display) || g.rows.some((r) => matchesQ(r.full_name)),
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, q],
+  );
+  const filteredOrphans = useMemo<OrphanSub[]>(
+    () => (data?.data.orphan_subs ?? []).filter((s) =>
+      matchesQ(s.member_name, s.matching_full_name, s.phone, s.activation_code),
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, q],
+  );
+  const filteredExpired = useMemo<ExpiredBound[]>(
+    () => (data?.data.expired_bound ?? []).filter((e) => matchesQ(e.full_name, e.phone)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, q],
+  );
+  const filteredAll = useMemo<AllPlayer[]>(
+    () => (data?.data.all_players ?? []).filter((p) => matchesQ(p.full_name, p.phone, p.current_code)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, q],
+  );
 
   return (
-    <div className="p-6 pb-24 md:pb-6 max-w-5xl mx-auto space-y-5" dir="rtl">
-      <header className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <p className="text-[#4ECDC4] text-[10px] font-mono uppercase tracking-[0.16em]">ACCOUNT HEALTH</p>
-          <h1 className="font-display text-[28px] tracking-wider text-white mt-1">صحة الحسابات</h1>
-          <p className="text-white/40 text-[13px] mt-1">إصلاح، حذف، تفعيل، إيقاف، إنشاء، إعادة كلمة المرور — كل ما يحتاج الاستقبال.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={load}
-            className="inline-flex items-center gap-2 border border-white/[0.08] bg-white/[0.04] hover:bg-white/[0.08] text-white/70 px-3 py-2 text-[12px]">
-            <RefreshCw size={13} /> تحديث
-          </button>
-          <Link href="/reception/create"
-            className="inline-flex items-center gap-2 border border-[#4ECDC4]/30 bg-[#4ECDC4]/10 hover:bg-[#4ECDC4]/20 text-[#4ECDC4] px-3 py-2 text-[12px]">
-            <UserPlus size={13} /> إنشاء حساب
-          </Link>
-          <button type="button" onClick={bulkActivate} disabled={bulkRunning || loading}
-            className="inline-flex items-center gap-2 bg-[#4ECDC4] text-void px-4 py-2 text-[13px] font-bold hover:bg-[#4ECDC4]/90 disabled:opacity-50">
-            <Sparkles size={14} />
-            {bulkRunning ? "جار التفعيل..." : "تفعيل تلقائي للجميع"}
-          </button>
+    <div className="min-h-full bg-void" dir="rtl">
+      {/* ── Sticky page header ─────────────────────────────────── */}
+      <header className="sticky top-0 z-30 bg-charcoal/95 backdrop-blur-md border-b border-white/[0.06]">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 py-4">
+          <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+            <div>
+              <p className="text-[#4ECDC4] text-[10px] font-mono uppercase tracking-[0.18em]">Account Health</p>
+              <h1 className="font-display text-[26px] md:text-[30px] tracking-wider text-white leading-none mt-1.5">صحة الحسابات</h1>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <IconButton onClick={load} disabled={loading} title="تحديث">
+                <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+              </IconButton>
+              <Link href="/reception/create"
+                className="inline-flex items-center gap-1.5 border border-white/[0.08] bg-white/[0.04] hover:bg-white/[0.08] text-white/80 px-3 h-9 text-[12px] font-medium">
+                <UserPlus size={13} /> إنشاء حساب
+              </Link>
+              <button type="button" onClick={bulkActivate} disabled={bulkRunning || loading}
+                className="inline-flex items-center gap-2 bg-[#4ECDC4] hover:bg-[#4ECDC4]/90 text-void px-4 h-9 text-[13px] font-bold disabled:opacity-50 disabled:cursor-not-allowed">
+                <Sparkles size={14} />
+                {bulkRunning ? "جار التفعيل..." : "تفعيل تلقائي للجميع"}
+              </button>
+            </div>
+          </div>
+
+          {/* Global search */}
+          <div className="relative">
+            <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30" />
+            <input
+              type="text"
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              placeholder="ابحث بالاسم أو الهاتف أو الكود — يطبّق على كل الأقسام"
+              className="w-full h-10 pr-9 pl-3 bg-iron border border-steel text-white text-[13px] placeholder:text-white/30 focus:border-[#4ECDC4]/50 focus:outline-none"
+            />
+          </div>
         </div>
       </header>
 
-      {data && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <StatCard label="يحتاج تدخّل"      value={data.counts.intervention} tone="danger" />
-          <StatCard label="حسابات مكررة"      value={data.counts.duplicates}   tone="gold" />
-          <StatCard label="اشتراكات غير مربوطة" value={data.counts.orphan_subs}  tone="blue" />
-          <StatCard label="منتهية الصلاحية"    value={data.counts.expired_bound} tone="muted" />
-          <StatCard label="كل اللاعبين"        value={data.counts.all_players} tone="teal" />
-        </div>
-      )}
+      {/* ── Body ──────────────────────────────────────────────── */}
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 space-y-5 pb-32 md:pb-10">
 
-      {loading && <div className="text-white/40 text-[14px] text-center py-12">جار التحميل...</div>}
+        {/* Stats strip */}
+        {data && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+            <StatCard label="يحتاج تدخّل"      value={filteredIntervention.length} total={data.counts.intervention}  tone="danger" />
+            <StatCard label="حسابات مكررة"      value={filteredDuplicates.length}   total={data.counts.duplicates}    tone="gold" />
+            <StatCard label="اشتراكات معلّقة"   value={filteredOrphans.length}      total={data.counts.orphan_subs}   tone="blue" />
+            <StatCard label="منتهية"           value={filteredExpired.length}      total={data.counts.expired_bound} tone="muted" />
+            <StatCard label="كل اللاعبين"      value={filteredAll.length}          total={data.counts.all_players}   tone="teal" />
+          </div>
+        )}
 
-      {data && !loading && (
-        <>
-          {/* Section A: Intervention */}
-          <Section title="حسابات تحتاج تدخّل" count={data.data.intervention.length} icon={<AlertTriangle size={16} className="text-danger" />}>
-            {data.data.intervention.length === 0 ? (
-              <Empty text="لا توجد حسابات تحتاج تدخّل — حالة ممتازة." />
-            ) : (
-              <div className="space-y-2">
-                {data.data.intervention.map((p) => (
-                  <div key={p.member_id} className="border border-white/[0.06] bg-iron/60 p-3">
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-white text-[14px] font-semibold">{p.full_name}</p>
-                        <p className="text-white/40 text-[12px]" dir="ltr">{p.phone ?? "—"}</p>
-                        <p className="text-danger/85 text-[12px] mt-1">⚠ {p.reason_text}</p>
+        {loading && !data && <SkeletonSections />}
+
+        {data && !loading && (
+          <>
+            <Section
+              title="حسابات تحتاج تدخّل"
+              subtitle="حسابات بحالة غير سليمة — لكل واحدة سبب وزر إصلاح مقترح."
+              count={filteredIntervention.length}
+              tone="danger"
+              icon={<AlertTriangle size={15} />}
+            >
+              {filteredIntervention.length === 0 ? (
+                <Empty icon={<CheckCircle2 size={28} />} text={q ? "لا توجد نتائج" : "كل الحسابات سليمة 🎉"} />
+              ) : (
+                <ul className="divide-y divide-white/[0.05]">
+                  {filteredIntervention.map((p) => (
+                    <li key={p.member_id} className="py-3 first:pt-0 last:pb-0">
+                      <div className="flex items-start justify-between gap-4 flex-wrap">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                            <span className="text-white text-[14px] font-semibold">{p.full_name}</span>
+                            <span className="text-white/40 text-[12px]" dir="ltr">{p.phone ?? "—"}</span>
+                          </div>
+                          <ReasonPill text={p.reason_text} tone={reasonTone(p.reason)} />
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
+                          {p.suggested_action === "auto_activate" && (
+                            <Btn icon={<UserCheck size={12} />} tone="primary" busy={busyId === p.member_id} onClick={() => autoActivate(p)}>
+                              تفعيل تلقائي
+                            </Btn>
+                          )}
+                          {p.suggested_action === "create_sub" && (
+                            <Link href={`/reception/create?phone=${encodeURIComponent(p.phone ?? "")}`}
+                              className="inline-flex items-center gap-1.5 h-8 px-3 border border-[#4ECDC4]/30 bg-[#4ECDC4]/10 text-[#4ECDC4] hover:bg-[#4ECDC4]/20 text-[11px] font-medium">
+                              <UserPlus size={12} /> إنشاء اشتراك
+                            </Link>
+                          )}
+                          {p.suggested_action === "renew" && (
+                            <Tag icon={<PhoneCall size={11} />} tone="gold">يحتاج تجديد بالاستقبال</Tag>
+                          )}
+                          {p.suggested_action === "rebind" && (
+                            <Tag tone="orange">كود مأخوذ — راجع الكود</Tag>
+                          )}
+                          <Btn icon={<KeyRound size={12} />} tone="ghost" busy={busyId === p.member_id} onClick={() => resetPassword(p.member_id, p.full_name)}>
+                            كلمة مرور
+                          </Btn>
+                          <Btn icon={<Trash2 size={12} />} tone="danger" busy={busyId === p.member_id} onClick={() => deleteMember(p.member_id, p.full_name)}>
+                            حذف
+                          </Btn>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
-                        {p.suggested_action === "auto_activate" && (
-                          <ActionBtn icon={<UserCheck size={12} />} tone="emerald" busy={busyId === p.member_id} onClick={() => autoActivate(p)}>
-                            تفعيل تلقائي
-                          </ActionBtn>
-                        )}
-                        {p.suggested_action === "delete_duplicate" && (
-                          <ActionBtn icon={<Trash2 size={12} />} tone="red" busy={busyId === p.member_id} onClick={() => deleteMember(p.member_id, p.full_name)}>
-                            حذف المكرر
-                          </ActionBtn>
-                        )}
-                        {p.suggested_action === "create_sub" && (
-                          <Link href={`/reception/create?phone=${encodeURIComponent(p.phone ?? "")}`}
-                            className="inline-flex items-center gap-1.5 bg-[#4ECDC4]/10 border border-[#4ECDC4]/30 text-[#4ECDC4] px-3 py-1.5 text-[11px] hover:bg-[#4ECDC4]/20">
-                            <UserPlus size={12} /> إنشاء اشتراك
-                          </Link>
-                        )}
-                        {p.suggested_action === "renew" && (
-                          <span className="inline-flex items-center gap-1.5 bg-gold/10 border border-gold/25 text-gold px-3 py-1.5 text-[11px]">
-                            <PhoneCall size={12} /> يحتاج تجديد بالاستقبال
-                          </span>
-                        )}
-                        {p.suggested_action === "rebind" && (
-                          <span className="inline-flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/30 text-orange-300 px-3 py-1.5 text-[11px]">
-                            ⚠ كود مأخوذ — راجع الكود
-                          </span>
-                        )}
-                        <ActionBtn icon={<KeyRound size={12} />} tone="blue" busy={busyId === p.member_id} onClick={() => resetPassword(p.member_id, p.full_name)}>
-                          كلمة مرور
-                        </ActionBtn>
-                        <ActionBtn icon={<Trash2 size={12} />} tone="red" busy={busyId === p.member_id} onClick={() => deleteMember(p.member_id, p.full_name)}>
-                          حذف
-                        </ActionBtn>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Section>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Section>
 
-          {/* Section B: Duplicates */}
-          <Section title="حسابات مكررة (نفس الهاتف)" count={data.data.duplicates.length} icon={<AlertTriangle size={16} className="text-gold" />}>
-            {data.data.duplicates.length === 0 ? (
-              <Empty text="لا توجد حسابات مكررة." />
-            ) : (
-              <div className="space-y-3">
-                {data.data.duplicates.map((group) => (
-                  <div key={group.phone_normalized} className="border border-white/[0.06] bg-iron/60 p-3">
-                    <p className="text-white/60 text-[12px] mb-2" dir="ltr">📞 {group.phone_display}</p>
-                    <div className="grid sm:grid-cols-2 gap-2">
-                      {group.rows.map((r) => (
-                        <div key={r.member_id} className="border border-white/[0.06] bg-black/15 p-2">
-                          <div className="flex items-start justify-between gap-2">
+            <Section
+              title="حسابات مكررة"
+              subtitle="نفس رقم الهاتف عبر أكثر من حساب — اختر السجل الصحيح واحذف الزائد."
+              count={filteredDuplicates.length}
+              tone="gold"
+              icon={<Users size={15} />}
+            >
+              {filteredDuplicates.length === 0 ? (
+                <Empty icon={<CheckCircle2 size={28} />} text="لا حسابات مكررة." />
+              ) : (
+                <div className="space-y-3">
+                  {filteredDuplicates.map((group) => (
+                    <div key={group.phone_normalized} className="border border-white/[0.06] bg-black/15 p-3">
+                      <p className="text-white/50 text-[11px] font-mono mb-2.5" dir="ltr">📞 {group.phone_display}</p>
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        {group.rows.map((r) => (
+                          <div key={r.member_id} className="border border-white/[0.06] bg-iron/60 px-3 py-2 flex items-center justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="text-white text-[13px]">{r.full_name}</p>
-                              <p className="text-white/35 text-[11px]">
-                                {r.kind === "app" ? "✅ حساب تطبيق" : "📋 سجل استقبال"} · {r.created_at?.slice(0, 10)}
+                              <p className="text-white text-[13px] truncate">{r.full_name}</p>
+                              <p className="text-white/35 text-[11px] mt-0.5">
+                                {r.kind === "app"
+                                  ? <span className="text-emerald-300/85">✓ حساب تطبيق</span>
+                                  : <span className="text-white/40">سجل استقبال</span>}
+                                <span className="mx-1 text-white/20">·</span>
+                                {r.created_at?.slice(0, 10)}
                               </p>
                             </div>
-                            <ActionBtn icon={<Trash2 size={11} />} tone="red" busy={busyId === r.member_id} onClick={() => deleteMember(r.member_id, r.full_name)} size="sm">
+                            <Btn icon={<Trash2 size={11} />} tone="danger" busy={busyId === r.member_id} onClick={() => deleteMember(r.member_id, r.full_name)} size="sm">
                               حذف
-                            </ActionBtn>
+                            </Btn>
                           </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
+
+            <Section
+              title="اشتراكات معلّقة"
+              subtitle="اشتراكات في الاستقبال لها حساب تطبيق مطابق ولكن لم تُربط بعد."
+              count={filteredOrphans.length}
+              tone="blue"
+              icon={<Link2 size={15} />}
+            >
+              {filteredOrphans.length === 0 ? (
+                <Empty icon={<CheckCircle2 size={28} />} text="كل الاشتراكات مربوطة." />
+              ) : (
+                <ul className="divide-y divide-white/[0.05]">
+                  {filteredOrphans.map((s) => (
+                    <li key={s.sub_id} className="py-3 first:pt-0 last:pb-0">
+                      <div className="flex items-start justify-between gap-4 flex-wrap">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-white text-[13px] mb-1">
+                            <span className="text-white/60">{s.member_name}</span>
+                            <span className="text-white/30 mx-1.5">↔</span>
+                            <span>{s.matching_full_name}</span>
+                          </p>
+                          <p className="text-white/40 text-[11px] font-mono" dir="ltr">
+                            {s.phone ?? "—"} · <span className="text-blue-300">{s.activation_code}</span> · ${s.amount ?? "—"} · ends {s.end_date}
+                          </p>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Section>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <Btn icon={<Link2 size={12} />} tone="primary" busy={busyId === s.sub_id} onClick={() => linkOrphan(s)}>
+                            ربط الآن
+                          </Btn>
+                          <Btn icon={<XCircle size={12} />} tone="danger" busy={busyId === s.sub_id} onClick={() => cancelSub(s.sub_id, `${s.member_name} / ${s.activation_code}`)}>
+                            إلغاء
+                          </Btn>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Section>
 
-          {/* Section C: Orphan subs */}
-          <Section title="اشتراكات غير مربوطة (يوجد حساب مطابق)" count={data.data.orphan_subs.length} icon={<Link2 size={16} className="text-blue-400" />}>
-            {data.data.orphan_subs.length === 0 ? (
-              <Empty text="جميع الاشتراكات مربوطة بحساباتها." />
-            ) : (
-              <div className="space-y-2">
-                {data.data.orphan_subs.map((s) => (
-                  <div key={s.sub_id} className="border border-white/[0.06] bg-iron/60 p-3">
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
+            <Section
+              title="اشتراكات منتهية"
+              subtitle="حسابات فعّالة سابقاً لكن انتهى اشتراكها — تحتاج تجديد من لوحة الاستقبال الرئيسية."
+              count={filteredExpired.length}
+              tone="muted"
+              icon={<Inbox size={15} />}
+            >
+              {filteredExpired.length === 0 ? (
+                <Empty icon={<CheckCircle2 size={28} />} text="لا توجد اشتراكات منتهية." />
+              ) : (
+                <ul className="divide-y divide-white/[0.05]">
+                  {filteredExpired.map((e) => (
+                    <li key={e.sub_id} className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3 flex-wrap">
                       <div className="min-w-0 flex-1">
-                        <p className="text-white text-[13px]">{s.member_name} (اشتراك) ↔ {s.matching_full_name} (تطبيق)</p>
-                        <p className="text-white/40 text-[12px]" dir="ltr">{s.phone ?? "—"}  ·  code={s.activation_code}  ·  ${s.amount ?? "—"}  ·  ends {s.end_date}</p>
+                        <span className="text-white/85 text-[13px]">{e.full_name}</span>
+                        <span className="text-white/35 text-[11px] mr-2" dir="ltr">{e.phone ?? "—"}</span>
+                        <Tag tone="gold" small>انتهى {e.ended_on}</Tag>
                       </div>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <ActionBtn icon={<Link2 size={12} />} tone="blue" busy={busyId === s.sub_id} onClick={() => linkOrphan(s)}>
-                          ربط الآن
-                        </ActionBtn>
-                        <ActionBtn icon={<XCircle size={12} />} tone="red" busy={busyId === s.sub_id} onClick={() => cancelSub(s.sub_id, `${s.member_name} / ${s.activation_code}`)}>
-                          إلغاء الاشتراك
-                        </ActionBtn>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Section>
+                      <Btn icon={<XCircle size={11} />} tone="danger" busy={busyId === e.sub_id} onClick={() => cancelSub(e.sub_id, `${e.full_name} / ${e.activation_code}`)} size="sm">
+                        إلغاء الاشتراك
+                      </Btn>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Section>
 
-          {/* Section D: Expired bound */}
-          <Section title="اشتراكات منتهية (حساب فعّال بحاجة تجديد)" count={data.data.expired_bound.length} icon={<CheckCircle2 size={16} className="text-white/40" />}>
-            {data.data.expired_bound.length === 0 ? (
-              <Empty text="لا توجد اشتراكات منتهية." />
-            ) : (
-              <div className="space-y-1.5">
-                {data.data.expired_bound.map((e) => (
-                  <div key={e.sub_id} className="border border-white/[0.05] bg-black/10 px-3 py-2 flex items-center justify-between gap-3 flex-wrap">
-                    <div className="min-w-0">
-                      <span className="text-white/80 text-[13px]">{e.full_name}</span>
-                      <span className="text-white/35 text-[11px] mr-2" dir="ltr">{e.phone ?? "—"} · انتهى {e.ended_on}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-gold text-[11px]">يحتاج تجديد</span>
-                      <ActionBtn icon={<XCircle size={11} />} tone="red" busy={busyId === e.sub_id} onClick={() => cancelSub(e.sub_id, `${e.full_name} / ${e.activation_code}`)} size="sm">
-                        إلغاء
-                      </ActionBtn>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Section>
-
-          {/* Section E: All players */}
-          <Section
-            title="كل اللاعبين"
-            count={data.data.all_players.length}
-            icon={<Power size={16} className="text-[#4ECDC4]" />}
-          >
-            <div className="relative mb-3">
-              <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="ابحث بالاسم أو الهاتف"
-                className="w-full h-10 pr-9 pl-3 bg-iron border border-steel text-white text-[13px] placeholder:text-white/30 focus:border-[#4ECDC4]/50 focus:outline-none"
-              />
-            </div>
-            {filteredAll.length === 0 ? (
-              <Empty text={search ? "لا توجد نتائج للبحث" : "لا يوجد لاعبون."} />
-            ) : (
-              <div className="space-y-1.5 max-h-[600px] overflow-y-auto">
-                {filteredAll.slice(0, 200).map((p) => (
-                  <div key={p.member_id} className="border border-white/[0.05] bg-black/15 px-3 py-2 flex items-center justify-between gap-3 flex-wrap">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-white/85 text-[13px]">{p.full_name}</span>
-                        <span className="text-white/35 text-[11px]" dir="ltr">{p.phone ?? "—"}</span>
-                        {p.status === "suspended" && (
-                          <span className="bg-red-500/15 border border-red-500/30 text-red-300 text-[10px] px-1.5 py-0.5">موقوف</span>
-                        )}
-                        {p.has_live_sub ? (
-                          <span className="bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-[10px] px-1.5 py-0.5">
-                            مفعّل · {p.current_code}
-                          </span>
-                        ) : (
-                          <span className="bg-white/[0.05] border border-white/[0.1] text-white/50 text-[10px] px-1.5 py-0.5">غير مفعّل</span>
-                        )}
+            <Section
+              title="كل اللاعبين"
+              subtitle="إدارة سريعة لكل لاعب — تفعيل، إيقاف، إعادة كلمة المرور، حذف."
+              count={filteredAll.length}
+              tone="teal"
+              icon={<Users size={15} />}
+              defaultOpen
+            >
+              {filteredAll.length === 0 ? (
+                <Empty icon={<Inbox size={28} />} text={q ? "لا توجد نتائج للبحث" : "لا يوجد لاعبون."} />
+              ) : (
+                <ul className="divide-y divide-white/[0.05]">
+                  {filteredAll.slice(0, 200).map((p) => (
+                    <li key={p.member_id} className="py-2.5 first:pt-0 flex items-center justify-between gap-3 flex-wrap">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-white/90 text-[13px]">{p.full_name}</span>
+                          <span className="text-white/35 text-[11px]" dir="ltr">{p.phone ?? "—"}</span>
+                          {p.status === "suspended" && <Tag tone="danger" small>موقوف</Tag>}
+                          {p.has_live_sub ? (
+                            <Tag tone="emerald" small>مفعّل · <span dir="ltr">{p.current_code}</span></Tag>
+                          ) : (
+                            <Tag tone="muted" small>غير مفعّل</Tag>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1 flex-wrap">
-                      <ActionBtn icon={<KeyRound size={11} />} tone="blue" busy={busyId === p.member_id} onClick={() => resetPassword(p.member_id, p.full_name)} size="sm">
-                        كلمة مرور
-                      </ActionBtn>
-                      <ActionBtn
-                        icon={p.status === "suspended" ? <Power size={11} /> : <Ban size={11} />}
-                        tone={p.status === "suspended" ? "emerald" : "orange"}
-                        busy={busyId === p.member_id}
-                        onClick={() => toggleStatus(p.member_id, p.status, p.full_name)}
-                        size="sm"
-                      >
-                        {p.status === "suspended" ? "تفعيل" : "إيقاف"}
-                      </ActionBtn>
-                      <ActionBtn icon={<Trash2 size={11} />} tone="red" busy={busyId === p.member_id} onClick={() => deleteMember(p.member_id, p.full_name)} size="sm">
-                        حذف
-                      </ActionBtn>
-                    </div>
-                  </div>
-                ))}
-                {filteredAll.length > 200 && (
-                  <p className="text-white/30 text-[11px] text-center py-2">عرض أول 200 — ابحث لتصفية المزيد.</p>
-                )}
-              </div>
-            )}
-          </Section>
-        </>
-      )}
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <Btn icon={<KeyRound size={11} />} tone="ghost" busy={busyId === p.member_id} onClick={() => resetPassword(p.member_id, p.full_name)} size="sm">
+                          كلمة مرور
+                        </Btn>
+                        <Btn
+                          icon={p.status === "suspended" ? <Power size={11} /> : <Ban size={11} />}
+                          tone={p.status === "suspended" ? "primary" : "warn"}
+                          busy={busyId === p.member_id}
+                          onClick={() => toggleStatus(p.member_id, p.status, p.full_name)}
+                          size="sm"
+                        >
+                          {p.status === "suspended" ? "تفعيل" : "إيقاف"}
+                        </Btn>
+                        <Btn icon={<Trash2 size={11} />} tone="danger" busy={busyId === p.member_id} onClick={() => deleteMember(p.member_id, p.full_name)} size="sm">
+                          حذف
+                        </Btn>
+                      </div>
+                    </li>
+                  ))}
+                  {filteredAll.length > 200 && (
+                    <li className="py-3 text-center text-white/30 text-[11px]">عرض أول 200 — ابحث لتصفية المزيد.</li>
+                  )}
+                </ul>
+              )}
+            </Section>
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
-function StatCard({ label, value, tone }: { label: string; value: number; tone: "danger" | "gold" | "blue" | "muted" | "teal" }) {
+// ── Helpers ────────────────────────────────────────────────────
+
+function reasonTone(reason: string): "danger" | "gold" | "blue" | "muted" | "orange" {
+  if (reason === "expired_bound")    return "gold";
+  if (reason === "code_stolen")      return "orange";
+  if (reason === "no_code_entered")  return "blue";
+  if (reason === "no_dashboard_sub") return "muted";
+  if (reason === "no_app_registration") return "muted";
+  if (reason === "duplicate")        return "danger";
+  return "muted";
+}
+
+// ── Subcomponents ──────────────────────────────────────────────
+
+function StatCard({ label, value, total, tone }: { label: string; value: number; total: number; tone: "danger" | "gold" | "blue" | "muted" | "teal" }) {
   const tones = {
-    danger: { box: "border-danger/25 bg-danger/[0.06]",     num: "text-danger" },
-    gold:   { box: "border-gold/25 bg-gold/[0.06]",         num: "text-gold" },
-    blue:   { box: "border-blue-400/25 bg-blue-400/[0.06]", num: "text-blue-300" },
-    muted:  { box: "border-white/[0.08] bg-white/[0.03]",   num: "text-white/60" },
-    teal:   { box: "border-[#4ECDC4]/25 bg-[#4ECDC4]/[0.06]", num: "text-[#4ECDC4]" },
+    danger: { box: "border-danger/20 bg-danger/[0.05]",     num: "text-danger" },
+    gold:   { box: "border-gold/20 bg-gold/[0.05]",         num: "text-gold" },
+    blue:   { box: "border-blue-400/20 bg-blue-400/[0.05]", num: "text-blue-300" },
+    muted:  { box: "border-white/[0.06] bg-white/[0.02]",   num: "text-white/70" },
+    teal:   { box: "border-[#4ECDC4]/20 bg-[#4ECDC4]/[0.05]", num: "text-[#4ECDC4]" },
+  }[tone];
+  const isFiltered = value !== total;
+  return (
+    <div className={cn("border px-3 py-2.5", tones.box)}>
+      <div className="flex items-baseline gap-1.5">
+        <p className={cn("text-[22px] font-display leading-none", tones.num)}>{value}</p>
+        {isFiltered && <p className="text-white/30 text-[11px]" dir="ltr">/ {total}</p>}
+      </div>
+      <p className="text-white/45 text-[10px] font-mono uppercase tracking-[0.12em] mt-1.5 truncate">{label}</p>
+    </div>
+  );
+}
+
+function Section({
+  title, subtitle, count, tone, icon, children, defaultOpen = false,
+}: {
+  title: string;
+  subtitle?: string;
+  count: number;
+  tone: "danger" | "gold" | "blue" | "muted" | "teal";
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const isEmpty = count === 0;
+  const tones = {
+    danger: "text-danger border-danger/15",
+    gold:   "text-gold border-gold/15",
+    blue:   "text-blue-300 border-blue-400/15",
+    muted:  "text-white/60 border-white/[0.08]",
+    teal:   "text-[#4ECDC4] border-[#4ECDC4]/15",
   }[tone];
   return (
-    <div className={cn("border p-3 text-center", tones.box)}>
-      <p className={cn("text-[24px] font-display", tones.num)}>{value}</p>
-      <p className="text-white/50 text-[10px] font-mono uppercase tracking-[0.14em] mt-1">{label}</p>
+    <details open={defaultOpen || !isEmpty} className={cn("border bg-white/[0.02] group", tones)}>
+      <summary className="cursor-pointer list-none px-4 py-3 flex items-center gap-3 hover:bg-white/[0.02] transition-colors">
+        <span className={tones}>{icon}</span>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-white text-[14px] font-semibold flex items-center gap-2">
+            {title}
+            <span className={cn("inline-flex items-center justify-center min-w-[22px] h-[20px] px-1.5 text-[11px] font-mono", tones, "bg-current/10 border border-current/20")}>
+              <span className={tones.split(" ")[0]}>{count}</span>
+            </span>
+          </h2>
+          {subtitle && <p className="text-white/40 text-[11px] mt-0.5 leading-snug">{subtitle}</p>}
+        </div>
+        <span className="text-white/30 text-[11px] group-open:rotate-180 transition-transform">▾</span>
+      </summary>
+      <div className="px-4 pb-4 pt-1">{children}</div>
+    </details>
+  );
+}
+
+function Empty({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return (
+    <div className="py-8 flex flex-col items-center justify-center gap-2 text-white/30">
+      <div className="text-white/15">{icon}</div>
+      <p className="text-[12px]">{text}</p>
     </div>
   );
 }
 
-function Section({ title, count, icon, children }: { title: string; count: number; icon: React.ReactNode; children: React.ReactNode }) {
+function ReasonPill({ text, tone }: { text: string; tone: "danger" | "gold" | "blue" | "muted" | "orange" }) {
+  const tones = {
+    danger: "bg-danger/10 border-danger/25 text-danger/95",
+    gold:   "bg-gold/10 border-gold/25 text-gold",
+    blue:   "bg-blue-400/10 border-blue-400/25 text-blue-300",
+    muted:  "bg-white/[0.04] border-white/[0.12] text-white/60",
+    orange: "bg-orange-500/10 border-orange-500/25 text-orange-300",
+  }[tone];
   return (
-    <section className="border border-white/[0.06] bg-white/[0.025]">
-      <header className="flex items-center gap-2 p-3 border-b border-white/[0.06]">
-        {icon}
-        <h2 className="text-white text-[14px] font-semibold flex-1">{title}</h2>
-        <span className="text-white/40 text-[11px] font-mono">{count}</span>
-      </header>
-      <div className="p-3">{children}</div>
-    </section>
+    <span className={cn("inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] leading-none", tones)}>
+      <AlertTriangle size={11} />
+      {text}
+    </span>
   );
 }
 
-function Empty({ text }: { text: string }) {
-  return <p className="text-white/30 text-[12px] text-center py-6">{text}</p>;
+function Tag({ children, tone, icon, small = false }: { children: React.ReactNode; tone: "gold" | "orange" | "emerald" | "muted" | "danger"; icon?: React.ReactNode; small?: boolean }) {
+  const tones = {
+    gold:    "bg-gold/10 border-gold/25 text-gold",
+    orange:  "bg-orange-500/10 border-orange-500/30 text-orange-300",
+    emerald: "bg-emerald-500/10 border-emerald-500/25 text-emerald-300",
+    muted:   "bg-white/[0.04] border-white/[0.1] text-white/55",
+    danger:  "bg-red-500/10 border-red-500/30 text-red-300",
+  }[tone];
+  const padding = small ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-1 text-[11px]";
+  return (
+    <span className={cn("inline-flex items-center gap-1 border leading-none", tones, padding)}>
+      {icon}
+      {children}
+    </span>
+  );
 }
 
-function ActionBtn({
+function Btn({
   icon, tone, busy, onClick, children, size = "md",
 }: {
   icon: React.ReactNode;
-  tone: "emerald" | "red" | "blue" | "orange";
+  tone: "primary" | "danger" | "ghost" | "warn";
   busy: boolean;
   onClick: () => void;
   children: React.ReactNode;
   size?: "sm" | "md";
 }) {
   const tones = {
-    emerald: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25",
-    red:     "bg-red-500/10 border-red-500/30 text-red-300 hover:bg-red-500/20",
-    blue:    "bg-blue-400/10 border-blue-400/30 text-blue-300 hover:bg-blue-400/20",
-    orange:  "bg-orange-500/10 border-orange-500/30 text-orange-300 hover:bg-orange-500/20",
+    primary: "bg-[#4ECDC4] hover:bg-[#4ECDC4]/90 text-void border border-[#4ECDC4]",
+    danger:  "bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30",
+    ghost:   "bg-white/[0.04] hover:bg-white/[0.08] text-white/75 border border-white/[0.08]",
+    warn:    "bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 border border-orange-500/30",
   }[tone];
-  const padding = size === "sm" ? "px-2 py-1 text-[10px]" : "px-3 py-1.5 text-[11px]";
+  const sizes = size === "sm" ? "h-7 px-2.5 text-[10.5px]" : "h-8 px-3 text-[11px]";
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={busy}
-      className={cn("inline-flex items-center gap-1 border disabled:opacity-50 disabled:cursor-not-allowed", tones, padding)}
+      className={cn("inline-flex items-center gap-1.5 font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap", tones, sizes)}
     >
-      {icon} {children}
+      {icon}
+      {children}
     </button>
+  );
+}
+
+function IconButton({ children, onClick, disabled, title }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; title?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="inline-flex items-center justify-center w-9 h-9 border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.08] text-white/70 disabled:opacity-40"
+    >
+      {children}
+    </button>
+  );
+}
+
+function SkeletonSections() {
+  return (
+    <div className="space-y-4">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="border border-white/[0.06] bg-white/[0.02] p-4 animate-pulse">
+          <div className="h-4 w-1/3 bg-white/[0.06] mb-3" />
+          <div className="space-y-2">
+            <div className="h-10 bg-white/[0.04]" />
+            <div className="h-10 bg-white/[0.04]" />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

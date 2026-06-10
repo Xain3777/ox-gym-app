@@ -266,6 +266,40 @@ export async function GET(request: Request) {
     });
   }
 
+  // ── Bucket 5: all_players (every player with auth, for quick actions) ─
+  const allPlayers: Array<{
+    member_id: string;
+    auth_id: string | null;
+    full_name: string;
+    phone: string | null;
+    status: string;
+    has_live_sub: boolean;
+    current_code: string | null;
+    sub_end_date: string | null;
+    sub_id: string | null;
+    has_app_registration: boolean;
+  }> = [];
+  for (const m of members) {
+    if (!m.auth_id) continue;
+    const pn = m.phone_normalized || normalizePhone(m.phone as string | null);
+    const phoneSubs = pn ? subsByPhone.get(pn) ?? [] : [];
+    const liveBound = phoneSubs.find((s) => s.activated_user_id === m.auth_id && (s.end_date as string) >= today);
+    const profile = profileByAuth.get(m.auth_id as string);
+    allPlayers.push({
+      member_id:           m.id as string,
+      auth_id:             m.auth_id as string,
+      full_name:           (profile?.full_name as string) ?? (m.full_name as string) ?? "—",
+      phone:               (m.phone as string | null) ?? null,
+      status:              (m.status as string) ?? "active",
+      has_live_sub:        Boolean(liveBound),
+      current_code:        (liveBound?.activation_code as string) ?? null,
+      sub_end_date:        (liveBound?.end_date as string) ?? null,
+      sub_id:              (liveBound?.id as string) ?? null,
+      has_app_registration: Boolean(profile?.app_registered_at),
+    });
+  }
+  allPlayers.sort((a, b) => a.full_name.localeCompare(b.full_name));
+
   return NextResponse.json({
     success: true,
     counts: {
@@ -273,12 +307,14 @@ export async function GET(request: Request) {
       duplicates: duplicates.length,
       orphan_subs: orphanSubs.length,
       expired_bound: expiredBound.length,
+      all_players: allPlayers.length,
     },
     data: {
       intervention,
       duplicates,
       orphan_subs: orphanSubs,
       expired_bound: expiredBound,
+      all_players: allPlayers,
     },
   });
 }

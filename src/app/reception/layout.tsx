@@ -15,6 +15,7 @@ import {
   CreditCard,
   ShoppingBag,
   Activity,
+  Stethoscope,
 } from "lucide-react";
 
 const navItems = [
@@ -22,6 +23,7 @@ const navItems = [
   { label: "إنشاء حساب",       href: "/reception/create",        icon: UserPlus },
   { label: "الأعضاء",          href: "/reception/members",       icon: Users },
   { label: "الاشتراكات",       href: "/reception/subscriptions", icon: CreditCard },
+  { label: "صحة الحسابات",     href: "/reception/health",        icon: Stethoscope },
   { label: "المتجر والمخزون",   href: "/reception/store",         icon: ShoppingBag },
   { label: "جهاز InBody",       href: "/reception/inbody",        icon: Activity },
 ];
@@ -91,7 +93,7 @@ export default function ReceptionLayout({ children }: { children: React.ReactNod
         </main>
 
         {/* Mobile Bottom Nav */}
-        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-charcoal/95 backdrop-blur-sm border-t border-steel grid grid-cols-6 h-16 pb-safe md:hidden">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-charcoal/95 backdrop-blur-sm border-t border-steel grid grid-cols-7 h-16 pb-safe md:hidden">
           {navItems.map((item) => {
             const active = isActive(pathname, item.href, item.exact);
             const Icon = item.icon;

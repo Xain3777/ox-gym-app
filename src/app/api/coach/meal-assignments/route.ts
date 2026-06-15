@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   const [{ data: member }, { data: template }] = await Promise.all([
     supabase
       .from("members")
-      .select("id, auth_id, full_name, phone")
+      .select("id, auth_id, full_name, phone, phone_normalized")
       .eq("id", member_id)
       .eq("role", "player")
       .maybeSingle(),
@@ -54,36 +54,44 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Eligibility: must be activated + have a current (non-cancelled, non-expired) subscription.
-  const [{ data: appProfile }, { data: activatedSub }] = await Promise.all([
-    supabase
-      .from("member_app_profiles")
-      .select("id, app_registered_at")
-      .eq("app_user_id", member.auth_id)
-      .maybeSingle(),
-    supabase
-      .from("gym_subscriptions")
-      .select("id, end_date, cancelled_at")
-      .eq("activated_user_id", member.auth_id)
-      .is("cancelled_at", null)
-      .gte("end_date", new Date().toISOString().slice(0, 10))
-      .order("end_date", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
-
-  if (!appProfile?.app_registered_at) {
-    return NextResponse.json(
-      { success: false, error: "Player must register in the Web App before assignment." },
-      { status: 403 },
-    );
-  }
+  // Eligibility: activation link is the source of truth. We do NOT
+  // gate on member_app_profiles — that row can be wiped by accidental
+  // deletes and the player would silently lose access. Self-heal it
+  // when missing.
+  const { data: activatedSub } = await supabase
+    .from("gym_subscriptions")
+    .select("id, activation_code, end_date, cancelled_at")
+    .eq("activated_user_id", member.auth_id)
+    .is("cancelled_at", null)
+    .gte("end_date", new Date().toISOString().slice(0, 10))
+    .order("end_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   if (!activatedSub) {
     return NextResponse.json(
       { success: false, error: "Player has no active activated subscription." },
       { status: 403 },
     );
+  }
+
+  const { data: appProfile } = await supabase
+    .from("member_app_profiles")
+    .select("id, app_registered_at")
+    .eq("app_user_id", member.auth_id)
+    .maybeSingle();
+  if (!appProfile) {
+    await supabase.from("member_app_profiles").insert({
+      app_user_id: member.auth_id,
+      linked_member_id: member.id,
+      full_name: member.full_name,
+      phone: member.phone,
+      phone_normalized: member.phone_normalized,
+      active: true,
+      activation_code: activatedSub.activation_code,
+      app_registered_at: new Date().toISOString(),
+      onboarding_complete: false,
+    }).then(() => {});
   }
 
   // Supersede previous active assignment.

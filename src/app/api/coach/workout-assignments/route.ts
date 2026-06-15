@@ -56,35 +56,44 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const [{ data: appProfile }, { data: activatedSub }] = await Promise.all([
-    supabase
-      .from("member_app_profiles")
-      .select("id, app_user_id, app_registered_at")
-      .eq("app_user_id", member.auth_id)
-      .maybeSingle(),
-    supabase
-      .from("gym_subscriptions")
-      .select("id, end_date, cancelled_at")
-      .eq("activated_user_id", member.auth_id)
-      .is("cancelled_at", null)
-      .gte("end_date", new Date().toISOString().slice(0, 10))
-      .order("end_date", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
+  const { data: activatedSub } = await supabase
+    .from("gym_subscriptions")
+    .select("id, activation_code, end_date, cancelled_at")
+    .eq("activated_user_id", member.auth_id)
+    .is("cancelled_at", null)
+    .gte("end_date", new Date().toISOString().slice(0, 10))
+    .order("end_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  if (!appProfile?.app_registered_at) {
-    return NextResponse.json(
-      { success: false, error: "Player must register in the Web App before assignment." },
-      { status: 403 },
-    );
-  }
-
+  // Activation link is the single source of truth for "player paid +
+  // claimed code". The app_profile row is only metadata and can be
+  // missing if reception accidentally deleted a duplicate — don't gate
+  // on it. Self-heal: if it's missing, recreate it inline.
   if (!activatedSub) {
     return NextResponse.json(
       { success: false, error: "Player has no active activated subscription. They must enter their activation code from reception first." },
       { status: 403 },
     );
+  }
+
+  const { data: appProfile } = await supabase
+    .from("member_app_profiles")
+    .select("id, app_registered_at")
+    .eq("app_user_id", member.auth_id)
+    .maybeSingle();
+  if (!appProfile) {
+    await supabase.from("member_app_profiles").insert({
+      app_user_id: member.auth_id,
+      linked_member_id: member.id,
+      full_name: member.full_name,
+      phone: member.phone,
+      phone_normalized: member.phone_normalized,
+      active: true,
+      activation_code: activatedSub.activation_code,
+      app_registered_at: new Date().toISOString(),
+      onboarding_complete: false,
+    }).then(() => {});
   }
 
   const { data: replacedRows } = await supabase

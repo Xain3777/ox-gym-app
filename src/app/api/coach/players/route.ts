@@ -140,11 +140,17 @@ export async function GET(request: Request) {
       ? "Linked deterministically via gym_subscriptions.activated_user_id."
       : fuzzyMatch.reason;
     const matchConflict = linkedByActivation ? false : fuzzyMatch.conflict || fuzzyMatch.status === "ambiguous";
-    // Eligibility (= "coach can send plans") is activation-only now.
-    // Fuzzy phone/name matching still runs above so the diagnostic
-    // groups can show who's *almost* matched, but it does not feed
-    // the sendable decision. One rule: code linked → sendable.
-    const eligible = linkedByActivation && hasAppRegistration;
+    // Eligibility (= "coach can send plans") is activation-only.
+    // The activation link (gym_subscriptions.activated_user_id =
+    // member.auth_id with non-cancelled, in-date row) is the strongest
+    // signal that a player paid and claimed their code. We DO NOT
+    // gate on hasAppRegistration anymore — that field comes from
+    // member_app_profiles which can be wiped by accidental deletes
+    // (reception "delete duplicate", manual cleanups, etc.), and
+    // when it's missing the player would silently vanish from the
+    // coach view while still being a valid paying member. The
+    // profile is treated as supplementary metadata, not as a gate.
+    const eligible = linkedByActivation;
 
     // ── Compute the human-readable intervention reason ─────────────
     // Only meaningful for players in the needs_intervention bucket

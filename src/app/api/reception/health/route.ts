@@ -266,6 +266,48 @@ export async function GET(request: Request) {
     });
   }
 
+  // ── Bucket 4.5: missing_profiles (live bound sub but profile gone) ─
+  // The activation link is the source of truth; if the profile row is
+  // missing the coach UI degrades. Surface them so reception can fix
+  // with one click (the coach assign endpoints self-heal too, but this
+  // bucket lets reception clean it proactively).
+  const profileAuthSet = new Set<string>();
+  for (const p of profiles) if (p.app_user_id) profileAuthSet.add(p.app_user_id as string);
+  const liveSubsByAuth = new Map<string, typeof subs[number]>();
+  for (const s of subs) {
+    if (s.cancelled_at) continue;
+    if (!s.activated_user_id) continue;
+    if ((s.end_date as string) < today) continue;
+    const existing = liveSubsByAuth.get(s.activated_user_id as string);
+    if (!existing || (existing.end_date as string) < (s.end_date as string)) {
+      liveSubsByAuth.set(s.activated_user_id as string, s);
+    }
+  }
+  const missingProfiles: Array<{
+    member_id: string;
+    auth_id: string;
+    full_name: string;
+    phone: string | null;
+    sub_id: string;
+    activation_code: string;
+    end_date: string;
+  }> = [];
+  for (const m of members) {
+    if (!m.auth_id) continue;
+    if (profileAuthSet.has(m.auth_id as string)) continue;
+    const sub = liveSubsByAuth.get(m.auth_id as string);
+    if (!sub) continue;
+    missingProfiles.push({
+      member_id:       m.id as string,
+      auth_id:         m.auth_id as string,
+      full_name:       (m.full_name as string) ?? "—",
+      phone:           (m.phone as string | null) ?? null,
+      sub_id:          sub.id as string,
+      activation_code: sub.activation_code as string,
+      end_date:        sub.end_date as string,
+    });
+  }
+
   // ── Bucket 5: all_players (every player with auth, for quick actions) ─
   const allPlayers: Array<{
     member_id: string;
@@ -307,6 +349,7 @@ export async function GET(request: Request) {
       duplicates: duplicates.length,
       orphan_subs: orphanSubs.length,
       expired_bound: expiredBound.length,
+      missing_profiles: missingProfiles.length,
       all_players: allPlayers.length,
     },
     data: {
@@ -314,6 +357,7 @@ export async function GET(request: Request) {
       duplicates,
       orphan_subs: orphanSubs,
       expired_bound: expiredBound,
+      missing_profiles: missingProfiles,
       all_players: allPlayers,
     },
   });

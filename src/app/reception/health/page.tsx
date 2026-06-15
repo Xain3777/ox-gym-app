@@ -21,6 +21,9 @@ import {
   UserPlus,
   Inbox,
   Users,
+  Pencil,
+  CalendarPlus,
+  Unlink,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────
@@ -87,13 +90,24 @@ type AllPlayer = {
   has_app_registration: boolean;
 };
 
+type MissingProfile = {
+  member_id: string;
+  auth_id: string;
+  full_name: string;
+  phone: string | null;
+  sub_id: string;
+  activation_code: string;
+  end_date: string;
+};
+
 type HealthData = {
-  counts: { intervention: number; duplicates: number; orphan_subs: number; expired_bound: number; all_players: number };
+  counts: { intervention: number; duplicates: number; orphan_subs: number; expired_bound: number; missing_profiles: number; all_players: number };
   data: {
     intervention: InterventionItem[];
     duplicates: DuplicateGroup[];
     orphan_subs: OrphanSub[];
     expired_bound: ExpiredBound[];
+    missing_profiles: MissingProfile[];
     all_players: AllPlayer[];
   };
 };
@@ -240,6 +254,72 @@ export default function ReceptionHealthPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, q],
   );
+  const filteredMissing = useMemo<MissingProfile[]>(
+    () => (data?.data.missing_profiles ?? []).filter((m) => matchesQ(m.full_name, m.phone, m.activation_code)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, q],
+  );
+
+  // ── Additional actions ────────────────────────────────────────
+  async function restoreProfile(memberId: string, label: string) {
+    setBusyId(memberId);
+    const { ok, json } = await call("/api/reception/restore-profile", { mode: "single", member_id: memberId });
+    setBusyId(null);
+    if (!ok) return toastError("فشل الاستعادة", String(json.error ?? ""));
+    success("تم استعادة الملف", label);
+    load();
+  }
+
+  async function restoreAllMissing() {
+    if (!window.confirm("استعادة جميع الملفات المفقودة دفعة واحدة؟")) return;
+    setBulkRunning(true);
+    const { ok, json } = await call("/api/reception/restore-profile", { mode: "bulk" });
+    setBulkRunning(false);
+    if (!ok) return toastError("فشل", String(json.error ?? ""));
+    success(`تم استعادة ${json.restored} ملف`, `(${json.already_had} كانت سليمة)`);
+    load();
+  }
+
+  async function unbindSub(subId: string, code: string) {
+    if (!window.confirm(`فك ربط الكود ${code}؟  سيصبح قابلاً للمطالبة من جديد.`)) return;
+    setBusyId(subId);
+    const { ok, json } = await call("/api/reception/unbind-sub", { sub_id: subId });
+    setBusyId(null);
+    if (!ok) return toastError("فشل فك الربط", String(json.error ?? ""));
+    success("تم فك الربط", code);
+    load();
+  }
+
+  async function extendSub(subId: string, currentEnd: string | null, code: string) {
+    const daysStr = window.prompt(`تمديد الكود ${code} (الحالي حتى ${currentEnd ?? "—"}). كم يوماً؟`, "30");
+    if (!daysStr) return;
+    const days = parseInt(daysStr, 10);
+    if (!Number.isFinite(days) || days < 1) return toastError("عدد أيام غير صالح", daysStr);
+    setBusyId(subId);
+    const { ok, json } = await call("/api/reception/extend-sub", { sub_id: subId, days });
+    setBusyId(null);
+    if (!ok) return toastError("فشل التمديد", String(json.error ?? ""));
+    success("تم التمديد", `حتى ${json.new_end}`);
+    load();
+  }
+
+  async function editMember(memberId: string, currentName: string, currentPhone: string | null) {
+    const newName = window.prompt("تعديل الاسم", currentName);
+    if (newName === null) return;
+    const newPhone = window.prompt("تعديل الهاتف (اتركه فارغاً للإبقاء على الحالي)", currentPhone ?? "");
+    if (newPhone === null) return;
+    const payload: Record<string, string> = { member_id: memberId };
+    if (newName.trim() && newName.trim() !== currentName) payload.full_name = newName.trim();
+    if (newPhone.trim() && newPhone.trim() !== (currentPhone ?? "")) payload.phone = newPhone.trim();
+    if (!payload.full_name && !payload.phone) return;
+    setBusyId(memberId);
+    const { ok, json } = await call("/api/reception/update-member", payload);
+    setBusyId(null);
+    if (!ok) return toastError("فشل التعديل", String(json.error ?? ""));
+    success("تم التعديل", "");
+    void json;
+    load();
+  }
 
   return (
     <div className="min-h-full bg-void" dir="rtl">
@@ -286,14 +366,18 @@ export default function ReceptionHealthPage() {
 
         {/* Stats strip */}
         {data && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
             <StatCard label="يحتاج تدخّل"      value={filteredIntervention.length} total={data.counts.intervention}  tone="danger" />
             <StatCard label="حسابات مكررة"      value={filteredDuplicates.length}   total={data.counts.duplicates}    tone="gold" />
             <StatCard label="اشتراكات معلّقة"   value={filteredOrphans.length}      total={data.counts.orphan_subs}   tone="blue" />
+            <StatCard label="ملفات مفقودة"     value={filteredMissing.length}      total={data.counts.missing_profiles} tone="orange" />
             <StatCard label="منتهية"           value={filteredExpired.length}      total={data.counts.expired_bound} tone="muted" />
             <StatCard label="كل اللاعبين"      value={filteredAll.length}          total={data.counts.all_players}   tone="teal" />
           </div>
         )}
+
+        {/* Advanced Tools: code lookup + manual bind */}
+        {data && <AdvancedTools onAction={load} />}
 
         {loading && !data && <SkeletonSections />}
 
@@ -349,6 +433,40 @@ export default function ReceptionHealthPage() {
                     </li>
                   ))}
                 </ul>
+              )}
+            </Section>
+
+            <Section
+              title="ملفات شخصية مفقودة"
+              subtitle="حسابات مفعّلة لكن ملفها الشخصي غير موجود — يظهرون بشكل غير سليم للكوتش."
+              count={filteredMissing.length}
+              tone="orange"
+              icon={<AlertTriangle size={15} />}
+            >
+              {filteredMissing.length === 0 ? (
+                <Empty icon={<CheckCircle2 size={28} />} text="كل الملفات سليمة." />
+              ) : (
+                <>
+                  <div className="mb-3 flex justify-end">
+                    <button type="button" onClick={restoreAllMissing} disabled={bulkRunning}
+                      className="inline-flex items-center gap-1.5 h-8 px-3 border border-orange-500/30 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20 text-[11px] font-medium disabled:opacity-50">
+                      <Sparkles size={12} /> استعادة الكل ({filteredMissing.length})
+                    </button>
+                  </div>
+                  <ul className="divide-y divide-white/[0.05]">
+                    {filteredMissing.map((m) => (
+                      <li key={m.member_id} className="py-2.5 first:pt-0 flex items-center justify-between gap-3 flex-wrap">
+                        <div className="min-w-0 flex-1">
+                          <span className="text-white/85 text-[13px]">{m.full_name}</span>
+                          <span className="text-white/35 text-[11px] mr-2" dir="ltr">{m.phone ?? "—"} · code={m.activation_code} · ends {m.end_date}</span>
+                        </div>
+                        <Btn icon={<UserCheck size={11} />} tone="primary" busy={busyId === m.member_id} onClick={() => restoreProfile(m.member_id, m.full_name)} size="sm">
+                          استعادة الملف
+                        </Btn>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </Section>
 
@@ -484,6 +602,19 @@ export default function ReceptionHealthPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-1 flex-wrap">
+                        <Btn icon={<Pencil size={11} />} tone="ghost" busy={busyId === p.member_id} onClick={() => editMember(p.member_id, p.full_name, p.phone)} size="sm">
+                          تعديل
+                        </Btn>
+                        {p.has_live_sub && p.sub_id && (
+                          <Btn icon={<CalendarPlus size={11} />} tone="ghost" busy={busyId === p.sub_id} onClick={() => extendSub(p.sub_id!, p.sub_end_date, p.current_code ?? "—")} size="sm">
+                            تمديد
+                          </Btn>
+                        )}
+                        {p.has_live_sub && p.sub_id && (
+                          <Btn icon={<Unlink size={11} />} tone="ghost" busy={busyId === p.sub_id} onClick={() => unbindSub(p.sub_id!, p.current_code ?? "—")} size="sm">
+                            فك الربط
+                          </Btn>
+                        )}
                         <Btn icon={<KeyRound size={11} />} tone="ghost" busy={busyId === p.member_id} onClick={() => resetPassword(p.member_id, p.full_name)} size="sm">
                           كلمة مرور
                         </Btn>
@@ -529,13 +660,14 @@ function reasonTone(reason: string): "danger" | "gold" | "blue" | "muted" | "ora
 
 // ── Subcomponents ──────────────────────────────────────────────
 
-function StatCard({ label, value, total, tone }: { label: string; value: number; total: number; tone: "danger" | "gold" | "blue" | "muted" | "teal" }) {
+function StatCard({ label, value, total, tone }: { label: string; value: number; total: number; tone: "danger" | "gold" | "blue" | "muted" | "teal" | "orange" }) {
   const tones = {
-    danger: { box: "border-danger/20 bg-danger/[0.05]",     num: "text-danger" },
-    gold:   { box: "border-gold/20 bg-gold/[0.05]",         num: "text-gold" },
-    blue:   { box: "border-blue-400/20 bg-blue-400/[0.05]", num: "text-blue-300" },
-    muted:  { box: "border-white/[0.06] bg-white/[0.02]",   num: "text-white/70" },
+    danger: { box: "border-danger/20 bg-danger/[0.05]",       num: "text-danger" },
+    gold:   { box: "border-gold/20 bg-gold/[0.05]",           num: "text-gold" },
+    blue:   { box: "border-blue-400/20 bg-blue-400/[0.05]",   num: "text-blue-300" },
+    muted:  { box: "border-white/[0.06] bg-white/[0.02]",     num: "text-white/70" },
     teal:   { box: "border-[#4ECDC4]/20 bg-[#4ECDC4]/[0.05]", num: "text-[#4ECDC4]" },
+    orange: { box: "border-orange-500/20 bg-orange-500/[0.05]", num: "text-orange-300" },
   }[tone];
   const isFiltered = value !== total;
   return (
@@ -555,7 +687,7 @@ function Section({
   title: string;
   subtitle?: string;
   count: number;
-  tone: "danger" | "gold" | "blue" | "muted" | "teal";
+  tone: "danger" | "gold" | "blue" | "muted" | "teal" | "orange";
   icon: React.ReactNode;
   children: React.ReactNode;
   defaultOpen?: boolean;
@@ -567,6 +699,7 @@ function Section({
     blue:   "text-blue-300 border-blue-400/15",
     muted:  "text-white/60 border-white/[0.08]",
     teal:   "text-[#4ECDC4] border-[#4ECDC4]/15",
+    orange: "text-orange-300 border-orange-500/15",
   }[tone];
   return (
     <details open={defaultOpen || !isEmpty} className={cn("border bg-white/[0.02] group", tones)}>
@@ -584,6 +717,180 @@ function Section({
         <span className="text-white/30 text-[11px] group-open:rotate-180 transition-transform">▾</span>
       </summary>
       <div className="px-4 pb-4 pt-1">{children}</div>
+    </details>
+  );
+}
+
+// ── Advanced Tools: code lookup + manual bind code → member ───────
+function AdvancedTools({ onAction }: { onAction: () => void }) {
+  const { success: toastSuccess, error: toastError } = useToast();
+  const [code, setCode] = useState("");
+  const [result, setResult] = useState<LookupResult | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [memberId, setMemberId] = useState("");
+  const [binding, setBinding] = useState(false);
+
+  type LookupResult = {
+    code: string;
+    subs: Array<{
+      id: string;
+      member_name: string;
+      phone: string | null;
+      amount: number | null;
+      activation_code: string;
+      activated_user_id: string | null;
+      cancelled_at: string | null;
+      end_date: string;
+    }>;
+    claimed_by: {
+      auth_id: string;
+      member_id: string | null;
+      member_name: string | null;
+      member_phone: string | null;
+      profile_full_name: string | null;
+      profile_phone: string | null;
+      profile_active: boolean | null;
+    } | null;
+  };
+
+  async function lookup() {
+    if (!code.trim()) return;
+    setSearching(true);
+    try {
+      const res = await fetch("/api/reception/lookup-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: code.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) { toastError("فشل البحث", String(json.error ?? "")); return; }
+      setResult(json.data);
+    } finally { setSearching(false); }
+  }
+
+  async function bindToMember(subId: string) {
+    if (!memberId.trim()) { toastError("أدخل رقم الحساب (member_id)", ""); return; }
+    setBinding(true);
+    try {
+      const res = await fetch("/api/reception/move-sub", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sub_id: subId, target_member_id: memberId.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) { toastError("فشل الربط", String(json.error ?? "")); return; }
+      toastSuccess("تم الربط", "");
+      onAction();
+      lookup();
+    } finally { setBinding(false); }
+  }
+
+  async function unbindSub(subId: string) {
+    if (!window.confirm("فك ربط هذا الاشتراك؟ سيصبح الكود قابلاً للمطالبة مجدداً.")) return;
+    const res = await fetch("/api/reception/unbind-sub", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sub_id: subId }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) { toastError("فشل فك الربط", String(json.error ?? "")); return; }
+    toastSuccess("تم فك الربط", "");
+    onAction();
+    lookup();
+  }
+
+  return (
+    <details className="border border-[#4ECDC4]/15 bg-[#4ECDC4]/[0.025]">
+      <summary className="cursor-pointer list-none px-4 py-3 flex items-center gap-3 hover:bg-white/[0.02] transition-colors">
+        <Sparkles size={15} className="text-[#4ECDC4]" />
+        <div className="flex-1">
+          <h2 className="text-white text-[14px] font-semibold">أدوات متقدمة</h2>
+          <p className="text-white/40 text-[11px] mt-0.5">ابحث بالكود، اربط أي كود بأي حساب يدوياً، فك ربط الأكواد.</p>
+        </div>
+        <span className="text-white/30 text-[11px]">▾</span>
+      </summary>
+      <div className="p-4 space-y-4">
+        {/* Code lookup */}
+        <div>
+          <p className="text-white/50 text-[11px] mb-1.5">ابحث بالكود:</p>
+          <div className="flex gap-2">
+            <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="مثال: AB123456"
+              dir="ltr"
+              onKeyDown={(e) => { if (e.key === "Enter") lookup(); }}
+              className="flex-1 h-9 px-3 bg-iron border border-steel text-white text-[13px] placeholder:text-white/30 focus:border-[#4ECDC4]/50 focus:outline-none"
+            />
+            <button type="button" onClick={lookup} disabled={searching || !code.trim()}
+              className="inline-flex items-center gap-1.5 h-9 px-3 bg-[#4ECDC4] hover:bg-[#4ECDC4]/90 text-void text-[12px] font-bold disabled:opacity-50">
+              <Search size={12} /> {searching ? "..." : "بحث"}
+            </button>
+          </div>
+
+          {result && (
+            <div className="mt-3 border border-white/[0.08] bg-black/20 p-3 space-y-3 text-[12px]">
+              {result.subs.length === 0 ? (
+                <p className="text-white/40">لا يوجد اشتراك بهذا الكود.</p>
+              ) : (
+                <>
+                  <p className="text-white/55">{result.subs.length} اشتراك بهذا الكود:</p>
+                  {result.subs.map((s) => (
+                    <div key={s.id} className="border border-white/[0.06] bg-white/[0.02] p-2 space-y-1">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="text-white/90">{s.member_name}</span>
+                        <span className={cn(s.cancelled_at ? "text-red-300" : (s.end_date < new Date().toISOString().slice(0,10) ? "text-white/40" : "text-emerald-300"), "text-[11px]")}>
+                          {s.cancelled_at ? "ملغى" : (s.end_date < new Date().toISOString().slice(0,10) ? "منتهي" : "حي")}
+                        </span>
+                      </div>
+                      <p className="text-white/40 text-[11px]" dir="ltr">{s.phone ?? "—"} · ${s.amount ?? "—"} · ends {s.end_date}</p>
+                      <p className="text-white/40 text-[11px]">
+                        {s.activated_user_id
+                          ? <>مُربط بـ <span className="text-blue-300" dir="ltr">{s.activated_user_id.slice(0,8)}…</span></>
+                          : <span className="text-white/30">غير مربوط (حر)</span>}
+                      </p>
+                      {!s.cancelled_at && (
+                        <div className="flex gap-1.5 pt-1">
+                          {s.activated_user_id && (
+                            <button type="button" onClick={() => unbindSub(s.id)}
+                              className="inline-flex items-center gap-1 h-7 px-2 border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 text-[10px]">
+                              فك الربط
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {result.claimed_by && (
+                    <div className="border border-blue-400/15 bg-blue-400/[0.04] p-2 mt-2 text-[11px]">
+                      <p className="text-blue-300/80 font-bold mb-1">الحساب المربوط:</p>
+                      <p className="text-white/70">{result.claimed_by.profile_full_name ?? result.claimed_by.member_name ?? "—"}</p>
+                      <p className="text-white/40" dir="ltr">{result.claimed_by.member_phone ?? "—"}</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Manual bind */}
+        <div className="border-t border-white/[0.06] pt-4">
+          <p className="text-white/50 text-[11px] mb-1.5">ربط الكود (من نتيجة البحث أعلاه) بحساب آخر:</p>
+          <div className="flex gap-2">
+            <input value={memberId} onChange={(e) => setMemberId(e.target.value)}
+              placeholder={`member_id (انسخه من قسم "كل اللاعبين")`}
+              dir="ltr"
+              className="flex-1 h-9 px-3 bg-iron border border-steel text-white text-[12px] placeholder:text-white/30 focus:border-[#4ECDC4]/50 focus:outline-none"
+            />
+          </div>
+          <p className="text-white/30 text-[10px] mt-1">يطبّق على أول اشتراك في نتيجة البحث. للربط بحساب آخر، استخدم زر «ربط» بجانب كل اشتراك.</p>
+          {result?.subs?.[0] && (
+            <button type="button" onClick={() => bindToMember(result.subs[0].id)} disabled={binding || !memberId.trim()}
+              className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 bg-blue-400/15 border border-blue-400/30 text-blue-300 hover:bg-blue-400/25 text-[11px] disabled:opacity-50">
+              <Link2 size={11} /> {binding ? "..." : "ربط بهذا الحساب"}
+            </button>
+          )}
+        </div>
+      </div>
     </details>
   );
 }

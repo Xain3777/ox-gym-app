@@ -90,6 +90,19 @@ type AllPlayer = {
   has_app_registration: boolean;
 };
 
+type PrivateSession = {
+  sub_id: string;
+  member_name: string;
+  phone: string | null;
+  coach_name: string;
+  amount: number | null;
+  payment_status: string | null;
+  payment_method: string | null;
+  end_date: string;
+  cancelled_at: string | null;
+  created_at: string;
+};
+
 type MissingProfile = {
   member_id: string;
   auth_id: string;
@@ -101,13 +114,14 @@ type MissingProfile = {
 };
 
 type HealthData = {
-  counts: { intervention: number; duplicates: number; orphan_subs: number; expired_bound: number; missing_profiles: number; all_players: number };
+  counts: { intervention: number; duplicates: number; orphan_subs: number; expired_bound: number; missing_profiles: number; private_sessions: number; all_players: number };
   data: {
     intervention: InterventionItem[];
     duplicates: DuplicateGroup[];
     orphan_subs: OrphanSub[];
     expired_bound: ExpiredBound[];
     missing_profiles: MissingProfile[];
+    private_sessions: PrivateSession[];
     all_players: AllPlayer[];
   };
 };
@@ -259,6 +273,11 @@ export default function ReceptionHealthPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, q],
   );
+  const filteredPrivate = useMemo<PrivateSession[]>(
+    () => (data?.data.private_sessions ?? []).filter((s) => matchesQ(s.member_name, s.phone, s.coach_name)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, q],
+  );
 
   // ── Additional actions ────────────────────────────────────────
   async function restoreProfile(memberId: string, label: string) {
@@ -366,11 +385,12 @@ export default function ReceptionHealthPage() {
 
         {/* Stats strip */}
         {data && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
             <StatCard label="يحتاج تدخّل"      value={filteredIntervention.length} total={data.counts.intervention}  tone="danger" />
             <StatCard label="حسابات مكررة"      value={filteredDuplicates.length}   total={data.counts.duplicates}    tone="gold" />
             <StatCard label="اشتراكات معلّقة"   value={filteredOrphans.length}      total={data.counts.orphan_subs}   tone="blue" />
             <StatCard label="ملفات مفقودة"     value={filteredMissing.length}      total={data.counts.missing_profiles} tone="orange" />
+            <StatCard label="مدرّب خاص"        value={filteredPrivate.length}      total={data.counts.private_sessions} tone="purple" />
             <StatCard label="منتهية"           value={filteredExpired.length}      total={data.counts.expired_bound} tone="muted" />
             <StatCard label="كل اللاعبين"      value={filteredAll.length}          total={data.counts.all_players}   tone="teal" />
           </div>
@@ -549,6 +569,57 @@ export default function ReceptionHealthPage() {
             </Section>
 
             <Section
+              title="جلسات المدرّب الخاص"
+              subtitle="جلسات المدرب الخاص — مضمّنة في إيرادات اليوم تلقائياً، مع تفصيل المدرب واللاعب."
+              count={filteredPrivate.length}
+              tone="purple"
+              icon={<Users size={15} />}
+            >
+              {filteredPrivate.length === 0 ? (
+                <Empty icon={<Inbox size={28} />} text={q ? "لا توجد نتائج" : "لا توجد جلسات مدرّب خاص بعد."} />
+              ) : (() => {
+                const counted = filteredPrivate.filter((s) => !s.cancelled_at);
+                const total = counted.reduce((sum, s) => sum + (s.amount ?? 0), 0);
+                const today = new Date().toISOString().slice(0, 10);
+                const todayList = counted.filter((s) => s.created_at.slice(0, 10) === today);
+                const todayTotal = todayList.reduce((sum, s) => sum + (s.amount ?? 0), 0);
+                return (
+                  <>
+                    <div className="mb-3 flex items-center gap-2 flex-wrap">
+                      <Tag tone="emerald" small>إجمالي: ${total}</Tag>
+                      <Tag tone="emerald" small>اليوم: ${todayTotal} ({todayList.length})</Tag>
+                      <Tag tone="muted" small>عدد الجلسات: {counted.length}</Tag>
+                    </div>
+                    <ul className="divide-y divide-white/[0.05]">
+                      {filteredPrivate.map((s) => (
+                        <li key={s.sub_id} className="py-2.5 first:pt-0 flex items-center justify-between gap-3 flex-wrap">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-white/90 text-[13px]">{s.member_name}</span>
+                              <span className="text-white/35 text-[11px]">←</span>
+                              <span className="text-purple-300 text-[12px] font-medium">كوتش {s.coach_name}</span>
+                            </div>
+                            <p className="text-white/40 text-[11px] mt-0.5" dir="ltr">
+                              {s.created_at.slice(0, 10)} {s.created_at.slice(11, 16)} · {s.phone ?? "—"} · ends {s.end_date}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <Tag tone={s.cancelled_at ? "danger" : "emerald"} small>
+                              ${s.amount} · {s.cancelled_at ? "ملغى" : (s.payment_status === "paid" ? "مدفوع" : (s.payment_status ?? "—"))}
+                            </Tag>
+                            <Btn icon={<XCircle size={11} />} tone="danger" busy={busyId === s.sub_id} onClick={() => cancelSub(s.sub_id, `${s.member_name} / ${s.coach_name}`)} size="sm">
+                              إلغاء
+                            </Btn>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                );
+              })()}
+            </Section>
+
+            <Section
               title="اشتراكات منتهية"
               subtitle="حسابات فعّالة سابقاً لكن انتهى اشتراكها — تحتاج تجديد من لوحة الاستقبال الرئيسية."
               count={filteredExpired.length}
@@ -660,7 +731,7 @@ function reasonTone(reason: string): "danger" | "gold" | "blue" | "muted" | "ora
 
 // ── Subcomponents ──────────────────────────────────────────────
 
-function StatCard({ label, value, total, tone }: { label: string; value: number; total: number; tone: "danger" | "gold" | "blue" | "muted" | "teal" | "orange" }) {
+function StatCard({ label, value, total, tone }: { label: string; value: number; total: number; tone: "danger" | "gold" | "blue" | "muted" | "teal" | "orange" | "purple" }) {
   const tones = {
     danger: { box: "border-danger/20 bg-danger/[0.05]",       num: "text-danger" },
     gold:   { box: "border-gold/20 bg-gold/[0.05]",           num: "text-gold" },
@@ -668,6 +739,7 @@ function StatCard({ label, value, total, tone }: { label: string; value: number;
     muted:  { box: "border-white/[0.06] bg-white/[0.02]",     num: "text-white/70" },
     teal:   { box: "border-[#4ECDC4]/20 bg-[#4ECDC4]/[0.05]", num: "text-[#4ECDC4]" },
     orange: { box: "border-orange-500/20 bg-orange-500/[0.05]", num: "text-orange-300" },
+    purple: { box: "border-purple-500/20 bg-purple-500/[0.05]", num: "text-purple-300" },
   }[tone];
   const isFiltered = value !== total;
   return (
@@ -687,7 +759,7 @@ function Section({
   title: string;
   subtitle?: string;
   count: number;
-  tone: "danger" | "gold" | "blue" | "muted" | "teal" | "orange";
+  tone: "danger" | "gold" | "blue" | "muted" | "teal" | "orange" | "purple";
   icon: React.ReactNode;
   children: React.ReactNode;
   defaultOpen?: boolean;
@@ -700,6 +772,7 @@ function Section({
     muted:  "text-white/60 border-white/[0.08]",
     teal:   "text-[#4ECDC4] border-[#4ECDC4]/15",
     orange: "text-orange-300 border-orange-500/15",
+    purple: "text-purple-300 border-purple-500/15",
   }[tone];
   return (
     <details open={defaultOpen || !isEmpty} className={cn("border bg-white/[0.02] group", tones)}>

@@ -44,7 +44,7 @@ export async function GET(request: Request) {
     supabase.from("member_app_profiles")
       .select("id, app_user_id, linked_member_id, full_name, phone, phone_normalized, active, activation_code, app_registered_at, onboarding_complete"),
     supabase.from("gym_subscriptions")
-      .select("id, member_id, member_name, phone, amount, activation_code, activated_user_id, activated_at, cancelled_at, end_date, status, created_at"),
+      .select("id, member_id, member_name, phone, amount, activation_code, activated_user_id, activated_at, cancelled_at, end_date, status, created_at, private_coach_name, payment_status, payment_method"),
   ]);
 
   const members  = membersData ?? [];
@@ -266,6 +266,40 @@ export async function GET(request: Request) {
     });
   }
 
+  // ── Bucket 4.4: private_coach_sessions (any sub with private_coach_name set) ─
+  // The amount on these rows DOES count in today's revenue totals
+  // (they're regular gym_subscriptions inserts), but reception wanted
+  // a dedicated breakdown so they can see who got private coaching,
+  // from which coach, and on what date.
+  const privateSessions: Array<{
+    sub_id: string;
+    member_name: string;
+    phone: string | null;
+    coach_name: string;
+    amount: number | null;
+    payment_status: string | null;
+    payment_method: string | null;
+    end_date: string;
+    cancelled_at: string | null;
+    created_at: string;
+  }> = [];
+  for (const s of subs) {
+    if (!s.private_coach_name) continue;
+    privateSessions.push({
+      sub_id:          s.id as string,
+      member_name:     (s.member_name as string) ?? "—",
+      phone:           (s.phone as string | null) ?? null,
+      coach_name:      s.private_coach_name as string,
+      amount:          (s.amount as number | null) ?? null,
+      payment_status:  (s.payment_status as string | null) ?? null,
+      payment_method:  (s.payment_method as string | null) ?? null,
+      end_date:        s.end_date as string,
+      cancelled_at:    (s.cancelled_at as string | null) ?? null,
+      created_at:      s.created_at as string,
+    });
+  }
+  privateSessions.sort((a, b) => b.created_at.localeCompare(a.created_at));
+
   // ── Bucket 4.5: missing_profiles (live bound sub but profile gone) ─
   // The activation link is the source of truth; if the profile row is
   // missing the coach UI degrades. Surface them so reception can fix
@@ -350,6 +384,7 @@ export async function GET(request: Request) {
       orphan_subs: orphanSubs.length,
       expired_bound: expiredBound.length,
       missing_profiles: missingProfiles.length,
+      private_sessions: privateSessions.length,
       all_players: allPlayers.length,
     },
     data: {
@@ -358,6 +393,7 @@ export async function GET(request: Request) {
       orphan_subs: orphanSubs,
       expired_bound: expiredBound,
       missing_profiles: missingProfiles,
+      private_sessions: privateSessions,
       all_players: allPlayers,
     },
   });

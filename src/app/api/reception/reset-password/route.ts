@@ -43,9 +43,10 @@ export async function POST(request: NextRequest) {
   if (!member?.auth_id) return NextResponse.json({ success: false, error: "Member has no app account" }, { status: 404 });
   if (member.role !== "player") return NextResponse.json({ success: false, error: "Refusing to reset password for a staff member here" }, { status: 400 });
 
-  // Default temp password: "OxGym" + 4-digit random for uniqueness without
-  // making it impossible to read out loud.
-  const tempPassword = parsed.data.temp_password ?? `OxGym${Math.floor(1000 + Math.random() * 9000)}`;
+  // Default password is a fixed, easy-to-tell-the-member value.
+  // Reception can override with temp_password in the body if they
+  // want something custom for a specific case.
+  const tempPassword = parsed.data.temp_password ?? "ox2026";
 
   const { error: ae } = await supa.auth.admin.updateUserById(member.auth_id, { password: tempPassword });
   if (ae) return NextResponse.json({ success: false, error: ae.message }, { status: 500 });

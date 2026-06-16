@@ -25,13 +25,22 @@ export async function GET() {
   // NB: the column is `amount`, not `price`. The member_subscriptions
   // view aliases amount→price but we read gym_subscriptions directly
   // here because that's the row the activation actually claimed.
+  //
+  // ORDER: prefer non-cancelled rows with the LATEST end_date. Used
+  // to order by activated_at, but migration 043 inherits activated_at
+  // from prior bound rows on renewal, so a player with two active
+  // rows (old expired + new renewal) often has both rows sharing the
+  // same activated_at value — the tie-break landed on the expired
+  // row and the app showed lock screen despite a valid renewal.
+  // end_date is the unambiguous "what's currently valid" signal.
   const { data: row, error: lookupError } = await supabase
     .from("gym_subscriptions")
     .select(
       "id, activation_code, plan_type, status, start_date, end_date, amount, currency, member_name, phone, activated_at",
     )
     .eq("activated_user_id", ctx.userId)
-    .order("activated_at", { ascending: false })
+    .is("cancelled_at", null)
+    .order("end_date", { ascending: false })
     .limit(1)
     .maybeSingle();
 

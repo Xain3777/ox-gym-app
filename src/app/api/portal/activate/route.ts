@@ -203,13 +203,94 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // ─── ROW CONSOLIDATION ───────────────────────────────────────
+  // Root-cause fix for duplicate members rows.
+  //
+  // Signup created a fresh members row for the auth user (Row B):
+  //   { id: ctx.memberId, auth_id: ctx.userId, no subscription }
+  //
+  // Reception had already created a members row that owns the
+  // subscription (Row A):
+  //   { id: sub.member_id, auth_id: null, subscription attached }
+  //
+  // Before this fix each person ended up with two members rows that
+  // were never connected — the coach terminal and /reception/health
+  // resolved them to one or the other and lost either the login or
+  // the subscription. Now: on activation we migrate the auth account
+  // from Row B onto Row A, move any child rows Row B may have picked
+  // up, and delete Row B. Result: one person = one members row that
+  // carries auth + profile + subscription.
+  const rowAId = sub.member_id as string | null;    // reception's row (has sub)
+  const rowBId = ctx.memberId;                       // signup's row (has auth)
+
+  let linkedMemberId = rowAId ?? rowBId;
+
+  if (rowAId && rowAId !== rowBId) {
+    try {
+      const { data: rowA } = await supabase
+        .from("members")
+        .select("id, auth_id, full_name, phone")
+        .eq("id", rowAId)
+        .maybeSingle();
+
+      if (rowA && !rowA.auth_id) {
+        // Row A is unclaimed → consolidate Row B onto Row A.
+        const childTables = [
+          "plan_sends",
+          "member_workout_programs",
+          "member_meal_programs",
+          "notifications",
+          "workout_logs",
+          "workout_exercise_logs",
+          "meal_orders",
+          "meal_consultation_requests",
+        ] as const;
+        for (const table of childTables) {
+          const { error: mvErr } = await supabase.from(table).update({ member_id: rowAId }).eq("member_id", rowBId);
+          if (mvErr) console.error(`[activate] move ${table} rowB→rowA failed:`, mvErr.message);
+        }
+
+        // Point the app profile at Row A before we move auth_id.
+        await supabase
+          .from("member_app_profiles")
+          .update({ linked_member_id: rowAId })
+          .eq("app_user_id", ctx.userId);
+
+        // Move auth_id: null Row B first (members.auth_id is UNIQUE), then set Row A.
+        const { error: nullErr } = await supabase.from("members").update({ auth_id: null }).eq("id", rowBId);
+        if (nullErr) {
+          console.error("[activate] null Row B auth_id failed:", nullErr.message);
+        } else {
+          const { error: setErr } = await supabase.from("members").update({ auth_id: ctx.userId }).eq("id", rowAId);
+          if (setErr) {
+            console.error("[activate] set Row A auth_id failed:", setErr.message);
+            // Restore Row B if setting A failed so we don't orphan the auth account.
+            await supabase.from("members").update({ auth_id: ctx.userId }).eq("id", rowBId);
+          } else {
+            // Delete the now-empty Row B.
+            const { error: delErr } = await supabase.from("members").delete().eq("id", rowBId);
+            if (delErr) console.error("[activate] delete Row B failed:", delErr.message);
+          }
+        }
+        linkedMemberId = rowAId;
+      } else if (rowA?.auth_id === ctx.userId) {
+        // Already consolidated on a prior activation. No-op.
+        linkedMemberId = rowAId;
+      } else if (rowA?.auth_id && rowA.auth_id !== ctx.userId) {
+        // Row A already claimed by someone else. Very unusual — leave
+        // as-is and only mirror the profile update onto the signup row.
+        console.warn("[activate] Row A has a different auth_id than caller — profile-only update", {
+          rowAId, rowAAuth: rowA.auth_id, thisAuth: ctx.userId,
+        });
+        linkedMemberId = rowBId;
+      }
+    } catch (e) {
+      console.error("[activate] row consolidation failed (non-fatal):", e);
+    }
+  }
+
   // Best-effort profile mirror so coach eligibility recognises them
   // immediately. Failure here MUST NOT roll back the successful claim.
-  // Writes `active=true` and `activation_code` onto the app profile so
-  // a single SELECT on member_app_profiles tells the coach whether
-  // they're sendable + which code they used (canonical store remains
-  // gym_subscriptions).
-  const linkedMemberId = sub.member_id ?? ctx.memberId;
   if (linkedMemberId) {
     try {
       await upsertMemberAppProfile(supabase, ctx.userId, linkedMemberId, {

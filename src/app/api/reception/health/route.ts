@@ -44,7 +44,7 @@ export async function GET(request: Request) {
     supabase.from("member_app_profiles")
       .select("id, app_user_id, linked_member_id, full_name, phone, phone_normalized, active, activation_code, app_registered_at, onboarding_complete"),
     supabase.from("gym_subscriptions")
-      .select("id, member_id, member_name, phone, amount, activation_code, activated_user_id, activated_at, cancelled_at, end_date, status, created_at, private_coach_name, payment_status, payment_method"),
+      .select("id, member_id, member_name, phone, phone_normalized, amount, activation_code, activated_user_id, activated_at, cancelled_at, end_date, status, created_at, private_coach_name, payment_status, payment_method"),
   ]);
 
   const members  = membersData ?? [];
@@ -55,10 +55,16 @@ export async function GET(request: Request) {
   const profileByAuth = new Map<string, typeof profiles[number]>();
   for (const p of profiles) if (p.app_user_id) profileByAuth.set(p.app_user_id as string, p);
 
+  // Prefer the DB-computed phone_normalized column (populated by the
+  // gym_subscriptions trigger from migration 0069). Fall back to the
+  // JS normalizer for rows that predate the trigger.
+  const subPhoneKey = (s: (typeof subs)[number]) =>
+    (s.phone_normalized as string | null) || normalizePhone(s.phone as string | null);
+
   const subsByPhone = new Map<string, typeof subs>();
   for (const s of subs) {
     if (s.cancelled_at) continue;
-    const pn = normalizePhone(s.phone as string | null);
+    const pn = subPhoneKey(s);
     if (!pn) continue;
     const list = subsByPhone.get(pn) ?? [];
     list.push(s);
@@ -213,7 +219,7 @@ export async function GET(request: Request) {
     if (s.cancelled_at) continue;
     if (s.activated_user_id) continue;
     if ((s.end_date as string) < today) continue;
-    const pn = normalizePhone(s.phone as string | null);
+    const pn = (s.phone_normalized as string | null) || normalizePhone(s.phone as string | null);
     if (!pn) continue;
     const candidateMember = (phoneToMembers.get(pn) ?? []).find((m) => m.auth_id);
     if (!candidateMember) continue;

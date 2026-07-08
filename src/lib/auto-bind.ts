@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/fetch-all";
 
 // ── Auto-bind app accounts to their paid gym subscription by phone ──
 //
@@ -115,18 +116,22 @@ export async function sweepAutoBindByPhone(
 ): Promise<{ bound: number; scanned: number; ambiguous: number }> {
   const today = new Date().toISOString().slice(0, 10);
 
+  // fetchAllRows — page past the 1000-row cap so the sweep sees every
+  // player account, not just the first 1000.
   const [{ data: members }, { data: subs }] = await Promise.all([
-    supabase
-      .from("members")
-      .select("id, auth_id, phone, phone_normalized")
-      .eq("role", "player")
-      .not("auth_id", "is", null),
-    supabase
-      .from("gym_subscriptions")
-      .select("id, phone, phone_normalized, activation_code, end_date, activated_user_id")
-      .is("activated_user_id", null)
-      .is("cancelled_at", null)
-      .gte("end_date", today),
+    fetchAllRows<{ id: string; auth_id: string | null; phone: string | null; phone_normalized: string | null }>(() =>
+      supabase
+        .from("members")
+        .select("id, auth_id, phone, phone_normalized")
+        .eq("role", "player")
+        .not("auth_id", "is", null)),
+    fetchAllRows<{ id: string; phone: string | null; phone_normalized: string | null; activation_code: string | null; end_date: string | null; activated_user_id: string | null }>(() =>
+      supabase
+        .from("gym_subscriptions")
+        .select("id, phone, phone_normalized, activation_code, end_date, activated_user_id")
+        .is("activated_user_id", null)
+        .is("cancelled_at", null)
+        .gte("end_date", today)),
   ]);
 
   // phone → single auth id; null marks an ambiguous phone (>1 app account).

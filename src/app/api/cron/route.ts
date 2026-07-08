@@ -7,6 +7,7 @@ import {
 } from "@/lib/subscription-notifier";
 import { logInfo, logError } from "@/lib/log";
 import { sweepAutoBindByPhone } from "@/lib/auto-bind";
+import { fetchAllRows } from "@/lib/fetch-all";
 import type { MemberWithSub } from "@/types";
 
 // ── CRON: Daily Subscription Maintenance ─────────────────────
@@ -120,16 +121,19 @@ export async function GET(request: Request) {
     // index from migration 042 — re-running the cron the same day cannot
     // duplicate. Cancelled subs are skipped.
     try {
-      const { data: subs } = await supabase
+      const { data: subs } = await fetchAllRows<{
+        activated_user_id: string | null; end_date: string | null; cancelled_at: string | null;
+      }>(() => supabase
         .from("gym_subscriptions")
         .select("activated_user_id, end_date, cancelled_at")
         .not("activated_user_id", "is", null)
-        .is("cancelled_at", null);
+        .is("cancelled_at", null));
 
       const authIds = Array.from(new Set((subs ?? []).map((s) => s.activated_user_id as string)));
       const { data: mems } = authIds.length
-        ? await supabase.from("members").select("id, auth_id").in("auth_id", authIds)
-        : { data: [] };
+        ? await fetchAllRows<{ id: string; auth_id: string | null }>(() =>
+            supabase.from("members").select("id, auth_id").in("auth_id", authIds))
+        : { data: [] as { id: string; auth_id: string | null }[] };
       const memberByAuth = new Map((mems ?? []).map((m) => [m.auth_id as string, m.id as string]));
 
       const players: CandidatePlayer[] = [];

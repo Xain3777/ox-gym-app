@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
+import { fetchAllRows } from "@/lib/fetch-all";
 
 // Account-health diagnostics for the reception "fixer" page.
 // Returns 4 buckets:
@@ -33,18 +34,35 @@ export async function GET(request: Request) {
   const supabase = createServiceClient();
   const today = new Date().toISOString().slice(0, 10);
 
+  // fetchAllRows — page past PostgREST's 1000-row cap. Both
+  // members(role=player) (~1100) and gym_subscriptions (~1120) exceed it,
+  // so a single .select() silently dropped the newest rows and hid
+  // recently-paid members from this page too.
   const [
     { data: membersData },
     { data: profilesData },
     { data: subsData },
   ] = await Promise.all([
-    supabase.from("members")
+    fetchAllRows<{
+      id: string; auth_id: string | null; full_name: string | null; phone: string | null;
+      phone_normalized: string | null; role: string | null; status: string | null; created_at: string | null;
+    }>(() => supabase.from("members")
       .select("id, auth_id, full_name, phone, phone_normalized, role, status, created_at")
-      .eq("role", "player"),
-    supabase.from("member_app_profiles")
-      .select("id, app_user_id, linked_member_id, full_name, phone, phone_normalized, active, activation_code, app_registered_at, onboarding_complete"),
-    supabase.from("gym_subscriptions")
-      .select("id, member_id, member_name, phone, phone_normalized, amount, activation_code, activated_user_id, activated_at, cancelled_at, end_date, status, created_at, private_coach_name, payment_status, payment_method"),
+      .eq("role", "player")),
+    fetchAllRows<{
+      id: string; app_user_id: string | null; linked_member_id: string | null; full_name: string | null;
+      phone: string | null; phone_normalized: string | null; active: boolean | null;
+      activation_code: string | null; app_registered_at: string | null; onboarding_complete: boolean | null;
+    }>(() => supabase.from("member_app_profiles")
+      .select("id, app_user_id, linked_member_id, full_name, phone, phone_normalized, active, activation_code, app_registered_at, onboarding_complete")),
+    fetchAllRows<{
+      id: string; member_id: string | null; member_name: string | null; phone: string | null;
+      phone_normalized: string | null; amount: number | null; activation_code: string | null;
+      activated_user_id: string | null; activated_at: string | null; cancelled_at: string | null;
+      end_date: string | null; status: string | null; created_at: string | null;
+      private_coach_name: string | null; payment_status: string | null; payment_method: string | null;
+    }>(() => supabase.from("gym_subscriptions")
+      .select("id, member_id, member_name, phone, phone_normalized, amount, activation_code, activated_user_id, activated_at, cancelled_at, end_date, status, created_at, private_coach_name, payment_status, payment_method")),
   ]);
 
   const members  = membersData ?? [];

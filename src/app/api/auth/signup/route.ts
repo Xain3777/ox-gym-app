@@ -5,6 +5,7 @@ import { createServiceClient } from "@/lib/supabase";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { normalizePhone } from "@/lib/phone";
 import { upsertMemberAppProfile } from "@/lib/member-app-profile";
+import { autoBindSubscriptionByPhone } from "@/lib/auto-bind";
 
 // Self-signup — code-only linking model.
 //
@@ -147,13 +148,27 @@ export async function POST(request: Request) {
     injuries: [],
   });
 
+  // ── Auto-link to a paid subscription by phone ──────────────────
+  // If reception already created this person's subscription (they paid,
+  // then signed up), bind it now so the coach sees them immediately —
+  // no need to type the printed activation code. No-op when there's no
+  // matching unbound in-date sub for the phone.
+  let autoBound = false;
+  try {
+    const r = await autoBindSubscriptionByPhone(supabase, authId, phone);
+    autoBound = r.bound;
+  } catch (e) {
+    console.error("[signup] auto-bind failed (non-fatal):", e);
+  }
+
   return NextResponse.json({
     success: true,
     data: {
       user_id:   authId,
       member_id: memberId,
       email:     internalEmail,
-      linked:    false,
+      linked:    autoBound,
+      auto_bound: autoBound,
       app_profile_saved: Boolean(appProfile),
       app_profile_migration_required: !appProfile,
     },

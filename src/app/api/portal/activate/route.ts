@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import { isActivationCodeShape } from "@/lib/activation-code";
 import { upsertMemberAppProfile } from "@/lib/member-app-profile";
+import { autoBindSubscriptionByPhone } from "@/lib/auto-bind";
 
 const ActivateSchema = z.object({
   code: z.string().trim().toUpperCase(),
@@ -33,19 +34,41 @@ export async function GET() {
   // same activated_at value — the tie-break landed on the expired
   // row and the app showed lock screen despite a valid renewal.
   // end_date is the unambiguous "what's currently valid" signal.
-  const { data: row, error: lookupError } = await supabase
-    .from("gym_subscriptions")
-    .select(
-      "id, activation_code, plan_type, status, start_date, end_date, amount, currency, member_name, phone, activated_at",
-    )
-    .eq("activated_user_id", ctx.userId)
-    .is("cancelled_at", null)
-    .order("end_date", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const subCols =
+    "id, activation_code, plan_type, status, start_date, end_date, amount, currency, member_name, phone, activated_at";
+  const lookupBound = () =>
+    supabase
+      .from("gym_subscriptions")
+      .select(subCols)
+      .eq("activated_user_id", ctx.userId)
+      .is("cancelled_at", null)
+      .order("end_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+  let { data: row, error: lookupError } = await lookupBound();
 
   if (lookupError) {
     console.error("[activate:GET] lookup failed:", lookupError);
+  }
+
+  // Auto-link on app open: a member who paid at reception and just opened
+  // the app (but never typed the printed code) gets bound to their paid,
+  // in-date subscription by phone match — the coach sees them instantly.
+  if (!row) {
+    try {
+      const { data: me } = await supabase
+        .from("members")
+        .select("phone")
+        .eq("auth_id", ctx.userId)
+        .maybeSingle();
+      const bind = await autoBindSubscriptionByPhone(supabase, ctx.userId, me?.phone as string | null);
+      if (bind.bound) {
+        ({ data: row } = await lookupBound());
+      }
+    } catch (e) {
+      console.error("[activate:GET] auto-bind failed (non-fatal):", e);
+    }
   }
 
   // Translate raw plan_type to the user-facing tier name used elsewhere

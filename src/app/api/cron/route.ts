@@ -6,6 +6,7 @@ import {
   type CandidatePlayer,
 } from "@/lib/subscription-notifier";
 import { logInfo, logError } from "@/lib/log";
+import { sweepAutoBindByPhone } from "@/lib/auto-bind";
 import type { MemberWithSub } from "@/types";
 
 // ── CRON: Daily Subscription Maintenance ─────────────────────
@@ -41,10 +42,23 @@ export async function GET(request: Request) {
     pages: 0,
     sub_notifications_sent: 0,
     sub_notifications_skipped: 0,
+    auto_bound: 0,
   };
   const startedAt = Date.now();
 
   try {
+    // ── Auto-bind sweep ────────────────────────────────────────────
+    // Link any app account whose phone matches a paid, in-date, unbound
+    // subscription (member paid + signed up but never typed the code).
+    // Catches people who signed up BEFORE reception created their sub,
+    // then never re-opened the app. Idempotent.
+    try {
+      const swept = await sweepAutoBindByPhone(supabase);
+      results.auto_bound = swept.bound;
+    } catch (err) {
+      logError("cron:auto-bind", err);
+    }
+
     let offset = 0;
 
     while (true) {

@@ -390,10 +390,30 @@ export async function GET(request: Request) {
 }
 
 function isActiveGymSubscription(subscription: { status?: string | null; end_date?: string | null; cancelled_at?: string | null }) {
+  // "Valid, sendable subscription" = not cancelled AND still in-date.
+  //
+  // We deliberately DO NOT gate on `status === "active"`. The `status`
+  // column is written by the external gym dashboard/POS and takes
+  // values the app does not fully model — notably "renewed" (set on a
+  // sub after the member renews) and "expired". A renewed, in-date,
+  // non-cancelled row is a fully paid member the coach must be able to
+  // send plans to, yet the old status check hid them the moment the
+  // dashboard relabelled the row. That produced the recurring
+  // "coach can't send this (paying) member a plan" bug.
+  //
+  // This now matches exactly what the assignment endpoints enforce
+  // (/api/coach/workout-assignments + /meal-assignments): cancelled_at
+  // IS NULL and end_date >= today, with no status filter. Keeping the
+  // list and the assignment API in lockstep guarantees every member the
+  // coach can SEE is a member the coach can actually SEND to.
+  //
+  // Cancellation is tracked via cancelled_at (reception's cancel path
+  // sets it), so `cancelled_at IS NULL` — not the status string — is the
+  // real "not cancelled" boundary.
   if (subscription.cancelled_at) return false;
+  if (!subscription.end_date) return false;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  if (subscription.status !== "active" || !subscription.end_date) return false;
   return new Date(subscription.end_date) >= today;
 }
 

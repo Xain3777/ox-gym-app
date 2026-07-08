@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
+import { fetchAllRows } from "@/lib/fetch-all";
 import {
   buildNotificationsForToday,
   type CandidatePlayer,
@@ -16,20 +17,25 @@ export async function POST(request: Request) {
 
   const supabase = createServiceClient();
 
-  const { data: subs, error: subErr } = await supabase
+  // fetchAllRows — page past the 1000-row cap so every activated sub is
+  // considered (a plain .select() silently drops rows past 1000).
+  const { data: subs, error: subErr } = await fetchAllRows<{
+    activated_user_id: string | null; end_date: string | null; cancelled_at: string | null;
+  }>(() => supabase
     .from("gym_subscriptions")
     .select("activated_user_id, end_date, cancelled_at")
     .not("activated_user_id", "is", null)
-    .is("cancelled_at", null);
+    .is("cancelled_at", null));
 
   if (subErr) {
-    return NextResponse.json({ success: false, error: subErr.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: (subErr as { message?: string }).message ?? "Query failed" }, { status: 500 });
   }
 
   const authIds = Array.from(new Set((subs ?? []).map((s) => s.activated_user_id as string)));
   const { data: mems } = authIds.length
-    ? await supabase.from("members").select("id, auth_id").in("auth_id", authIds)
-    : { data: [] };
+    ? await fetchAllRows<{ id: string; auth_id: string | null }>(() =>
+        supabase.from("members").select("id, auth_id").in("auth_id", authIds))
+    : { data: [] as { id: string; auth_id: string | null }[] };
   const memberByAuth = new Map((mems ?? []).map((m) => [m.auth_id as string, m.id as string]));
 
   const players: CandidatePlayer[] = [];

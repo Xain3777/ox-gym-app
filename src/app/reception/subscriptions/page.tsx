@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
+import { fetchAllRows } from "@/lib/fetch-all";
 import { cn } from "@/lib/utils";
 import { CreditCard } from "lucide-react";
 
@@ -28,16 +29,18 @@ export default function ReceptionSubscriptionsPage() {
     async function load() {
       try {
         const supabase = createBrowserSupabase();
-        const { data } = await supabase
+        // fetchAllRows — page past the 1000-row cap so every subscription
+        // shows (the newest were being dropped from this list).
+        const { data } = await fetchAllRows<SubWithMember>(() => supabase
           .from("member_subscriptions")
           .select("*, member:members(full_name, phone)")
-          .order("end_date", { ascending: true });
+          .order("end_date", { ascending: true }));
 
         // Pull activation_code directly from gym_subscriptions in case the
         // member_subscriptions view doesn't expose it.
-        const { data: codes } = await supabase
+        const { data: codes } = await fetchAllRows<{ id: string; activation_code: string | null }>(() => supabase
           .from("gym_subscriptions")
-          .select("id, activation_code");
+          .select("id, activation_code"));
         const codeById = new Map<string, string | null>(
           (codes ?? []).map((row: { id: string; activation_code: string | null }) => [row.id, row.activation_code]),
         );

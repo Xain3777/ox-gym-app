@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { createServiceClient } from "@/lib/supabase";
+import { fetchAllRows } from "@/lib/fetch-all";
 import { TopBar, SectionHeader } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import { MemberRow } from "@/components/admin/MemberRow";
@@ -15,10 +16,11 @@ export const metadata: Metadata = { title: "Members" };
 async function getMembers(): Promise<MemberWithSub[]> {
   try {
     const supabase = createServiceClient();
-    const { data, error } = await supabase
+    // fetchAllRows — page past the 1000-row cap so every member is listed.
+    const { data, error } = await fetchAllRows<Record<string, unknown>>(() => supabase
       .from("members")
       .select("*, subscription:member_subscriptions(*)")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false }));
 
     if (error) return [];
 

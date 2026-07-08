@@ -6,6 +6,7 @@ import {
   ChevronRight, Clock, Target, Zap, ArrowUpRight, Star,
 } from "lucide-react";
 import { createServiceClient } from "@/lib/supabase";
+import { fetchAllRows } from "@/lib/fetch-all";
 import { TopBar, SectionHeader, StripeDivider } from "@/components/layout/TopBar";
 import { Card, CardBody, CardLabel } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
@@ -78,10 +79,12 @@ async function getDashboardData(): Promise<DashboardData> {
   const now = new Date();
 
   // ── Fetch all members with subscriptions ──
-  const { data: members } = await supabase
+  // fetchAllRows — page past the 1000-row cap so dashboard counts (active
+  // members, revenue, churn) are computed over EVERY member, not 1000.
+  const { data: members } = await fetchAllRows<MemberWithSub>(() => supabase
     .from("members")
     .select(`*, subscription:member_subscriptions(*)`)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false }));
 
   const withSubs = (members ?? []).map((m) => ({
     ...m,

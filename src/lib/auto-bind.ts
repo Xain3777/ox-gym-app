@@ -67,12 +67,15 @@ export async function autoBindSubscriptionByPhone(
   // Every currently-unbound, in-date, non-cancelled sub (bounded set), then
   // match on normalized phone in JS so rows with a null phone_normalized
   // column (predating the trigger) still match.
-  const { data: unbound } = await supabase
+  const { data: unbound } = await fetchAllRows<{
+    id: string; phone: string | null; phone_normalized: string | null;
+    activation_code: string | null; end_date: string | null;
+  }>(() => supabase
     .from("gym_subscriptions")
     .select("id, phone, phone_normalized, activation_code, end_date")
     .is("activated_user_id", null)
     .is("cancelled_at", null)
-    .gte("end_date", today);
+    .gte("end_date", today));
 
   const matches = (unbound ?? [])
     .filter((s) => ((s.phone_normalized as string | null) || normalizeSubscriptionPhone(s.phone as string | null)) === pn)

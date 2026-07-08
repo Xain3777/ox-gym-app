@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
+import { fetchAllRows } from "@/lib/fetch-all";
 
 const NotificationSchema = z.object({
   type:      z.enum(["announcement", "reminder", "promotion", "alert"]),
@@ -70,11 +71,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   }
 
-  let query = supabase.from("members").select("id");
-  if (audience === "active")    query = query.eq("status", "active");
-  if (audience === "expiring")  query = query.eq("status", "expiring");
-
-  const { data: members, error: fetchError } = await query;
+  // fetchAllRows — a broadcast must reach EVERY matching member, not just
+  // the first 1000 a plain .select() would return. Fresh builder per page.
+  const { data: members, error: fetchError } = await fetchAllRows<{ id: string }>(() => {
+    let query = supabase.from("members").select("id");
+    if (audience === "active")    query = query.eq("status", "active");
+    if (audience === "expiring")  query = query.eq("status", "expiring");
+    return query;
+  });
   if (fetchError) {
     return NextResponse.json({ success: false, error: "Failed to fetch members" }, { status: 500 });
   }

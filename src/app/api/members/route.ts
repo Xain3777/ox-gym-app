@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import { normalizePhone, phoneToEmail } from "@/lib/phone";
 import { generateUniqueActivationCode } from "@/lib/activation-code";
+import { fetchAllRows } from "@/lib/fetch-all";
 import type { ApiResponse } from "@/types";
 
 const GYM_SUBSCRIPTION_PLAN_TYPE: Record<"monthly" | "quarterly" | "annual", string> = {
@@ -206,10 +207,12 @@ export async function GET() {
   const selectFields = ctx.role === "reception"
     ? "id, full_name, phone, goals, status, role, created_at, subscription:member_subscriptions(*)"
     : "*, subscription:member_subscriptions(*)";
-  const { data, error: dbError } = await supabase
+  // fetchAllRows — page past the 1000-row cap so the full member list is
+  // returned, not just the first 1000.
+  const { data, error: dbError } = await fetchAllRows(() => supabase
     .from("members")
     .select(selectFields)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false }));
 
   if (dbError) {
     return NextResponse.json<ApiResponse>({ success: false, error: "Failed to fetch members" }, { status: 500 });

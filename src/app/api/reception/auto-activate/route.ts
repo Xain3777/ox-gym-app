@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
+import { fetchAllRows } from "@/lib/fetch-all";
 
 // POST /api/reception/auto-activate
 // Body: { mode: "single", member_id, sub_id } | { mode: "bulk" }
@@ -99,16 +100,20 @@ export async function POST(request: NextRequest) {
 
   // ── bulk ──
   const today = new Date().toISOString().slice(0, 10);
+  // fetchAllRows — page past the 1000-row cap so the bulk bind sees every
+  // player and every unbound sub, not just the first 1000.
   const [{ data: members }, { data: subs }] = await Promise.all([
-    supa.from("members")
-      .select("id, auth_id, phone, phone_normalized")
-      .eq("role", "player")
-      .not("auth_id", "is", null),
-    supa.from("gym_subscriptions")
-      .select("id, phone, activation_code, activated_user_id, cancelled_at, end_date")
-      .is("cancelled_at", null)
-      .is("activated_user_id", null)
-      .gte("end_date", today),
+    fetchAllRows<{ id: string; auth_id: string | null; phone: string | null; phone_normalized: string | null }>(() =>
+      supa.from("members")
+        .select("id, auth_id, phone, phone_normalized")
+        .eq("role", "player")
+        .not("auth_id", "is", null)),
+    fetchAllRows<{ id: string; phone: string | null; activation_code: string | null; activated_user_id: string | null; cancelled_at: string | null; end_date: string | null }>(() =>
+      supa.from("gym_subscriptions")
+        .select("id, phone, activation_code, activated_user_id, cancelled_at, end_date")
+        .is("cancelled_at", null)
+        .is("activated_user_id", null)
+        .gte("end_date", today)),
   ]);
 
   const subByPhone = new Map<string, NonNullable<typeof subs>[number]>();

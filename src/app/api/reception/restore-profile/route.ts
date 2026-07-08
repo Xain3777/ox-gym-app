@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
+import { fetchAllRows } from "@/lib/fetch-all";
 
 // POST /api/reception/restore-profile
 // Body: { mode: "single", member_id } | { mode: "bulk" }
@@ -95,17 +96,20 @@ export async function POST(request: NextRequest) {
 
   // bulk
   const today = new Date().toISOString().slice(0, 10);
-  const { data: liveSubs } = await supa
+  // fetchAllRows — page past the 1000-row cap so the bulk restore covers
+  // every live-bound member, not just the first 1000.
+  const { data: liveSubs } = await fetchAllRows<{ activated_user_id: string | null }>(() => supa
     .from("gym_subscriptions")
     .select("activated_user_id")
     .not("activated_user_id", "is", null)
     .is("cancelled_at", null)
-    .gte("end_date", today);
+    .gte("end_date", today));
   const authIds = Array.from(new Set((liveSubs ?? []).map((s) => s.activated_user_id as string)));
 
   const { data: members } = authIds.length
-    ? await supa.from("members").select("id, auth_id").in("auth_id", authIds)
-    : { data: [] };
+    ? await fetchAllRows<{ id: string; auth_id: string | null }>(() =>
+        supa.from("members").select("id, auth_id").in("auth_id", authIds))
+    : { data: [] as { id: string; auth_id: string | null }[] };
 
   let restored = 0, alreadyHad = 0, failed = 0;
   for (const m of members ?? []) {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
+import { fetchAllRows } from "@/lib/fetch-all";
 import { cn } from "@/lib/utils";
 import { Search, User } from "lucide-react";
 import type { MemberWithSub } from "@/types";
@@ -18,10 +19,12 @@ export default function ReceptionMembersPage() {
     async function load() {
       try {
         const supabase = createBrowserSupabase();
-        const { data } = await supabase
+        // fetchAllRows — a plain .select() caps at 1000 rows, which hid
+        // members past the cap from this list. Page through all of them.
+        const { data } = await fetchAllRows<Record<string, unknown>>(() => supabase
           .from("members")
           .select("*, subscription:member_subscriptions(*)")
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false }));
 
         if (data) {
           setMembers(data.map((m: Record<string, unknown>) => ({

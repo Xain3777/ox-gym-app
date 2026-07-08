@@ -75,7 +75,7 @@ export async function GET(request: Request) {
     const { data: membersData, error: membersErr } = await supabase
       .from("members")
       .select("id, full_name, phone")
-      .in("id", memberIds);
+      .in("id", memberIds); // cap-ok: bounded by distinct consultation-request members
     if (membersErr) {
       return NextResponse.json({ success: false, error: "Failed to load members" }, { status: 500 });
     }

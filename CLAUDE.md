@@ -41,6 +41,8 @@ Three clients exist in `src/lib/supabase.ts` — use the right one:
 - `createServerClient(cookieStore)` — Server Components / Route Handlers (session-scoped, respects RLS)
 - `createServiceClient()` — API routes and cron jobs only (bypasses RLS; never expose to browser)
 
+**⚠️ The 1000-row cap.** A plain `.select()` silently returns at most 1000 rows (PostgREST default). `members` and `gym_subscriptions` already exceed that, so reading a whole table with one `.select()` goes blind to the newest rows — this once hid ~50 paying members from the coach/reception pages. **Any read that can return >1000 rows MUST use `fetchAllRows(() => supabase.from(...).select(...))`** from `src/lib/fetch-all.ts` (it pages with `.range()`). Reads narrowed to a single row (`.single`/`.maybeSingle`/`.limit`) or a provably tiny set are fine — mark the latter with a trailing `// cap-ok: <reason>`. The `npm run check:caps` guard (also run by `lint` and `build`) fails the build on any unbounded full-table read.
+
 ### API Route Auth
 
 All API routes use `src/lib/api-auth.ts`:

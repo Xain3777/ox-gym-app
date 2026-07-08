@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createServiceClient } from "@/lib/supabase";
+import { fetchAllRows } from "@/lib/fetch-all";
 import { TopBar, SectionHeader } from "@/components/layout/TopBar";
 import { StatCard } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/Badge";
@@ -11,10 +12,11 @@ export const metadata: Metadata = { title: "Subscriptions" };
 async function getData() {
   try {
     const supabase = createServiceClient();
-    const { data } = await supabase
+    // fetchAllRows — page past the 1000-row cap so all members appear.
+    const { data } = await fetchAllRows<Record<string, unknown>>(() => supabase
       .from("members")
       .select("*, subscription:member_subscriptions(*)")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false }));
 
     return (data ?? []).map((m: any) => ({
       ...m,

@@ -10,7 +10,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("members")
     .select("id, full_name, phone, role")
-    .in("role", ["manager", "reception", "head_coach", "coach"])
+    .in("role", ["manager", "reception", "head_coach", "coach"]) // cap-ok: staff-only, ~50 rows max
     .order("role", { ascending: true })
     .order("full_name", { ascending: true });
 

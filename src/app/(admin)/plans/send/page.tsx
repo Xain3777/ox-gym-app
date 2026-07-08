@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createServiceClient } from "@/lib/supabase";
+import { fetchAllRows } from "@/lib/fetch-all";
 import { TopBar, StripeDivider } from "@/components/layout/TopBar";
 import { SendPlanFlow } from "@/components/admin/SendPlanFlow";
 import type { MemberWithSub, WorkoutPlan } from "@/types";
@@ -13,12 +14,14 @@ async function getData() {
   try {
     const supabase = createServiceClient();
 
+    // fetchAllRows on members — page past the 1000-row cap so the plan-send
+    // picker lists every non-expired member.
     const [membersRes, plansRes] = await Promise.all([
-      supabase
+      fetchAllRows<Record<string, unknown>>(() => supabase
         .from("members")
         .select("*, subscription:member_subscriptions(*)")
         .neq("status", "expired")
-        .order("full_name"),
+        .order("full_name")),
       supabase
         .from("workout_plans")
         .select("*")

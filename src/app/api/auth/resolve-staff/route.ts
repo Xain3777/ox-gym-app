@@ -60,7 +60,7 @@ export async function POST(request: Request) {
       .from("members")
       .select("id, auth_id, role, full_name, phone")
       .eq("phone_normalized", normalized)
-      .in("role", STAFF_ROLES);
+      .in("role", STAFF_ROLES); // cap-ok: staff-only, ~50 rows max
     const match = pickSingle(data ?? []);
     if (match) return await respondForMember(supabase, match);
     if (data && data.length > 1) {
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       .from("members")
       .select("id, auth_id, role, full_name, phone")
       .ilike("username", raw)
-      .in("role", STAFF_ROLES);
+      .in("role", STAFF_ROLES); // cap-ok: staff-only, ~50 rows max
     const match = pickSingle(data ?? []);
     if (match) return await respondForMember(supabase, match);
     if (data && data.length > 1) {
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
       .from("members")
       .select("id, auth_id, role, full_name, phone")
       .ilike("full_name", raw)
-      .in("role", STAFF_ROLES);
+      .in("role", STAFF_ROLES); // cap-ok: staff-only, ~50 rows max
     const match = pickSingle(data ?? []);
     if (match) return await respondForMember(supabase, match);
     if (data && data.length > 1) {

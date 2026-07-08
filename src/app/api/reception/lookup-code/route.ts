@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   const { data: subs } = await supa
     .from("gym_subscriptions")
     .select("id, member_id, member_name, phone, amount, currency, activation_code, activated_user_id, activated_at, cancelled_at, end_date, created_at, status")
-    .eq("activation_code", code)
+    .eq("activation_code", code) // cap-ok: one player's code → a handful of rows
     .order("created_at", { ascending: false });
 
   if (!subs?.length) {

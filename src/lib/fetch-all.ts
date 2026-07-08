@@ -16,8 +16,11 @@
 //     supabase.from("gym_subscriptions").select("id, ...").is("cancelled_at", null),
 //   );
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type QueryFactory = () => any;
+// The Supabase query builder is intentionally loosely typed here; callers
+// supply the row type via fetchAllRows<T>. Any builder with `.range()` works.
+type QueryFactory = () => {
+  range: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>;
+};
 
 export async function fetchAllRows<T = unknown>(
   makeQuery: QueryFactory,

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
+import { fetchAllRows } from "@/lib/fetch-all";
 import type {
   NotificationType,
   NotificationAudience,
@@ -29,10 +30,12 @@ export function SendNotificationForm({ onSent }: Props) {
   useEffect(() => {
     if (audience !== "specific") return;
     const supabase = createBrowserSupabase();
-    supabase
+    // fetchAllRows — page past the 1000-row cap so the recipient picker
+    // lists every member.
+    fetchAllRows<Member>(() => supabase
       .from("members")
       .select("id, full_name, phone")
-      .order("full_name")
+      .order("full_name"))
       .then(({ data }) => {
         if (data) setMembers(data);
       });

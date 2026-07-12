@@ -3,8 +3,35 @@
 import { useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { UserPlus, CheckCircle, AlertCircle, Copy, KeyRound } from "lucide-react";
+import { normalizePhone } from "@/lib/phone";
+import { UserPlus, CheckCircle, AlertCircle, Copy, KeyRound, Printer, MessageCircle } from "lucide-react";
 import { PhoneCollisionWarning } from "@/components/reception/PhoneCollisionWarning";
+
+// Opens a minimal print window with the member's activation card —
+// reception prints it and hands it over with the receipt.
+function printActivationCard(name: string, phone: string, code: string) {
+  const w = window.open("", "_blank", "width=420,height=520");
+  if (!w) return;
+  w.document.write(`<!doctype html><html dir="rtl"><head><title>OX GYM</title><style>
+    body { font-family: sans-serif; text-align: center; padding: 32px 16px; color: #111; }
+    .brand { font-size: 22px; font-weight: 800; letter-spacing: 2px; }
+    .name { font-size: 16px; margin-top: 16px; }
+    .phone { font-size: 13px; color: #555; direction: ltr; }
+    .label { font-size: 11px; color: #777; margin-top: 24px; letter-spacing: 1px; }
+    .code { font-size: 34px; font-weight: 800; letter-spacing: 6px; direction: ltr; margin-top: 4px; }
+    .note { font-size: 12px; color: #555; margin-top: 24px; line-height: 1.7; }
+  </style></head><body>
+    <div class="brand">OX GYM</div>
+    <div class="name">${name}</div>
+    <div class="phone">${phone}</div>
+    <div class="label">ACTIVATION CODE — كود التفعيل</div>
+    <div class="code">${code}</div>
+    <div class="note">حسابك مفعّل ومربوط بالاشتراك تلقائياً.<br/>احتفظ بهذا الكود كمرجع.</div>
+  </body></html>`);
+  w.document.close();
+  w.focus();
+  w.print();
+}
 
 interface FormData {
   full_name: string;
@@ -163,6 +190,28 @@ export default function ReceptionCreatePage() {
               </button>
             )}
           </div>
+          {/* Hand-over actions: print the card, or WhatsApp it to the member */}
+          {created.activation_code && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => printActivationCard(created.full_name, created.phone, created.activation_code!)}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 border border-white/[0.1] text-white/60 hover:text-white hover:border-white/25 text-[12px] font-medium transition-colors"
+              >
+                <Printer size={13} /> {t("reception.printCard")}
+              </button>
+              <a
+                href={`https://wa.me/${normalizePhone(created.phone)}?text=${encodeURIComponent(
+                  `OX GYM 🏋️\n${created.full_name}\n${t("reception.activationCode")}: ${created.activation_code}\n${t("reception.accountAlreadyActive")}`,
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 border border-green-500/25 text-green-400/90 hover:text-green-400 hover:border-green-500/50 text-[12px] font-medium transition-colors"
+              >
+                <MessageCircle size={13} /> {t("reception.sendWhatsApp")}
+              </a>
+            </div>
+          )}
         </div>
       )}
 

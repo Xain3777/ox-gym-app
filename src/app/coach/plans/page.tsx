@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { ExerciseImage } from "@/components/ui/ExerciseImage";
+import { useMediaSources, type MediaSource } from "@/components/coach/MediaPickerModal";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 import type {
@@ -50,12 +51,6 @@ type AddExerciseState = {
 type AddDayState = {
   program: WorkoutProgramTemplate;
 } | null;
-
-type MediaSource = {
-  name: string;
-  url: string;
-  type: "machine" | "demo";
-};
 
 const emptyMedia: Omit<ExerciseMedia, "id" | "exercise_name"> = {
   machine_name: "",
@@ -1068,27 +1063,6 @@ function SelectedMedia({ label, src, empty, onClear }: { label: string; src?: st
       )}
     </div>
   );
-}
-
-function useMediaSources(): MediaSource[] {
-  const [sources, setSources] = useState<MediaSource[]>([]);
-
-  useEffect(() => {
-    let active = true;
-    fetch("/api/coach/media-sources")
-      .then((res) => res.json())
-      .then((json) => {
-        if (active && json.success) setSources(json.data ?? []);
-      })
-      .catch(() => {
-        if (active) setSources([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  return sources;
 }
 
 function normalizeForMatch(value: string): string {

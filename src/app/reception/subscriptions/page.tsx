@@ -10,12 +10,12 @@
 // carries member_name/phone/code) and caps rendering — search narrows.
 // ═══════════════════════════════════════════════════════════════
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { fetchAllRows } from "@/lib/fetch-all";
 import { cn } from "@/lib/utils";
-import { CreditCard, Search } from "lucide-react";
+import { CreditCard, Search, AlertCircle, RefreshCw } from "lucide-react";
 
 const RENDER_CAP = 150;
 
@@ -51,30 +51,33 @@ export default function ReceptionSubscriptionsPage() {
   const { t } = useTranslation();
   const [subs, setSubs] = useState<SubRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState<"all" | "active" | "expired">("all");
   const [search, setSearch] = useState("");
   const today = new Date().toISOString().slice(0, 10);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const supabase = createBrowserSupabase();
-        // ONE paged read, only the columns this panel shows.
-        // gym_subscriptions is the canonical table and already carries
-        // member_name / phone / activation_code — no join needed.
-        const { data } = await fetchAllRows<SubRow>(() => supabase
-          .from("gym_subscriptions")
-          .select("id, member_name, phone, plan_type, start_date, end_date, amount, activation_code, activated_user_id, cancelled_at")
-          .order("end_date", { ascending: false }));
-        if (data) setSubs(data);
-      } catch {
-        // empty
-      } finally {
-        setLoading(false);
-      }
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const supabase = createBrowserSupabase();
+      // ONE paged read, only the columns this panel shows.
+      // gym_subscriptions is the canonical table and already carries
+      // member_name / phone / activation_code — no join needed.
+      const { data, error } = await fetchAllRows<SubRow>(() => supabase
+        .from("gym_subscriptions")
+        .select("id, member_name, phone, plan_type, start_date, end_date, amount, activation_code, activated_user_id, cancelled_at")
+        .order("end_date", { ascending: false }));
+      if (error) throw error;
+      setSubs(data ?? []);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    load();
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -129,6 +132,18 @@ export default function ReceptionSubscriptionsPage() {
 
       {loading ? (
         <div className="text-white/40 text-center py-12">{t("common.loading")}</div>
+      ) : loadError ? (
+        <div className="text-center py-16 border border-danger/20 bg-danger/[0.04]">
+          <AlertCircle size={36} className="mx-auto text-danger/60 mb-3" />
+          <p className="text-danger text-[14px] mb-4">{t("reception.loadFailed")}</p>
+          <button
+            type="button"
+            onClick={load}
+            className="inline-flex items-center gap-2 px-4 h-10 border border-white/[0.12] text-white/70 hover:text-white hover:border-white/30 text-[13px] transition-colors"
+          >
+            <RefreshCw size={14} /> {t("reception.retry")}
+          </button>
+        </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16">
           <CreditCard size={40} className="mx-auto text-white/10 mb-4" />

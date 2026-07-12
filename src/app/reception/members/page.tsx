@@ -8,20 +8,33 @@
 // audited /api/reception/* endpoints.
 // ═══════════════════════════════════════════════════════════════
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { fetchAllRows } from "@/lib/fetch-all";
+import { getSubscriptionStatus } from "@/lib/subscription";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
-import { Search, User, Pencil, KeyRound, Ban, Power, Trash2, X, Save } from "lucide-react";
-import type { MemberWithSub } from "@/types";
+import { Search, User, Pencil, KeyRound, Ban, Power, Trash2, X, Save, AlertCircle, RefreshCw, CalendarPlus } from "lucide-react";
+import type { MemberWithSub, MemberStatus } from "@/types";
+
+const RENDER_CAP = 150;
+
+// Display status derives from the REAL subscription end date, not the
+// stale members.status column (written once at creation). "suspended"
+// is the only stored status that wins — it's set deliberately by staff.
+function derivedStatus(m: MemberWithSub): MemberStatus {
+  if (m.status === "suspended") return "suspended";
+  if (m.subscription?.end_date) return getSubscriptionStatus(m.subscription.end_date);
+  return m.status;
+}
 
 export default function ReceptionMembersPage() {
   const { t } = useTranslation();
   const { success, error: toastError, warning } = useToast();
   const [members, setMembers] = useState<MemberWithSub[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "expiring" | "expired" | "suspended">("all");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -29,36 +42,42 @@ export default function ReceptionMembersPage() {
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const highlightRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const supabase = createBrowserSupabase();
-        // fetchAllRows — a plain .select() caps at 1000 rows, which hid
-        // members past the cap from this list. Page through all of them.
-        const { data } = await fetchAllRows<Record<string, unknown>>(() => supabase
-          .from("members")
-          .select("*, subscription:member_subscriptions(*)")
-          .order("created_at", { ascending: false }));
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const supabase = createBrowserSupabase();
+      // fetchAllRows — a plain .select() caps at 1000 rows, which hid
+      // members past the cap from this list. Page through all of them.
+      const { data, error } = await fetchAllRows<Record<string, unknown>>(() => supabase
+        .from("members")
+        .select("*, subscription:member_subscriptions(*)")
+        .order("created_at", { ascending: false }));
+      if (error) throw error;
 
-        if (data) {
-          setMembers(data.map((m: Record<string, unknown>) => ({
-            ...m,
-            subscription: Array.isArray(m.subscription) ? m.subscription[0] ?? null : m.subscription,
-          })) as MemberWithSub[]);
-        }
-      } catch {
-        // empty
-      } finally {
-        setLoading(false);
-      }
+      setMembers((data ?? []).map((m: Record<string, unknown>) => ({
+        ...m,
+        // A member can have several sub rows — show the one that ends
+        // LAST (their current reality), not whichever the join returned first.
+        subscription: Array.isArray(m.subscription)
+          ? [...(m.subscription as Array<{ end_date?: string }>)]
+              .sort((a, b) => String(b.end_date ?? "").localeCompare(String(a.end_date ?? "")))[0] ?? null
+          : m.subscription,
+      })) as MemberWithSub[]);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    load();
+  }, []);
 
+  useEffect(() => {
+    load();
     // Deep-link support: /reception/members?id=<member_id> (used by the
     // dashboard quick-search) highlights and scrolls to that member.
     const id = new URLSearchParams(window.location.search).get("id");
     if (id) setHighlightId(id);
-  }, []);
+  }, [load]);
 
   useEffect(() => {
     if (!loading && highlightId && highlightRef.current) {
@@ -110,8 +129,31 @@ export default function ReceptionMembersPage() {
     setMembers((prev) => prev.filter((x) => x.id !== m.id));
   }
 
+  async function renewSub(m: MemberWithSub) {
+    if (!m.subscription) return;
+    const daysStr = window.prompt(
+      `${t("reception.renewSubscription")} — ${m.full_name}\n${t("members.endDate")}: ${m.subscription.end_date}\n${t("reception.renewDays")}`,
+      "30",
+    );
+    if (!daysStr) return;
+    const days = parseInt(daysStr, 10);
+    if (!Number.isFinite(days) || days < 1) return toastError(t("reception.actionFailed"), daysStr);
+    setBusyId(m.id);
+    // member_subscriptions is a view over gym_subscriptions, so the
+    // joined row's id IS the gym_subscriptions id extend-sub expects.
+    const { ok, json } = await call("/api/reception/extend-sub", { sub_id: m.subscription.id, days });
+    setBusyId(null);
+    if (!ok) return toastError(t("reception.actionFailed"), String(json.error ?? ""));
+    success(t("reception.renewed"), `${m.full_name} → ${json.new_end}`);
+    setMembers((prev) => prev.map((x) =>
+      x.id === m.id && x.subscription
+        ? { ...x, subscription: { ...x.subscription, end_date: String(json.new_end) } }
+        : x,
+    ));
+  }
+
   const filtered = members.filter((m) => {
-    if (filter !== "all" && m.status !== filter) return false;
+    if (filter !== "all" && derivedStatus(m) !== filter) return false;
     if (search) {
       const q = search.toLowerCase();
       return m.full_name.toLowerCase().includes(q)
@@ -120,6 +162,7 @@ export default function ReceptionMembersPage() {
     }
     return true;
   });
+  const visible = filtered.slice(0, RENDER_CAP);
 
   const filters = ["all", "active", "expiring", "expired", "suspended"] as const;
 
@@ -158,6 +201,18 @@ export default function ReceptionMembersPage() {
       {/* Member List */}
       {loading ? (
         <div className="text-white/40 text-center py-12">{t("common.loading")}</div>
+      ) : loadError ? (
+        <div className="text-center py-16 border border-danger/20 bg-danger/[0.04]">
+          <AlertCircle size={36} className="mx-auto text-danger/60 mb-3" />
+          <p className="text-danger text-[14px] mb-4">{t("reception.loadFailed")}</p>
+          <button
+            type="button"
+            onClick={load}
+            className="inline-flex items-center gap-2 px-4 h-10 border border-white/[0.12] text-white/70 hover:text-white hover:border-white/30 text-[13px] transition-colors"
+          >
+            <RefreshCw size={14} /> {t("reception.retry")}
+          </button>
+        </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16">
           <User size={40} className="mx-auto text-white/10 mb-4" />
@@ -165,10 +220,11 @@ export default function ReceptionMembersPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((member) => {
+          {visible.map((member) => {
             const isPlayer = member.role === "player";
             const busy = busyId === member.id;
             const highlighted = highlightId === member.id;
+            const status = derivedStatus(member);
             return (
               <div
                 key={member.id}
@@ -192,12 +248,12 @@ export default function ReceptionMembersPage() {
                     {isPlayer ? (
                       <span className={cn(
                         "text-[11px] font-bold uppercase px-2 py-1",
-                        member.status === "active" ? "bg-green-500/10 text-green-400" :
-                        member.status === "expiring" ? "bg-gold/10 text-gold" :
-                        member.status === "suspended" ? "bg-danger/15 text-danger" :
+                        status === "active" ? "bg-green-500/10 text-green-400" :
+                        status === "expiring" ? "bg-gold/10 text-gold" :
+                        status === "suspended" ? "bg-danger/15 text-danger" :
                         "bg-danger/10 text-danger"
                       )}>
-                        {t(`members.${member.status}`)}
+                        {t(`members.${status}`)}
                       </span>
                     ) : (
                       <span className="text-[11px] font-bold uppercase px-2 py-1 bg-white/[0.06] text-white/50">
@@ -205,7 +261,9 @@ export default function ReceptionMembersPage() {
                       </span>
                     )}
                     {member.subscription && (
-                      <p className="text-white/30 text-[11px] mt-1">{member.subscription.plan_type}</p>
+                      <p className="text-white/30 text-[11px] mt-1" dir="ltr">
+                        {member.subscription.plan_type} → {member.subscription.end_date}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -216,6 +274,11 @@ export default function ReceptionMembersPage() {
                     <ActionBtn onClick={() => setEditing(member)} disabled={busy}>
                       <Pencil size={11} /> {t("common.edit")}
                     </ActionBtn>
+                    {member.subscription && (
+                      <ActionBtn onClick={() => renewSub(member)} disabled={busy} tone="primary">
+                        <CalendarPlus size={11} /> {t("common.renew")}
+                      </ActionBtn>
+                    )}
                     <ActionBtn onClick={() => resetPassword(member)} disabled={busy}>
                       <KeyRound size={11} /> {t("reception.resetPassword")}
                     </ActionBtn>
@@ -231,6 +294,11 @@ export default function ReceptionMembersPage() {
               </div>
             );
           })}
+          {filtered.length > RENDER_CAP && (
+            <p className="text-white/30 text-[12px] text-center py-3">
+              {t("reception.showingFirst")} {RENDER_CAP} / {filtered.length} — {t("reception.searchToNarrow")}
+            </p>
+          )}
         </div>
       )}
 

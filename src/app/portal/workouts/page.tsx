@@ -34,43 +34,6 @@ type WorkoutDay = {
   exercises: Exercise[];
 };
 
-// ── FALLBACK MOCK DATA ───────────────────────────────────────────
-const mockWorkoutDays: WorkoutDay[] = [
-  {
-    label: "اليوم 1", title: "يوم الدفع", isToday: true,
-    exercises: [
-      { name: "Bench Press", sets: "4", reps: "8-10", machine: "Flat Bench", done: false },
-      { name: "Overhead Press", sets: "3", reps: "10-12", machine: "Shoulder Press Machine", done: false },
-      { name: "Incline Dumbbell Press", sets: "3", reps: "10-12", machine: "Incline Bench", done: false },
-      { name: "Lateral Raises", sets: "4", reps: "12-15", machine: "Dumbbells", done: false },
-      { name: "Tricep Pushdowns", sets: "3", reps: "12-15", machine: "Cable Machine", done: false },
-      { name: "Cable Flyes", sets: "3", reps: "12-15", machine: "Cable Crossover", done: false },
-    ],
-  },
-  {
-    label: "اليوم 2", title: "يوم السحب", isToday: false,
-    exercises: [
-      { name: "Deadlifts", sets: "4", reps: "6-8", machine: "Barbell", done: false },
-      { name: "Barbell Rows", sets: "4", reps: "8-10", machine: "Barbell", done: false },
-      { name: "Lat Pulldowns", sets: "3", reps: "10-12", machine: "Lat Pulldown Machine", done: false },
-      { name: "Face Pulls", sets: "3", reps: "15-20", machine: "Cable Machine", done: false },
-      { name: "Barbell Curls", sets: "3", reps: "10-12", machine: "Barbell", done: false },
-      { name: "Hammer Curls", sets: "3", reps: "12-15", machine: "Dumbbells", done: false },
-    ],
-  },
-  {
-    label: "اليوم 3", title: "يوم الأرجل", isToday: false,
-    exercises: [
-      { name: "Squats", sets: "4", reps: "8-10", machine: "Squat Rack", done: false },
-      { name: "Leg Press", sets: "4", reps: "10-12", machine: "Leg Press Machine", done: false },
-      { name: "Romanian Deadlifts", sets: "3", reps: "10-12", machine: "Barbell", done: false },
-      { name: "Leg Curls", sets: "3", reps: "12-15", machine: "Leg Curl Machine", done: false },
-      { name: "Calf Raises", sets: "4", reps: "15-20", machine: "Calf Raise Machine", done: false },
-    ],
-  },
-];
-void mockWorkoutDays;
-
 // Convert DB plan content (array of {day, exercises}) → WorkoutDay[]
 function splitSetsReps(value?: string | null): { sets: string; reps: string } {
   if (!value) return { sets: "", reps: "" };

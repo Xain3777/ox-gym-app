@@ -458,6 +458,7 @@
     "active": "Active",
     "expiring": "Expiring",
     "expired": "Expired",
+    "cancelled": "Cancelled",
     "expiredMessage": "Your subscription has expired. Premium features are locked. Contact reception to renew.",
     "expiringMessage": "Your subscription expires soon. Renew to keep access to all features.",
     "lockedTitle": "SUBSCRIPTION EXPIRED",
@@ -749,7 +750,15 @@
     "memberSuspended": "Account suspended",
     "memberReactivated": "Account reactivated",
     "actionFailed": "Action failed",
-    "staffAccount": "Staff account"
+    "staffAccount": "Staff account",
+    "activationCode": "Activation code",
+    "accountAlreadyActive": "The account is already linked to the subscription — the code is just a backup reference.",
+    "copyCode": "Copy",
+    "copied": "Copied",
+    "searchSubs": "Search by name, phone, or code...",
+    "codeLinked": "linked",
+    "showingFirst": "Showing first",
+    "searchToNarrow": "search to narrow results"
   },
   "validation": {
     "required": "This field is required",

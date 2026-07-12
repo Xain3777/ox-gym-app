@@ -1,58 +1,72 @@
 "use client";
 
-import { useEffect, useState } from "react";
+// ═══════════════════════════════════════════════════════════════
+// Reception → Subscriptions (activation-code panel)
+//
+// Perf: this page used to make TWO sequential full-table paged reads
+// (member_subscriptions view + join, then ALL of gym_subscriptions
+// again just for the codes) and then render 1100+ rows into the DOM.
+// Now it makes ONE lean paged read of gym_subscriptions (which already
+// carries member_name/phone/code) and caps rendering — search narrows.
+// ═══════════════════════════════════════════════════════════════
+
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { fetchAllRows } from "@/lib/fetch-all";
 import { cn } from "@/lib/utils";
-import { CreditCard } from "lucide-react";
+import { CreditCard, Search } from "lucide-react";
 
-interface SubWithMember {
+const RENDER_CAP = 150;
+
+interface SubRow {
   id: string;
-  member_id: string;
-  plan_type: string;
-  start_date: string;
-  end_date: string;
-  status: string;
-  price: number | null;
-  activation_code?: string | null;
-  member: { full_name: string; phone: string | null } | null;
+  member_name: string | null;
+  phone: string | null;
+  plan_type: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  amount: number | null;
+  activation_code: string | null;
+  activated_user_id: string | null;
+  cancelled_at: string | null;
+}
+
+type DerivedStatus = "active" | "expired" | "cancelled";
+
+function deriveStatus(sub: SubRow, today: string): DerivedStatus {
+  if (sub.cancelled_at) return "cancelled";
+  if (sub.end_date && sub.end_date >= today) return "active";
+  return "expired";
+}
+
+function planLabel(raw: string | null, t: (key: string) => string): string {
+  if (raw === "1_month") return t("members.monthly");
+  if (raw === "3_months" || raw === "3_month") return t("members.quarterly");
+  if (raw === "12_months" || raw === "12_month") return t("members.annual");
+  return raw ?? "—";
 }
 
 export default function ReceptionSubscriptionsPage() {
   const { t } = useTranslation();
-  const [subs, setSubs] = useState<SubWithMember[]>([]);
+  const [subs, setSubs] = useState<SubRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "active" | "expired">("all");
+  const [search, setSearch] = useState("");
+  const today = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
     async function load() {
       try {
         const supabase = createBrowserSupabase();
-        // fetchAllRows — page past the 1000-row cap so every subscription
-        // shows (the newest were being dropped from this list).
-        const { data } = await fetchAllRows<SubWithMember>(() => supabase
-          .from("member_subscriptions")
-          .select("*, member:members(full_name, phone)")
-          .order("end_date", { ascending: true }));
-
-        // Pull activation_code directly from gym_subscriptions in case the
-        // member_subscriptions view doesn't expose it.
-        const { data: codes } = await fetchAllRows<{ id: string; activation_code: string | null }>(() => supabase
+        // ONE paged read, only the columns this panel shows.
+        // gym_subscriptions is the canonical table and already carries
+        // member_name / phone / activation_code — no join needed.
+        const { data } = await fetchAllRows<SubRow>(() => supabase
           .from("gym_subscriptions")
-          .select("id, activation_code"));
-        const codeById = new Map<string, string | null>(
-          (codes ?? []).map((row: { id: string; activation_code: string | null }) => [row.id, row.activation_code]),
-        );
-
-        if (data) {
-          setSubs(
-            (data as SubWithMember[]).map((row) => ({
-              ...row,
-              activation_code: row.activation_code ?? codeById.get(row.id) ?? null,
-            })),
-          );
-        }
+          .select("id, member_name, phone, plan_type, start_date, end_date, amount, activation_code, activated_user_id, cancelled_at")
+          .order("end_date", { ascending: false }));
+        if (data) setSubs(data);
       } catch {
         // empty
       } finally {
@@ -62,18 +76,40 @@ export default function ReceptionSubscriptionsPage() {
     load();
   }, []);
 
-  const filtered = subs.filter((s) => {
-    if (filter === "all") return true;
-    return s.status === filter;
-  });
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return subs.filter((s) => {
+      const status = deriveStatus(s, today);
+      if (filter !== "all" && status !== filter) return false;
+      if (q) {
+        return (s.member_name?.toLowerCase().includes(q) ?? false)
+          || (s.phone?.toLowerCase().includes(q) ?? false)
+          || (s.activation_code?.toLowerCase().includes(q) ?? false);
+      }
+      return true;
+    });
+  }, [subs, filter, search, today]);
 
+  const visible = filtered.slice(0, RENDER_CAP);
   const filters = ["all", "active", "expired"] as const;
 
   return (
     <div className="p-6 pb-24 md:pb-6 max-w-4xl mx-auto space-y-5">
       <h1 className="font-display text-[28px] tracking-wider text-white">{t("subscriptions.title")}</h1>
 
-      <div className="flex gap-2">
+      {/* Search — by name, phone, or activation code */}
+      <div className="relative">
+        <Search size={16} className="absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-white/30" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t("reception.searchSubs")}
+          className="w-full h-11 pl-10 rtl:pl-4 rtl:pr-10 bg-white/[0.04] border border-white/[0.08] text-white text-[14px] placeholder:text-white/30 focus:border-[#4ECDC4]/50 focus:outline-none transition-colors"
+        />
+      </div>
+
+      <div className="flex gap-2 items-center flex-wrap">
         {filters.map((f) => (
           <button
             key={f}
@@ -86,6 +122,9 @@ export default function ReceptionSubscriptionsPage() {
             {f === "all" ? t("members.all") : t(`subscription.${f}`)}
           </button>
         ))}
+        {!loading && (
+          <span className="text-white/30 text-[11px] font-mono ml-auto rtl:ml-0 rtl:mr-auto">{filtered.length}</span>
+        )}
       </div>
 
       {loading ? (
@@ -97,31 +136,45 @@ export default function ReceptionSubscriptionsPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((sub) => (
-            <div key={sub.id} className="flex items-center gap-4 bg-white/[0.04] border border-white/[0.06] p-4">
-              <div className="w-10 h-10 bg-[#4ECDC4]/10 flex items-center justify-center">
-                <CreditCard size={18} className="text-[#4ECDC4]" />
+          {visible.map((sub) => {
+            const status = deriveStatus(sub, today);
+            return (
+              <div key={sub.id} className="flex items-center gap-4 bg-white/[0.04] border border-white/[0.06] p-4">
+                <div className="w-10 h-10 bg-[#4ECDC4]/10 flex items-center justify-center flex-shrink-0">
+                  <CreditCard size={18} className="text-[#4ECDC4]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-[14px] font-medium truncate">{sub.member_name ?? "—"}</p>
+                  <p className="text-white/40 text-[12px]" dir="ltr">
+                    {planLabel(sub.plan_type, t)} · {sub.start_date ?? "—"} → {sub.end_date ?? "—"}
+                    {sub.phone ? ` · ${sub.phone}` : ""}
+                  </p>
+                  <p className="text-white/60 text-[11px] font-mono tracking-wider mt-1" dir="ltr">
+                    <span className="text-white/30">CODE</span> {sub.activation_code ?? "—"}
+                    {sub.activated_user_id && <span className="text-green-400/70"> · ✓ {t("reception.codeLinked")}</span>}
+                  </p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <span className={cn(
+                    "text-[11px] font-bold uppercase px-2 py-1",
+                    status === "active" ? "bg-green-500/10 text-green-400" :
+                    status === "cancelled" ? "bg-white/[0.06] text-white/40" :
+                    "bg-danger/10 text-danger"
+                  )}>
+                    {t(`subscription.${status}`)}
+                  </span>
+                  {sub.amount != null && (
+                    <p className="text-white/30 text-[11px] mt-1">${sub.amount}</p>
+                  )}
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white text-[14px] font-medium truncate">{sub.member?.full_name ?? "—"}</p>
-                <p className="text-white/40 text-[12px]">{sub.plan_type} · {sub.start_date} → {sub.end_date}</p>
-                <p className="text-white/60 text-[11px] font-mono tracking-wider mt-1" dir="ltr">
-                  <span className="text-white/30">CODE</span> {sub.activation_code ?? "—"}
-                </p>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <span className={cn(
-                  "text-[11px] font-bold uppercase px-2 py-1",
-                  sub.status === "active" ? "bg-green-500/10 text-green-400" : "bg-danger/10 text-danger"
-                )}>
-                  {t(`subscription.${sub.status}`)}
-                </span>
-                {sub.price && (
-                  <p className="text-white/30 text-[11px] mt-1">{sub.price} SAR</p>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
+          {filtered.length > RENDER_CAP && (
+            <p className="text-white/30 text-[12px] text-center py-3">
+              {t("reception.showingFirst")} {RENDER_CAP} — {t("reception.searchToNarrow")}
+            </p>
+          )}
         </div>
       )}
     </div>

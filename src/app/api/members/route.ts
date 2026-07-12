@@ -4,13 +4,18 @@ import { createServiceClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import { normalizePhone, phoneToEmail } from "@/lib/phone";
 import { generateUniqueActivationCode } from "@/lib/activation-code";
+import { upsertMemberAppProfile } from "@/lib/member-app-profile";
 import { fetchAllRows } from "@/lib/fetch-all";
 import type { ApiResponse } from "@/types";
 
+// Canonical gym_subscriptions.plan_type values — must match what the
+// portal displays ("3_months"/"12_months" WITH the s; see
+// /api/portal/activate planTypeDisplay). The old "3_month"/"12_month"
+// spellings rendered as raw strings in the player app.
 const GYM_SUBSCRIPTION_PLAN_TYPE: Record<"monthly" | "quarterly" | "annual", string> = {
   monthly:   "1_month",
-  quarterly: "3_month",
-  annual:    "12_month",
+  quarterly: "3_months",
+  annual:    "12_months",
 };
 
 const MIN_PRICE = 1;
@@ -57,11 +62,16 @@ export async function POST(request: NextRequest) {
   // Deduplicate by normalized phone — catches different formats of the
   // same number (0912…, +96391…, 96391…) and matches the partial unique
   // index on members.phone_normalized for role='player'.
+  //
+  // Only a row that already HAS a login (auth_id) blocks creation. A
+  // dashboard-only stub (auth_id IS NULL — e.g. imported from the POS)
+  // is not a conflict: we CLAIM it below instead of inserting a second
+  // row, so the person ends up with one consolidated members row.
   const { data: phoneMatches, error: phoneLookupError } = await supabase
     .from("members")
-    .select("id")
+    .select("id, auth_id, role")
     .eq("phone_normalized", phoneNormalized)
-    .limit(2);
+    .limit(5);
 
   if (phoneLookupError) {
     return NextResponse.json<ApiResponse>(
@@ -70,12 +80,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if ((phoneMatches?.length ?? 0) > 0) {
+  if ((phoneMatches ?? []).some((m) => m.auth_id)) {
     return NextResponse.json<ApiResponse>(
-      { success: false, error: "A member with this phone number already exists" },
+      { success: false, error: "A member with this phone number already has an app account" },
       { status: 409 },
     );
   }
+  const claimableStub = (phoneMatches ?? []).find((m) => !m.auth_id && m.role === "player") ?? null;
 
   // Create the auth.users row first so the member can log in immediately
   // with the password reception just typed. Same internal-email shape
@@ -97,21 +108,24 @@ export async function POST(request: NextRequest) {
 
   const authId = authResult.user.id;
 
+  // Claim an existing dashboard stub when one matches the phone —
+  // update it in place instead of inserting a duplicate row. Otherwise
+  // insert a fresh members row.
+  //
   // Skip temporary_password (see note in /api/auth/signup) so the
   // route works even when deployed against a project that hasn't had
   // migration 014 applied yet.
-  const { data: member, error: memberError } = await supabase
-    .from("members")
-    .insert({
-      auth_id:            authId,
-      full_name,
-      phone,                          // trigger fills phone_normalized when present
-      goals:              goals ?? null,
-      role:               "player",
-      status:             "active",
-    })
-    .select()
-    .single();
+  const memberFields = {
+    auth_id:            authId,
+    full_name,
+    phone,                          // trigger fills phone_normalized when present
+    goals:              goals ?? null,
+    role:               "player" as const,
+    status:             "active" as const,
+  };
+  const { data: member, error: memberError } = claimableStub
+    ? await supabase.from("members").update(memberFields).eq("id", claimableStub.id).select().single()
+    : await supabase.from("members").insert(memberFields).select().single();
 
   if (memberError || !member) {
     // Roll back auth user so retries aren't blocked by an orphan login
@@ -129,7 +143,14 @@ export async function POST(request: NextRequest) {
   });
 
   if (subError) {
-    await supabase.from("members").delete().eq("id", member.id);
+    // Roll back: a claimed stub is detached (it existed before this
+    // request — deleting it would destroy the POS record), a fresh
+    // row is removed entirely.
+    if (claimableStub) {
+      await supabase.from("members").update({ auth_id: null }).eq("id", member.id);
+    } else {
+      await supabase.from("members").delete().eq("id", member.id);
+    }
     await supabase.auth.admin.deleteUser(authId);
     return NextResponse.json<ApiResponse>({ success: false, error: "Failed to create subscription" }, { status: 500 });
   }
@@ -156,6 +177,13 @@ export async function POST(request: NextRequest) {
     // next backfill/manual fix.
   }
 
+  // Bind the subscription to the login we JUST created. Reception made
+  // both halves of this person in one action, so the deterministic
+  // activation link (activated_user_id) is set immediately — the coach
+  // sees them as assignable right away, no code entry or auto-bind
+  // needed. Previously this stayed NULL and the account "didn't appear"
+  // in the coach page until the player logged in or typed the code.
+  const nowIso = new Date().toISOString();
   const { error: gymError } = await supabase.from("gym_subscriptions").insert({
     member_id:      member.id,
     member_name:    full_name,
@@ -169,7 +197,9 @@ export async function POST(request: NextRequest) {
     payment_status: "paid",
     payment_method: "cash",
     currency:       "usd",
-    activation_code: activationCode,
+    activation_code:   activationCode,
+    activated_user_id: authId,
+    activated_at:      nowIso,
     created_by:      refRow?.created_by ?? null,
   });
 
@@ -184,16 +214,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // App profile so the coach view has the person's metadata from day
+  // one. Best-effort — the activation link above is what drives
+  // eligibility, so a failure here must not fail the request.
+  try {
+    await upsertMemberAppProfile(supabase, authId, member.id, {
+      full_name,
+      phone,
+      active: true,
+      activation_code: activationCode ?? undefined,
+      onboarding_complete: false,
+      illnesses: [],
+      injuries: [],
+    });
+  } catch (e) {
+    console.error("[members:POST] upsertMemberAppProfile failed (non-fatal):", e);
+  }
+
   await supabase.from("audit_logs").insert({
     actor_id:    ctx.memberId,
     action:      "member.create",
     target_id:   member.id,
     target_type: "member",
-    meta: { full_name, phone, plan_type, activation_code: activationCode },
+    meta: { full_name, phone, plan_type, activation_code: activationCode, claimed_stub: Boolean(claimableStub) },
   }).then(() => {});
 
-  return NextResponse.json<ApiResponse<{ id: string; email: string; activation_code: string | null }>>(
-    { success: true, data: { id: member.id, email: internalEmail, activation_code: activationCode } },
+  return NextResponse.json<ApiResponse<{ id: string; email: string; activation_code: string | null; full_name: string; phone: string }>>(
+    { success: true, data: { id: member.id, email: internalEmail, activation_code: activationCode, full_name, phone } },
     { status: 201 },
   );
 }

@@ -121,7 +121,12 @@ export async function sweepAutoBindByPhone(
 
   // fetchAllRows — page past the 1000-row cap so the sweep sees every
   // player account, not just the first 1000.
-  const [{ data: members }, { data: subs }] = await Promise.all([
+  //
+  // The third read preloads every LIVE BOUND sub in one query. The old
+  // code checked "is this account already covered?" with a separate
+  // query per candidate sub inside the loop — hundreds of sequential
+  // round trips that made the bulk-activate button crawl.
+  const [{ data: members }, { data: subs }, { data: boundLive }] = await Promise.all([
     fetchAllRows<{ id: string; auth_id: string | null; phone: string | null; phone_normalized: string | null }>(() =>
       supabase
         .from("members")
@@ -135,7 +140,18 @@ export async function sweepAutoBindByPhone(
         .is("activated_user_id", null)
         .is("cancelled_at", null)
         .gte("end_date", today)),
+    fetchAllRows<{ activated_user_id: string | null }>(() =>
+      supabase
+        .from("gym_subscriptions")
+        .select("activated_user_id")
+        .not("activated_user_id", "is", null)
+        .is("cancelled_at", null)
+        .gte("end_date", today)),
   ]);
+
+  const alreadyCovered = new Set<string>(
+    (boundLive ?? []).map((s) => s.activated_user_id as string).filter(Boolean),
+  );
 
   // phone → single auth id; null marks an ambiguous phone (>1 app account).
   const authByPhone = new Map<string, string | null>();
@@ -160,16 +176,8 @@ export async function sweepAutoBindByPhone(
     if (authId === null) { ambiguous++; continue; }
     if (!authId || coveredThisRun.has(authId)) continue;
 
-    // Skip if this account already has a live bound sub.
-    const { data: already } = await supabase
-      .from("gym_subscriptions")
-      .select("id")
-      .eq("activated_user_id", authId)
-      .is("cancelled_at", null)
-      .gte("end_date", today)
-      .limit(1)
-      .maybeSingle();
-    if (already) { coveredThisRun.add(authId); continue; }
+    // Skip if this account already has a live bound sub (preloaded set).
+    if (alreadyCovered.has(authId)) { coveredThisRun.add(authId); continue; }
 
     const { data: claimed } = await supabase
       .from("gym_subscriptions")

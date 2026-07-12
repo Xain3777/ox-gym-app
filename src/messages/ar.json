@@ -458,6 +458,7 @@
     "active": "نشط",
     "expiring": "ينتهي قريباً",
     "expired": "منتهي",
+    "cancelled": "ملغى",
     "expiredMessage": "انتهى اشتراكك. الميزات المميزة مقفلة. تواصل مع الاستقبال للتجديد.",
     "expiringMessage": "اشتراكك على وشك الانتهاء. جدّد للحفاظ على جميع الميزات.",
     "lockedTitle": "انتهى الاشتراك",
@@ -749,7 +750,15 @@
     "memberSuspended": "تم إيقاف الحساب",
     "memberReactivated": "تم إعادة تفعيل الحساب",
     "actionFailed": "فشلت العملية",
-    "staffAccount": "حساب موظف"
+    "staffAccount": "حساب موظف",
+    "activationCode": "كود التفعيل",
+    "accountAlreadyActive": "الحساب مفعّل ومربوط بالاشتراك تلقائياً — الكود للمرجع فقط.",
+    "copyCode": "نسخ",
+    "copied": "تم النسخ",
+    "searchSubs": "ابحث بالاسم أو الهاتف أو الكود...",
+    "codeLinked": "مربوط",
+    "showingFirst": "عرض أول",
+    "searchToNarrow": "ابحث لتصفية النتائج"
   },
   "validation": {
     "required": "هذا الحقل مطلوب",

@@ -24,66 +24,64 @@ export async function GET(request: Request) {
   // PostgREST. members(role=player) and gym_subscriptions both exceed
   // that, so a single query silently dropped the newest rows and made
   // recently-paid members invisible to the coach. Page past the cap.
-  const { data: members, error: playerError } = await fetchAllRows<{
-    id: string; auth_id: string | null; full_name: string; phone: string | null;
-    phone_normalized: string | null; status: string; goals: string | null; created_at: string;
-  }>(() => supabase
-    .from("members")
-    .select(`
-      id,
-      auth_id,
-      full_name,
-      phone,
-      phone_normalized,
-      status,
-      goals,
-      created_at
-    `)
-    .eq("role", "player")
-    .order("created_at", { ascending: false }));
+  //
+  // Perf: all four table reads are independent — run them in PARALLEL.
+  // They used to run sequentially (4+ round trips back to back), which
+  // is what made the coach players page slow to load.
+  const [
+    { data: members, error: playerError },
+    { data: assignments },
+    { data: appProfiles },
+    { data: gymSubscriptionsRaw },
+  ] = await Promise.all([
+    fetchAllRows<{
+      id: string; auth_id: string | null; full_name: string; phone: string | null;
+      phone_normalized: string | null; status: string; goals: string | null; created_at: string;
+    }>(() => supabase
+      .from("members")
+      .select("id, auth_id, full_name, phone, phone_normalized, status, goals, created_at")
+      .eq("role", "player")
+      .order("created_at", { ascending: false })),
+    fetchAllRows<{
+      id: string; member_id: string; assigned_at: string; template: unknown;
+    }>(() => supabase
+      .from("member_workout_programs")
+      .select("id, member_id, assigned_at, template:workout_program_templates(id, name, category)")
+      .eq("status", "active")),
+    fetchAllRows<{
+      id: string; linked_member_id: string | null; app_user_id: string | null;
+      full_name: string | null; phone: string | null; phone_normalized: string | null;
+      name_normalized: string | null; height_cm: number | null; weight_kg: number | null;
+      fitness_goal: string | null; training_level: string | null; illnesses: string[] | null;
+      injuries: string[] | null; medical_notes: string | null; limitations: string | null;
+      onboarding_complete: boolean | null; app_registered_at: string | null;
+      active: boolean | null; activation_code: string | null;
+    }>(() => supabase
+      .from("member_app_profiles")
+      .select("id, linked_member_id, app_user_id, full_name, phone, phone_normalized, name_normalized, height_cm, weight_kg, fitness_goal, training_level, illnesses, injuries, medical_notes, limitations, onboarding_complete, app_registered_at, active, activation_code")),
+    // Pull every gym_subscriptions row so cancelled ones can still be
+    // counted in the raw diagnostic, then filter to non-cancelled for
+    // everything that drives the player list / dashboard counts.
+    fetchAllRows<{
+      id: string; member_id: string | null; member_name: string | null; phone: string | null;
+      plan_type: string | null; start_date: string | null; end_date: string | null;
+      status: string | null; activated_user_id: string | null; activated_at: string | null;
+      activation_code: string | null; cancelled_at: string | null;
+    }>(() => supabase
+      .from("gym_subscriptions")
+      .select(
+        "id, member_id, member_name, phone, plan_type, start_date, end_date, status, activated_user_id, activated_at, activation_code, cancelled_at",
+      )),
+  ]);
 
   if (playerError) {
     return NextResponse.json({ success: false, error: "Failed to fetch players" }, { status: 500 });
   }
 
-  const { data: assignments } = await fetchAllRows<{
-    id: string; member_id: string; assigned_at: string; template: unknown;
-  }>(() => supabase
-    .from("member_workout_programs")
-    .select("id, member_id, assigned_at, template:workout_program_templates(id, name, category)")
-    .eq("status", "active"));
-
   const assignmentsByMember = new Map(
     (assignments ?? []).map((assignment) => [assignment.member_id as string, assignment]),
   );
 
-  const { data: appProfiles } = await fetchAllRows<{
-    id: string; linked_member_id: string | null; app_user_id: string | null;
-    full_name: string | null; phone: string | null; phone_normalized: string | null;
-    name_normalized: string | null; height_cm: number | null; weight_kg: number | null;
-    fitness_goal: string | null; training_level: string | null; illnesses: string[] | null;
-    injuries: string[] | null; medical_notes: string | null; limitations: string | null;
-    onboarding_complete: boolean | null; app_registered_at: string | null;
-    active: boolean | null; activation_code: string | null;
-  }>(() => supabase
-    .from("member_app_profiles")
-    .select("id, linked_member_id, app_user_id, full_name, phone, phone_normalized, name_normalized, height_cm, weight_kg, fitness_goal, training_level, illnesses, injuries, medical_notes, limitations, onboarding_complete, app_registered_at, active, activation_code"));
-
-  // Pull every gym_subscriptions row so cancelled ones can still be
-  // counted in the raw diagnostic, then filter to non-cancelled for
-  // everything that drives the player list / dashboard counts. Same
-  // rule used by the dashboard cards. fetchAllRows pages past the 1000
-  // cap — the whole reason recent subscribers were vanishing.
-  const { data: gymSubscriptionsRaw } = await fetchAllRows<{
-    id: string; member_id: string | null; member_name: string | null; phone: string | null;
-    plan_type: string | null; start_date: string | null; end_date: string | null;
-    status: string | null; activated_user_id: string | null; activated_at: string | null;
-    activation_code: string | null; cancelled_at: string | null;
-  }>(() => supabase
-    .from("gym_subscriptions")
-    .select(
-      "id, member_id, member_name, phone, plan_type, start_date, end_date, status, activated_user_id, activated_at, activation_code, cancelled_at",
-    ));
   const gymSubscriptions = (gymSubscriptionsRaw ?? []).filter((s) => s.cancelled_at == null);
 
   const profileIndexes = buildAppProfileIndexes(appProfiles ?? []);

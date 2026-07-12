@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { UserPlus, CheckCircle, AlertCircle } from "lucide-react";
+import { UserPlus, CheckCircle, AlertCircle, Copy, KeyRound } from "lucide-react";
 import { PhoneCollisionWarning } from "@/components/reception/PhoneCollisionWarning";
 
 interface FormData {
@@ -53,14 +53,14 @@ export default function ReceptionCreatePage() {
   });
   const [errors,   setErrors]   = useState<FormErrors>({});
   const [loading,  setLoading]  = useState(false);
-  const [success,  setSuccess]  = useState(false);
+  const [created,  setCreated]  = useState<{ full_name: string; phone: string; activation_code: string | null } | null>(null);
   const [apiError, setApiError] = useState("");
+  const [copied,   setCopied]   = useState(false);
 
   function update(field: keyof FormData, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
     setApiError("");
-    setSuccess(false);
 
     if (field === "plan_type" || field === "start_date") {
       const start = field === "start_date" ? value : form.start_date;
@@ -100,7 +100,12 @@ export default function ReceptionCreatePage() {
         return;
       }
 
-      setSuccess(true);
+      setCreated({
+        full_name:       result.data?.full_name ?? form.full_name,
+        phone:           result.data?.phone ?? form.phone,
+        activation_code: result.data?.activation_code ?? null,
+      });
+      setCopied(false);
       setForm({ full_name: "", phone: "", password: "", goals: "", plan_type: "monthly", start_date: today, end_date: "", price: "" });
     } catch {
       setApiError(t("common.error"));
@@ -122,10 +127,42 @@ export default function ReceptionCreatePage() {
         <p className="text-white/40 text-[13px] mt-1">{t("reception.createAccountDesc")}</p>
       </div>
 
-      {success && (
-        <div className="flex items-center gap-3 bg-green-500/10 border border-green-500/20 p-4">
-          <CheckCircle size={18} className="text-green-400 flex-shrink-0" />
-          <p className="text-green-400 text-[14px]">{t("reception.accountCreated")}</p>
+      {created && (
+        <div className="bg-green-500/10 border border-green-500/20 p-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <CheckCircle size={18} className="text-green-400 flex-shrink-0" />
+            <p className="text-green-400 text-[14px]">{t("reception.accountCreated")} — {created.full_name}</p>
+          </div>
+          {/* Activation code — give this to the member. The account is
+              already bound to the subscription, so the app works right
+              away; the code stays valid as a backup/reference. */}
+          <div className="flex items-center gap-3 bg-black/25 border border-white/[0.08] p-3">
+            <KeyRound size={16} className="text-gold flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-white/40 text-[10px] font-mono uppercase tracking-wider">{t("reception.activationCode")}</p>
+              <p className="text-gold text-[20px] font-mono tracking-[0.2em]" dir="ltr">{created.activation_code ?? "—"}</p>
+              <p className="text-white/40 text-[11px] mt-0.5">{t("reception.accountAlreadyActive")}</p>
+            </div>
+            {created.activation_code && (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard?.writeText(created.activation_code!);
+                    setCopied(true);
+                  } catch { /* ignore */ }
+                }}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 h-9 border text-[12px] font-medium transition-colors flex-shrink-0",
+                  copied
+                    ? "border-green-500/40 text-green-400"
+                    : "border-white/[0.1] text-white/60 hover:text-white hover:border-white/25",
+                )}
+              >
+                <Copy size={12} /> {copied ? t("reception.copied") : t("reception.copyCode")}
+              </button>
+            )}
+          </div>
         </div>
       )}
 

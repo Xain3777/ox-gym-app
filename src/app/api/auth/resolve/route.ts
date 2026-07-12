@@ -41,12 +41,18 @@ export async function GET(request: Request) {
   // Phone path — for staff and any legacy phone-based members. Try a DB
   // lookup first so we return the real stored email; fall back to the
   // deterministic derivation if no member row matches yet.
+  //
+  // Only rows WITH a login (auth_id) count toward the duplicate check.
+  // A dashboard-only stub sharing the phone is harmless — it can't log
+  // in — and used to trigger a false "Duplicate phone number" 409 that
+  // locked real users out of phone login.
   const phoneNormalized = normalizePhone(phone!);
 
   const { data: phoneMatches } = await supabase
     .from("members")
     .select("auth_id")
     .eq("phone_normalized", phoneNormalized)
+    .not("auth_id", "is", null)
     .limit(2);
 
   if ((phoneMatches?.length ?? 0) > 1) {

@@ -31,7 +31,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const code = parsed.data.code.toUpperCase();
+  // Same normalization as the player activate route: Arabic-Indic
+  // digits → Latin, strip spaces/dashes, uppercase — so a pasted or
+  // hand-typed code matches regardless of keyboard.
+  const code = parsed.data.code
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/[\s\-_.]/g, "")
+    .toUpperCase();
   const supa = createServiceClient();
 
   const { data: subs } = await supa

@@ -10,6 +10,18 @@ const ActivateSchema = z.object({
   code: z.string().trim().toUpperCase(),
 });
 
+// Make honest typing mistakes work: players on Arabic keyboards type
+// the 6 digits as Arabic-Indic numerals (٤٨٢٩١٧ / ۴۸۲۹۱۷), and printed
+// codes get copied with spaces or dashes. Normalize all of that to the
+// canonical 2-letters+6-digits shape before validating.
+function normalizeActivationCode(raw: string): string {
+  return raw
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))   // Arabic-Indic ٠-٩
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))   // Extended (Persian) ۰-۹
+    .replace(/[\s\-_.]/g, "")                                       // spaces / dashes / dots
+    .toUpperCase();
+}
+
 // GET — check whether the current user is already activated, and return
 // the full subscription card payload so the portal home doesn't need a
 // second query.
@@ -73,10 +85,12 @@ export async function GET() {
 
   // Translate raw plan_type to the user-facing tier name used elsewhere
   // in the app (matches the member_subscriptions view convention).
+  // Accept both spellings — reception-created rows used "3_month" /
+  // "12_month" (no s) for a while, and those rows still exist.
   const planTypeDisplay = (raw: string | null) => {
     if (raw === "1_month") return "monthly";
-    if (raw === "3_months") return "quarterly";
-    if (raw === "12_months") return "annual";
+    if (raw === "3_months" || raw === "3_month") return "quarterly";
+    if (raw === "12_months" || raw === "12_month") return "annual";
     return raw ?? "unknown";
   };
 
@@ -126,7 +140,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const code = parsed.data.code;
+  const code = normalizeActivationCode(parsed.data.code);
   if (!isActivationCodeShape(code)) {
     return NextResponse.json(
       { success: false, error: "Activation code format is invalid", code: "INVALID_FORMAT" },

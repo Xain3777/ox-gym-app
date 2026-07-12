@@ -34,7 +34,19 @@ const ExerciseSchema = z.object({
   equipment:          z.string().max(60).nullable().optional(),
   image_url:          z.string().max(500).nullable().optional(),
   machine_image_url:  z.string().max(500).nullable().optional(),
+  machine_name:       z.string().max(120).nullable().optional(),
   demo_url:           z.string().max(500).nullable().optional(),
+
+  // Nested media block — the shape the player portal renders. Zod
+  // strips unknown keys by default, so this MUST be declared or the
+  // coach-picked pictures silently vanish on save.
+  media: z.object({
+    machine_name:      z.string().max(120).nullable().optional(),
+    machine_image_url: z.string().max(500).nullable().optional(),
+    demo_image_url:    z.string().max(500).nullable().optional(),
+    demo_video_url:    z.string().max(500).nullable().optional(),
+    instructions:      z.string().max(1000).nullable().optional(),
+  }).nullable().optional(),
 });
 
 const WorkoutDaySchema = z.object({

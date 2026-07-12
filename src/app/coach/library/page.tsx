@@ -19,6 +19,7 @@ import {
 import { createBrowserSupabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/Toast";
 import { ExerciseImage } from "@/components/ui/ExerciseImage";
+import { MediaPickerModal } from "@/components/coach/MediaPickerModal";
 import { cn } from "@/lib/utils";
 import type { TrainingSystem, TrainingSystemDay, MuscleGroup, Exercise } from "@/types";
 
@@ -848,6 +849,8 @@ function ExerciseForm({
   const [instructions,   setInstructions]   = useState(initial.instructions ?? "");
   const [isActive,       setIsActive]       = useState(initial.is_active ?? true);
   const [sortOrder,      setSortOrder]      = useState(initial.sort_order ?? 0);
+  // Which image slot is currently picking from the media list
+  const [picking,        setPicking]        = useState<"image" | "machine" | "demo" | null>(null);
 
   return (
     <div className="p-4 bg-white/[0.06] border border-[#FF6B35]/30 space-y-3">
@@ -876,12 +879,26 @@ function ExerciseForm({
         />
       </div>
 
-      {/* Image previews + URL inputs */}
+      {/* Image previews — picked from the media list, no auto-matching */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <ImageField label="OX comic / brand" url={imageUrl} setUrl={setImageUrl} />
-        <ImageField label="Machine photo"     url={machineUrl} setUrl={setMachineUrl} />
-        <ImageField label="Demo / animation"  url={demoUrl}    setUrl={setDemoUrl} />
+        <ImageField label="OX comic / brand" url={imageUrl} setUrl={setImageUrl} onPick={() => setPicking("image")} />
+        <ImageField label="Machine photo"     url={machineUrl} setUrl={setMachineUrl} onPick={() => setPicking("machine")} />
+        <ImageField label="Demo / animation"  url={demoUrl}    setUrl={setDemoUrl} onPick={() => setPicking("demo")} />
       </div>
+
+      <MediaPickerModal
+        open={picking !== null}
+        title={picking === "machine" ? "اختر صورة الجهاز" : picking === "demo" ? "اختر صورة الشرح" : "اختر صورة"}
+        filter={picking === "machine" ? "machine" : picking === "demo" ? "demo" : "all"}
+        currentUrl={picking === "machine" ? machineUrl : picking === "demo" ? demoUrl : imageUrl}
+        onSelect={(source) => {
+          const url = source?.url ?? "";
+          if (picking === "machine") setMachineUrl(url);
+          else if (picking === "demo") setDemoUrl(url);
+          else setImageUrl(url);
+        }}
+        onClose={() => setPicking(null)}
+      />
 
       {/* File name + storage path + sort order */}
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_100px] gap-3">
@@ -941,18 +958,29 @@ function ExerciseForm({
   );
 }
 
-function ImageField({ label, url, setUrl }: { label: string; url: string; setUrl: (v: string) => void }) {
+function ImageField({ label, url, setUrl, onPick }: { label: string; url: string; setUrl: (v: string) => void; onPick?: () => void }) {
   return (
     <div>
       <label className="text-white/40 text-[10px] font-mono uppercase tracking-wider block mb-1">{label}</label>
       <div className="flex gap-2">
         <ExerciseImage src={url} alt={label} className="w-12 h-12 flex-shrink-0" iconSize={16} />
-        <input
-          placeholder="/exercises/…"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          className={cn(inputClass, "font-mono text-[11px]")}
-        />
+        <div className="flex-1 min-w-0 space-y-1">
+          <input
+            placeholder="/exercises/…"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            className={cn(inputClass, "font-mono text-[11px]")}
+          />
+          {onPick && (
+            <button
+              type="button"
+              onClick={onPick}
+              className="w-full h-7 border border-white/[0.1] text-white/50 hover:border-[#FF6B35]/40 hover:text-[#FF6B35] text-[10px] font-mono uppercase tracking-wider transition-colors"
+            >
+              اختيار من القائمة
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

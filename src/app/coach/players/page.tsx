@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { cn, daysUntil } from "@/lib/utils";
 import { useToast } from "@/components/ui/Toast";
+import { ExerciseImage } from "@/components/ui/ExerciseImage";
+import { MediaPickerModal } from "@/components/coach/MediaPickerModal";
 import type { WorkoutProgramTemplate, WorkoutTemplateExercise } from "@/lib/workout-programs";
 import {
   AlertTriangle,
@@ -724,6 +726,7 @@ function MediaModal({
 }) {
   const { success, error: toastError } = useToast();
   const [saving, setSaving] = useState(false);
+  const [picking, setPicking] = useState<"machine" | "demo" | null>(null);
   const [form, setForm] = useState({
     machine_name: "",
     machine_image_url: "",
@@ -789,8 +792,23 @@ function MediaModal({
         </div>
         <div className="p-5 space-y-3">
           <MediaInput label="Machine name" value={form.machine_name} onChange={(value) => setForm((prev) => ({ ...prev, machine_name: value }))} />
-          <MediaInput label="Machine image path/URL" value={form.machine_image_url} onChange={(value) => setForm((prev) => ({ ...prev, machine_image_url: value }))} />
-          <MediaInput label="Demo image path/URL" value={form.demo_image_url} onChange={(value) => setForm((prev) => ({ ...prev, demo_image_url: value }))} />
+
+          {/* Pictures — shown with previews, picked from the media list */}
+          <div className="grid grid-cols-2 gap-3">
+            <MediaPickSlot
+              label="Machine pic · صورة الجهاز"
+              url={form.machine_image_url}
+              onPick={() => setPicking("machine")}
+              onClear={() => setForm((prev) => ({ ...prev, machine_image_url: "", machine_name: prev.machine_name }))}
+            />
+            <MediaPickSlot
+              label="Demo pic · صورة الشرح"
+              url={form.demo_image_url}
+              onPick={() => setPicking("demo")}
+              onClear={() => setForm((prev) => ({ ...prev, demo_image_url: "" }))}
+            />
+          </div>
+
           <MediaInput label="Demo video URL" value={form.demo_video_url} onChange={(value) => setForm((prev) => ({ ...prev, demo_video_url: value }))} />
           <div>
             <label className="text-white/35 text-[11px] font-bold uppercase tracking-[0.12em]">Instructions</label>
@@ -810,6 +828,68 @@ function MediaModal({
             {saving ? "Saving" : "Save media links"}
           </button>
         </div>
+      </div>
+
+      <MediaPickerModal
+        open={picking !== null}
+        title={picking === "machine" ? "اختر صورة الجهاز" : "اختر صورة الشرح"}
+        filter={picking === "machine" ? "machine" : "demo"}
+        currentUrl={picking === "machine" ? form.machine_image_url : form.demo_image_url}
+        onSelect={(source) => {
+          if (picking === "machine") {
+            setForm((prev) => ({
+              ...prev,
+              machine_image_url: source?.url ?? "",
+              machine_name: source ? (prev.machine_name || source.name) : prev.machine_name,
+            }));
+          } else {
+            setForm((prev) => ({ ...prev, demo_image_url: source?.url ?? "" }));
+          }
+        }}
+        onClose={() => setPicking(null)}
+      />
+    </div>
+  );
+}
+
+function MediaPickSlot({
+  label, url, onPick, onClear,
+}: {
+  label: string;
+  url: string;
+  onPick: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="border border-white/[0.08] bg-white/[0.02] p-2 space-y-1.5">
+      <p className="text-white/35 text-[10px] font-bold uppercase tracking-[0.1em]">{label}</p>
+      <button type="button" onClick={onPick} className="block w-full border border-white/[0.06] hover:border-[#FF6B35]/40 transition-colors overflow-hidden">
+        {url ? (
+          <ExerciseImage src={url} alt={label} className="w-full h-24" iconSize={16} />
+        ) : (
+          <div className="w-full h-24 flex items-center justify-center text-white/30 bg-iron text-[11px]">
+            اختر من القائمة
+          </div>
+        )}
+      </button>
+      <div className="flex gap-1">
+        <button
+          type="button"
+          onClick={onPick}
+          className="flex-1 h-6 border border-white/[0.1] text-white/50 hover:text-[#FF6B35] hover:border-[#FF6B35]/40 text-[10px] font-bold uppercase tracking-wider transition-colors"
+        >
+          {url ? "تغيير" : "اختيار"}
+        </button>
+        {url && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="h-6 px-2 border border-white/[0.1] text-white/50 hover:text-danger hover:border-danger/40 transition-colors"
+            title="إزالة"
+          >
+            <X size={10} />
+          </button>
+        )}
       </div>
     </div>
   );

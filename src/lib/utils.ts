@@ -34,7 +34,10 @@ export function formatMonthYear(date: string | Date): string {
 
 // ── MEMBER STATUS ─────────────────────────────────────────────
 
-export type MemberStatus = "active" | "expiring" | "expired";
+// Re-export the canonical type — this file used to declare its own
+// narrower copy, which drifted when "suspended" was added.
+export type { MemberStatus } from "@/types";
+import type { MemberStatus } from "@/types";
 
 /**
  * Derives display status from subscription end date.
@@ -59,6 +62,10 @@ export function getStatusMeta(status: MemberStatus) {
     expired: {
       label: "Expired",
       className: "border border-red-700/25 bg-red-900/20 text-danger",
+    },
+    suspended: {
+      label: "Suspended",
+      className: "border border-danger/30 bg-danger/15 text-danger",
     },
   } as const;
   return map[status];

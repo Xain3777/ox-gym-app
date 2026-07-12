@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardLabel } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import { ExerciseImage } from "@/components/ui/ExerciseImage";
+import { MediaPickerModal, MediaSlot, type MediaSource } from "@/components/coach/MediaPickerModal";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import type {
@@ -131,9 +132,17 @@ export function CreatePlanForm({
   }, []);
 
   // ── Form state ───────────────────────────────────────────────
+  // Hydrate flat image fields from the nested media block if a plan was
+  // saved in the media shape (what the player portal renders) so edits
+  // round-trip without losing the coach-picked pictures.
   const initialDays: PlanDay[] = (initialData?.content as WorkoutDay[] | undefined)?.map((d) => ({
     day: d.day,
-    exercises: d.exercises.map((ex) => ({ ...ex })),
+    exercises: d.exercises.map((ex) => ({
+      ...ex,
+      image_url:         ex.image_url ?? ex.media?.demo_image_url ?? null,
+      machine_image_url: ex.machine_image_url ?? ex.media?.machine_image_url ?? null,
+      machine_name:      ex.machine_name ?? ex.media?.machine_name ?? null,
+    })),
   })) ?? [{ day: "Day 1", exercises: [] }];
 
   const [loading, setLoading] = useState(false);
@@ -212,10 +221,10 @@ export function CreatePlanForm({
 
   // ── Exercise helpers ─────────────────────────────────────────
   // Adds an exercise to the active day with EMPTY sets/reps/rest/tempo
-  // — coach fills them manually. The library-aware metadata (id, image
-  // refs, muscle group, equipment) is captured so the player can
-  // render images and the coach can edit the plan later without
-  // re-looking-up the exercise.
+  // — coach fills them manually. Pictures are NOT auto-attached from
+  // the library: the coach picks the machine photo and the exercise
+  // picture explicitly from the media list (MediaSlot below), so a
+  // name-based guess can never attach the wrong machine.
   function addExerciseToDay(di: number, ex: Exercise) {
     setForm((prev) => {
       // Don't add duplicates
@@ -226,9 +235,10 @@ export function CreatePlanForm({
         name:              ex.name,
         muscle_group:      muscleGroups.find((g) => g.id === ex.muscle_group_id)?.name ?? null,
         equipment:         ex.equipment,
-        image_url:         ex.image_url,
-        machine_image_url: ex.machine_image_url,
-        demo_url:          ex.demo_url,
+        image_url:         null,
+        machine_image_url: null,
+        machine_name:      null,
+        demo_url:          null,
         sets:              "",
         reps:              "",
         rest:              "",
@@ -253,6 +263,7 @@ export function CreatePlanForm({
         equipment:      null,
         image_url:      null,
         machine_image_url: null,
+        machine_name:   null,
         demo_url:       null,
         sets: "", reps: "", rest: "", tempo: "", notes: "",
       };
@@ -281,6 +292,34 @@ export function CreatePlanForm({
           : d,
       ),
     }));
+  }
+
+  // Patch the picked pictures on one exercise (values may be null = cleared)
+  function patchExerciseMedia(di: number, ei: number, patch: Partial<WorkoutExercise>) {
+    setForm((prev) => ({
+      ...prev,
+      days: prev.days.map((d, i) =>
+        i === di
+          ? { ...d, exercises: d.exercises.map((ex, j) => j === ei ? { ...ex, ...patch } : ex) }
+          : d,
+      ),
+    }));
+  }
+
+  // Which exercise slot is currently picking a picture
+  const [pickerTarget, setPickerTarget] = useState<{ di: number; ei: number; slot: "machine" | "exercise" } | null>(null);
+
+  function handlePicked(source: MediaSource | null) {
+    if (!pickerTarget) return;
+    const { di, ei, slot } = pickerTarget;
+    if (slot === "machine") {
+      patchExerciseMedia(di, ei, {
+        machine_image_url: source?.url ?? null,
+        machine_name:      source?.name ?? null,
+      });
+    } else {
+      patchExerciseMedia(di, ei, { image_url: source?.url ?? null });
+    }
   }
 
   // ── Apply training-system preset ─────────────────────────────
@@ -339,6 +378,7 @@ export function CreatePlanForm({
             equipment:          ex.equipment ?? null,
             image_url:          ex.image_url ?? null,
             machine_image_url:  ex.machine_image_url ?? null,
+            machine_name:       ex.machine_name ?? null,
             demo_url:           ex.demo_url ?? null,
             // coach-filled (kept as strings, blank by default)
             sets:               typeof ex.sets === "number" ? String(ex.sets) : (ex.sets ?? ""),
@@ -346,6 +386,16 @@ export function CreatePlanForm({
             rest:               ex.rest ?? "",
             tempo:              ex.tempo ?? "",
             notes:              ex.notes ?? "",
+            // media block — the shape the player portal renders
+            // (planContentToDays only reads ex.media.*). Without this
+            // the coach-picked pictures never reach the player view.
+            media: {
+              machine_name:      ex.machine_name ?? null,
+              machine_image_url: ex.machine_image_url ?? null,
+              demo_image_url:    ex.image_url ?? null,
+              demo_video_url:    null,
+              instructions:      null,
+            },
           })),
         })),
       };
@@ -919,12 +969,6 @@ export function CreatePlanForm({
                             {ex.muscle_group ?? ""}{ex.muscle_group && ex.equipment ? " · " : ""}{ex.equipment ?? ""}
                           </p>
                         </div>
-                        {ex.machine_image_url && (
-                          <ExerciseImage src={ex.machine_image_url} alt="machine" className="w-8 h-8 flex-shrink-0 hidden sm:block" iconSize={12} />
-                        )}
-                        {ex.demo_url && (
-                          <ExerciseImage src={ex.demo_url} alt="demo" className="w-8 h-8 flex-shrink-0 hidden sm:block" iconSize={12} />
-                        )}
                         <button
                           type="button"
                           onClick={() => removeExercise(activeDay, ei)}
@@ -933,6 +977,23 @@ export function CreatePlanForm({
                         >
                           <X size={14} />
                         </button>
+                      </div>
+
+                      {/* Pictures — coach picks each one from the media
+                          list; nothing is attached automatically. */}
+                      <div className="grid grid-cols-2 gap-2 sm:max-w-[340px]">
+                        <MediaSlot
+                          label="Machine pic · صورة الجهاز"
+                          url={ex.machine_image_url}
+                          onPick={() => setPickerTarget({ di: activeDay, ei, slot: "machine" })}
+                          onClear={() => patchExerciseMedia(activeDay, ei, { machine_image_url: null, machine_name: null })}
+                        />
+                        <MediaSlot
+                          label="Exercise pic · صورة التمرين"
+                          url={ex.image_url}
+                          onPick={() => setPickerTarget({ di: activeDay, ei, slot: "exercise" })}
+                          onClear={() => patchExerciseMedia(activeDay, ei, { image_url: null })}
+                        />
                       </div>
 
                       {/* Coach-fillable values: empty by default */}
@@ -1055,6 +1116,20 @@ export function CreatePlanForm({
           {loading ? "Saving..." : isEdit ? "SAVE CHANGES" : "CREATE PLAN"}
         </Button>
       </div>
+
+      {/* Picture picker — one modal shared by every exercise slot */}
+      <MediaPickerModal
+        open={pickerTarget !== null}
+        title={pickerTarget?.slot === "machine" ? "اختر صورة الجهاز" : "اختر صورة التمرين"}
+        filter={pickerTarget?.slot === "machine" ? "machine" : "demo"}
+        currentUrl={pickerTarget
+          ? (pickerTarget.slot === "machine"
+            ? form.days[pickerTarget.di]?.exercises[pickerTarget.ei]?.machine_image_url
+            : form.days[pickerTarget.di]?.exercises[pickerTarget.ei]?.image_url)
+          : null}
+        onSelect={handlePicked}
+        onClose={() => setPickerTarget(null)}
+      />
 
     </form>
   );

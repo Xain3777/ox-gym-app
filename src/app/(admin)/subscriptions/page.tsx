@@ -43,10 +43,12 @@ export default async function SubscriptionsPage() {
   );
 
   // Sort: expiring first, then active, then expired
+  // (suspended never comes out of the date-derived getMemberStatus,
+  // but the map stays total so the type-check holds)
   const sorted = [...members].sort((a, b) => {
     const sa = getMemberStatus(a.subscription?.end_date ?? null);
     const sb = getMemberStatus(b.subscription?.end_date ?? null);
-    const order = { expiring: 0, active: 1, expired: 2 };
+    const order = { expiring: 0, active: 1, expired: 2, suspended: 3 };
     return order[sa] - order[sb];
   });
 

@@ -8,15 +8,17 @@ interface StatusBadgeProps {
 }
 
 const statusStyles: Record<MemberStatus, string> = {
-  active:   "border border-green-500/25 bg-green-500/10 text-green-400",
-  expiring: "border border-gold/20 bg-gold/10 text-gold",
-  expired:  "border border-red-700/25 bg-red-900/20 text-danger",
+  active:    "border border-green-500/25 bg-green-500/10 text-green-400",
+  expiring:  "border border-gold/20 bg-gold/10 text-gold",
+  expired:   "border border-red-700/25 bg-red-900/20 text-danger",
+  suspended: "border border-danger/30 bg-danger/15 text-danger",
 };
 
 const statusLabels: Record<MemberStatus, string> = {
-  active:   "Active",
-  expiring: "Expiring",
-  expired:  "Expired",
+  active:    "Active",
+  expiring:  "Expiring",
+  expired:   "Expired",
+  suspended: "Suspended",
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {

@@ -5,7 +5,7 @@
 
 // ── ENUMS ─────────────────────────────────────────────────────
 
-export type MemberStatus    = "active" | "expiring" | "expired";
+export type MemberStatus    = "active" | "expiring" | "expired" | "suspended";
 export type SubStatus       = "active" | "expired" | "cancelled";
 export type SubPlanType     = "monthly" | "quarterly" | "annual";
 export type FitnessLevel    = "beginner" | "intermediate" | "advanced";
@@ -65,11 +65,23 @@ export interface WorkoutExercise {
   exercise_name?:     string;
   muscle_group?:      string | null;
   equipment?:         string | null;
-  image_url?:         string | null;
-  machine_image_url?: string | null;
+  image_url?:         string | null;   // exercise/demo picture — coach picks from list
+  machine_image_url?: string | null;   // machine photo — coach picks from list
+  machine_name?:      string | null;   // display name of the picked machine
   demo_url?:          string | null;
   rest?:              string;   // free string — coach fills
   tempo?:             string;   // free string — coach fills (e.g. "3-1-1")
+
+  // Nested media block — this is the shape the player portal actually
+  // renders (planContentToDays reads ex.media.*). The plan builder
+  // writes it on save so coach-picked pictures reach the player view.
+  media?: {
+    machine_name?:      string | null;
+    machine_image_url?: string | null;
+    demo_image_url?:    string | null;
+    demo_video_url?:    string | null;
+    instructions?:      string | null;
+  } | null;
 }
 
 export interface WorkoutDay {

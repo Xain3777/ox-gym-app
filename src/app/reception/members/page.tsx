@@ -1,19 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+// ═══════════════════════════════════════════════════════════════
+// Reception → Members — the main member list, now with management
+// actions. Previously this page was read-only (edit/delete lived
+// only in the buried Health page), which is why reception "couldn't
+// edit or delete app accounts". Every action calls the existing
+// audited /api/reception/* endpoints.
+// ═══════════════════════════════════════════════════════════════
+
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { fetchAllRows } from "@/lib/fetch-all";
+import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
-import { Search, User } from "lucide-react";
+import { Search, User, Pencil, KeyRound, Ban, Power, Trash2, X, Save } from "lucide-react";
 import type { MemberWithSub } from "@/types";
 
 export default function ReceptionMembersPage() {
   const { t } = useTranslation();
+  const { success, error: toastError, warning } = useToast();
   const [members, setMembers] = useState<MemberWithSub[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "active" | "expiring" | "expired">("all");
+  const [filter, setFilter] = useState<"all" | "active" | "expiring" | "expired" | "suspended">("all");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<MemberWithSub | null>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -39,7 +53,62 @@ export default function ReceptionMembersPage() {
       }
     }
     load();
+
+    // Deep-link support: /reception/members?id=<member_id> (used by the
+    // dashboard quick-search) highlights and scrolls to that member.
+    const id = new URLSearchParams(window.location.search).get("id");
+    if (id) setHighlightId(id);
   }, []);
+
+  useEffect(() => {
+    if (!loading && highlightId && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [loading, highlightId]);
+
+  async function call(url: string, body: Record<string, unknown>) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => ({}));
+    return { ok: res.ok && json.success, json };
+  }
+
+  async function toggleStatus(m: MemberWithSub) {
+    const next = m.status === "suspended" ? "active" : "suspended";
+    const confirmMsg = next === "suspended"
+      ? `${t("reception.confirmSuspend")} ${m.full_name}؟`
+      : `${t("reception.confirmReactivate")} ${m.full_name}؟`;
+    if (!window.confirm(confirmMsg)) return;
+    setBusyId(m.id);
+    const { ok, json } = await call("/api/reception/set-member-status", { member_id: m.id, status: next });
+    setBusyId(null);
+    if (!ok) return toastError(t("reception.actionFailed"), String(json.error ?? ""));
+    success(next === "suspended" ? t("reception.memberSuspended") : t("reception.memberReactivated"), m.full_name);
+    setMembers((prev) => prev.map((x) => x.id === m.id ? { ...x, status: next } : x));
+  }
+
+  async function resetPassword(m: MemberWithSub) {
+    if (!window.confirm(`${t("reception.confirmResetPassword")} ${m.full_name}؟`)) return;
+    setBusyId(m.id);
+    const { ok, json } = await call("/api/reception/reset-password", { member_id: m.id });
+    setBusyId(null);
+    if (!ok) return toastError(t("reception.actionFailed"), String(json.error ?? ""));
+    warning(t("reception.tempPassword"), `${m.full_name}: ${json.temp_password}`);
+    try { await navigator.clipboard?.writeText(String(json.temp_password)); } catch { /* ignore */ }
+  }
+
+  async function deleteMember(m: MemberWithSub) {
+    if (!window.confirm(`${t("reception.confirmDelete")} ${m.full_name}؟  ${t("reception.noUndo")}`)) return;
+    setBusyId(m.id);
+    const { ok, json } = await call("/api/reception/delete-duplicate-member", { member_id: m.id });
+    setBusyId(null);
+    if (!ok) return toastError(t("reception.actionFailed"), String(json.error ?? ""));
+    success(t("reception.memberDeleted"), m.full_name);
+    setMembers((prev) => prev.filter((x) => x.id !== m.id));
+  }
 
   const filtered = members.filter((m) => {
     if (filter !== "all" && m.status !== filter) return false;
@@ -52,7 +121,7 @@ export default function ReceptionMembersPage() {
     return true;
   });
 
-  const filters = ["all", "active", "expiring", "expired"] as const;
+  const filters = ["all", "active", "expiring", "expired", "suspended"] as const;
 
   return (
     <div className="p-6 pb-24 md:pb-6 max-w-4xl mx-auto space-y-5">
@@ -96,37 +165,205 @@ export default function ReceptionMembersPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((member) => (
-            <div
-              key={member.id}
-              className="flex items-center gap-4 bg-white/[0.04] border border-white/[0.06] p-4 hover:bg-white/[0.06] transition-colors"
-            >
-              <div className="w-10 h-10 bg-[#4ECDC4]/10 flex items-center justify-center text-[#4ECDC4] font-bold text-[14px]">
-                {member.full_name.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white text-[14px] font-medium truncate">{member.full_name}</p>
-                <p className="text-white/40 text-[12px] truncate">
-                  {member.phone ?? ""}{member.username ? ` · ${member.username}` : ""}
-                </p>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <span className={cn(
-                  "text-[11px] font-bold uppercase px-2 py-1",
-                  member.status === "active" ? "bg-green-500/10 text-green-400" :
-                  member.status === "expiring" ? "bg-gold/10 text-gold" :
-                  "bg-danger/10 text-danger"
-                )}>
-                  {t(`members.${member.status}`)}
-                </span>
-                {member.subscription && (
-                  <p className="text-white/30 text-[11px] mt-1">{member.subscription.plan_type}</p>
+          {filtered.map((member) => {
+            const isPlayer = member.role === "player";
+            const busy = busyId === member.id;
+            const highlighted = highlightId === member.id;
+            return (
+              <div
+                key={member.id}
+                ref={highlighted ? highlightRef : undefined}
+                className={cn(
+                  "bg-white/[0.04] border p-4 transition-colors",
+                  highlighted ? "border-[#4ECDC4]/60 bg-[#4ECDC4]/[0.06]" : "border-white/[0.06] hover:bg-white/[0.06]",
+                )}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-[#4ECDC4]/10 flex items-center justify-center text-[#4ECDC4] font-bold text-[14px] flex-shrink-0">
+                    {member.full_name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-[14px] font-medium truncate">{member.full_name}</p>
+                    <p className="text-white/40 text-[12px] truncate" dir="ltr">
+                      {member.phone ?? ""}{member.username ? ` · ${member.username}` : ""}
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    {isPlayer ? (
+                      <span className={cn(
+                        "text-[11px] font-bold uppercase px-2 py-1",
+                        member.status === "active" ? "bg-green-500/10 text-green-400" :
+                        member.status === "expiring" ? "bg-gold/10 text-gold" :
+                        member.status === "suspended" ? "bg-danger/15 text-danger" :
+                        "bg-danger/10 text-danger"
+                      )}>
+                        {t(`members.${member.status}`)}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-bold uppercase px-2 py-1 bg-white/[0.06] text-white/50">
+                        {t("reception.staffAccount")}
+                      </span>
+                    )}
+                    {member.subscription && (
+                      <p className="text-white/30 text-[11px] mt-1">{member.subscription.plan_type}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                {isPlayer && (
+                  <div className="flex items-center gap-1.5 flex-wrap mt-3 pt-3 border-t border-white/[0.05]">
+                    <ActionBtn onClick={() => setEditing(member)} disabled={busy}>
+                      <Pencil size={11} /> {t("common.edit")}
+                    </ActionBtn>
+                    <ActionBtn onClick={() => resetPassword(member)} disabled={busy}>
+                      <KeyRound size={11} /> {t("reception.resetPassword")}
+                    </ActionBtn>
+                    <ActionBtn onClick={() => toggleStatus(member)} disabled={busy} tone={member.status === "suspended" ? "primary" : "warn"}>
+                      {member.status === "suspended" ? <Power size={11} /> : <Ban size={11} />}
+                      {member.status === "suspended" ? t("reception.reactivate") : t("reception.suspend")}
+                    </ActionBtn>
+                    <ActionBtn onClick={() => deleteMember(member)} disabled={busy} tone="danger">
+                      <Trash2 size={11} /> {t("reception.deleteAccount")}
+                    </ActionBtn>
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      {/* Edit modal */}
+      {editing && (
+        <EditMemberModal
+          member={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(applied) => {
+            setMembers((prev) => prev.map((x) => x.id === editing.id ? { ...x, ...applied } : x));
+            setEditing(null);
+            success(t("reception.memberUpdated"), applied.full_name ?? editing.full_name);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ActionBtn({
+  children, onClick, disabled, tone = "ghost",
+}: {
+  children: React.ReactNode;
+  onClick:  () => void;
+  disabled?: boolean;
+  tone?: "ghost" | "warn" | "danger" | "primary";
+}) {
+  const tones = {
+    ghost:   "border-white/[0.1] text-white/55 hover:text-white hover:border-white/25",
+    warn:    "border-gold/25 text-gold/80 hover:text-gold hover:border-gold/50",
+    danger:  "border-danger/25 text-danger/80 hover:text-danger hover:border-danger/50",
+    primary: "border-[#4ECDC4]/30 text-[#4ECDC4] hover:border-[#4ECDC4]/60",
+  }[tone];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "inline-flex items-center gap-1.5 h-7 px-2.5 border text-[11px] font-medium transition-colors disabled:opacity-40",
+        tones,
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function EditMemberModal({
+  member, onClose, onSaved,
+}: {
+  member:  { id: string; full_name: string; phone: string | null };
+  onClose: () => void;
+  onSaved: (applied: { full_name?: string; phone?: string }) => void;
+}) {
+  const { t } = useTranslation();
+  const { error: toastError } = useToast();
+  const [name, setName]   = useState(member.full_name);
+  const [phone, setPhone] = useState(member.phone ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    const payload: Record<string, string> = { member_id: member.id };
+    if (name.trim() && name.trim() !== member.full_name) payload.full_name = name.trim();
+    if (phone.trim() && phone.trim() !== (member.phone ?? "")) payload.phone = phone.trim();
+    if (!payload.full_name && !payload.phone) { onClose(); return; }
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/reception/update-member", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) {
+        toastError(t("reception.actionFailed"), String(json.error ?? ""));
+        return;
+      }
+      onSaved({ full_name: payload.full_name, phone: payload.phone });
+    } catch {
+      toastError(t("reception.actionFailed"), "");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70" onClick={onClose}>
+      <div className="w-full max-w-sm bg-charcoal border border-steel p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <p className="text-white text-[15px] font-bold">{t("reception.editMember")}</p>
+          <button type="button" onClick={onClose} className="text-white/50 hover:text-white transition-colors" aria-label={t("common.close")}>
+            <X size={16} />
+          </button>
+        </div>
+        <div>
+          <label className="text-white/40 text-[11px] font-mono uppercase tracking-wider block mb-1">{t("common.name")}</label>
+          <input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full h-11 px-3 bg-iron border border-steel text-white text-[14px] focus:border-[#4ECDC4]/50 focus:outline-none transition-colors"
+          />
+        </div>
+        <div>
+          <label className="text-white/40 text-[11px] font-mono uppercase tracking-wider block mb-1">{t("common.phone")}</label>
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            dir="ltr"
+            className="w-full h-11 px-3 bg-iron border border-steel text-white text-[14px] focus:border-[#4ECDC4]/50 focus:outline-none transition-colors"
+          />
+        </div>
+        <div className="flex gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="flex-1 h-10 border border-white/[0.1] text-white/60 text-[13px] hover:text-white transition-colors disabled:opacity-50"
+          >
+            {t("common.cancel")}
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving || !name.trim()}
+            className="flex-1 h-10 bg-[#4ECDC4] text-void text-[13px] font-bold inline-flex items-center justify-center gap-1.5 hover:bg-[#4ECDC4]/90 transition-colors disabled:opacity-50"
+          >
+            <Save size={13} /> {saving ? "..." : t("common.save")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

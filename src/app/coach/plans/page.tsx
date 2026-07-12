@@ -601,7 +601,7 @@ function EditModal({
             </div>
             <TextInput label="Order" value={form.sort_order ?? ""} onChange={(value) => setField("sort_order", value)} />
             <TextArea label="Exercise notes" value={form.notes ?? ""} onChange={(value) => setField("notes", value)} />
-            <MediaFields form={form} exerciseName={form.name ?? ""} setField={setField} />
+            <MediaFields form={form} setField={setField} />
           </>
         )}
         <button
@@ -911,7 +911,7 @@ function AddExerciseModal({
           <TextInput label="الترتيب" value={form.sort_order ?? ""} onChange={(value) => setField("sort_order", value)} />
         </div>
         <TextArea label="ملاحظات" value={form.notes ?? ""} onChange={(value) => setField("notes", value)} />
-        <MediaFields form={form} exerciseName={form.name ?? ""} setField={setField} />
+        <MediaFields form={form} setField={setField} />
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -936,42 +936,25 @@ function AddExerciseModal({
 
 function MediaFields({
   form,
-  exerciseName,
   setField,
 }: {
   form: Record<string, string>;
-  exerciseName: string;
   setField: (field: string, value: string) => void;
 }) {
+  // No auto-matching: the coach picks every picture by hand from the
+  // list below. A name-based guess used to auto-attach the closest
+  // machine/demo image, which regularly attached the WRONG machine —
+  // that behaviour is gone on purpose.
   const sources = useMediaSources();
   const [query, setQuery] = useState("");
-  const [autoAppliedFor, setAutoAppliedFor] = useState("");
-
-  useEffect(() => {
-    const name = exerciseName.trim();
-    if (!name || sources.length === 0 || autoAppliedFor === name) return;
-    const machine = bestMediaMatch(name, sources.filter((source) => source.type === "machine"));
-    const demo = bestMediaMatch(name, sources.filter((source) => source.type === "demo"));
-    if (!form.machine_image_url && machine) {
-      setField("machine_image_url", machine.url);
-      setField("machine_name", form.machine_name || machine.name);
-    }
-    if (!form.demo_image_url && demo) {
-      setField("demo_image_url", demo.url);
-    }
-    if (!form.instructions) {
-      setField("instructions", `Use controlled form for ${name}. Keep the target muscle engaged and ask your coach if anything feels painful.`);
-    }
-    setAutoAppliedFor(name);
-  }, [autoAppliedFor, exerciseName, form.demo_image_url, form.instructions, form.machine_image_url, form.machine_name, setField, sources]);
+  const [typeFilter, setTypeFilter] = useState<"all" | "machine" | "demo">("all");
 
   const filtered = useMemo(() => {
     const q = normalizeForMatch(query);
-    const list = q
-      ? sources.filter((source) => normalizeForMatch(source.name).includes(q))
-      : sources.slice(0, 18);
-    return list.slice(0, 30);
-  }, [query, sources]);
+    let list = typeFilter === "all" ? sources : sources.filter((source) => source.type === typeFilter);
+    if (q) list = list.filter((source) => normalizeForMatch(source.name).includes(q));
+    return list;
+  }, [query, sources, typeFilter]);
 
   function pick(source: MediaSource) {
     if (source.type === "machine") {
@@ -986,11 +969,21 @@ function MediaFields({
     <div className="pt-3 border-t border-white/[0.06] space-y-3">
       <div className="flex items-center justify-between gap-3">
         <p className="text-[#FF6B35] text-[11px] font-bold">كيفية استخدام الجهاز / الوسائط</p>
-        <span className="text-gold/70 text-[10px]">اقتراح تلقائي قابل للتعديل</span>
+        <span className="text-gold/70 text-[10px]">اختيار يدوي — لا تُضاف الصور تلقائياً</span>
       </div>
       <div className="grid sm:grid-cols-2 gap-3">
-        <SelectedMedia label="صورة الجهاز" src={form.machine_image_url} empty="لا يوجد جهاز مرتبط" />
-        <SelectedMedia label="صورة الشرح" src={form.demo_image_url} empty="لا توجد صورة شرح" />
+        <SelectedMedia
+          label="صورة الجهاز"
+          src={form.machine_image_url}
+          empty="لا يوجد جهاز مرتبط"
+          onClear={() => { setField("machine_image_url", ""); setField("machine_name", ""); }}
+        />
+        <SelectedMedia
+          label="صورة الشرح"
+          src={form.demo_image_url}
+          empty="لا توجد صورة شرح"
+          onClear={() => setField("demo_image_url", "")}
+        />
       </div>
       <div className="grid sm:grid-cols-2 gap-3">
         <TextInput label="اسم الجهاز" value={form.machine_name ?? ""} onChange={(value) => setField("machine_name", value)} />
@@ -1000,14 +993,40 @@ function MediaFields({
       </div>
       <TextArea label="التعليمات" value={form.instructions ?? ""} onChange={(value) => setField("instructions", value)} />
       <div className="space-y-2">
-        <TextInput label="اختر الجهاز / الصورة" value={query} onChange={setQuery} />
+        <TextInput label="اختر الجهاز / الصورة من القائمة" value={query} onChange={setQuery} />
+        <div className="flex gap-2">
+          {([
+            { key: "all",     label: "الكل" },
+            { key: "machine", label: "أجهزة" },
+            { key: "demo",    label: "صور شرح" },
+          ] as const).map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTypeFilter(t.key)}
+              className={cn(
+                "px-3 py-1.5 text-[11px] font-bold border transition-colors",
+                typeFilter === t.key
+                  ? "bg-gold/10 border-gold/30 text-gold"
+                  : "border-white/[0.08] bg-white/[0.02] text-white/40 hover:text-white/70",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto">
           {filtered.map((source) => (
             <button
               key={`${source.type}-${source.url}`}
               type="button"
               onClick={() => pick(source)}
-              className="text-right border border-white/[0.06] bg-white/[0.03] hover:border-gold/30 transition-colors overflow-hidden"
+              className={cn(
+                "text-right border transition-colors overflow-hidden",
+                (source.type === "machine" ? form.machine_image_url : form.demo_image_url) === source.url
+                  ? "border-gold/50 bg-gold/[0.07]"
+                  : "border-white/[0.06] bg-white/[0.03] hover:border-gold/30",
+              )}
             >
               <ExerciseImage src={source.url} alt={source.name} className="w-full h-24" />
               <div className="p-2">
@@ -1017,15 +1036,29 @@ function MediaFields({
             </button>
           ))}
         </div>
+        {filtered.length === 0 && (
+          <p className="text-white/30 text-[11px] text-center py-4">لا توجد صور مطابقة.</p>
+        )}
       </div>
     </div>
   );
 }
 
-function SelectedMedia({ label, src, empty }: { label: string; src?: string; empty: string }) {
+function SelectedMedia({ label, src, empty, onClear }: { label: string; src?: string; empty: string; onClear?: () => void }) {
   return (
     <div className="border border-white/[0.06] bg-white/[0.025] p-2">
-      <p className="text-white/35 text-[10px] font-bold mb-2">{label}</p>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-white/35 text-[10px] font-bold">{label}</p>
+        {src && onClear && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-white/35 hover:text-danger text-[10px] transition-colors"
+          >
+            إزالة ✕
+          </button>
+        )}
+      </div>
       {src ? (
         <ExerciseImage src={src} alt={label} className="w-full h-32" />
       ) : (
@@ -1060,21 +1093,6 @@ function useMediaSources(): MediaSource[] {
 
 function normalizeForMatch(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function bestMediaMatch(exerciseName: string, sources: MediaSource[]): MediaSource | null {
-  const exerciseTokens = new Set(normalizeForMatch(exerciseName).split(" ").filter(Boolean));
-  let best: { source: MediaSource; score: number } | null = null;
-
-  for (const source of sources) {
-    const sourceTokens = normalizeForMatch(source.name).split(" ").filter(Boolean);
-    const overlap = sourceTokens.filter((token) => exerciseTokens.has(token)).length;
-    const exactBonus = normalizeForMatch(source.name) === normalizeForMatch(exerciseName) ? 4 : 0;
-    const score = overlap + exactBonus;
-    if (score > (best?.score ?? 0)) best = { source, score };
-  }
-
-  return best && best.score >= 1 ? best.source : null;
 }
 
 function AssignTemplateModal({

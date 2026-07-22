@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/fetch-all";
 import programSeed from "../../data/workout-programs/ox_program_templates.json";
 
 type SeedExercise =
@@ -82,6 +83,10 @@ export type WorkoutProgramTemplate = {
   description: string | null;
   is_active: boolean;
   source?: "structured_templates" | "legacy_workout_plans";
+  // Distinct players this plan has ever been sent to (all-time, not
+  // just currently-active assignments). See loadStructuredSentCounts /
+  // loadLegacySentCounts below.
+  sent_count: number;
   days: WorkoutTemplateDay[];
 };
 
@@ -333,14 +338,19 @@ async function insertExercises(
 }
 
 async function upsertExerciseMedia(supabase: SupabaseClient, exerciseNameValue: string): Promise<{ id: string } | null> {
+  // Pictures are NEVER auto-attached, including on a fresh seed (e.g. a
+  // brand-new deploy with an empty DB). MEDIA_PATHS is kept only for its
+  // machineName text labels — a coach must pick every picture by hand
+  // from the media picker. See migration 046 for the one-time wipe of
+  // whatever this used to seed.
   const media = MEDIA_PATHS[normalizeExerciseName(exerciseNameValue)] ?? {};
   const { data } = await supabase
     .from("exercise_media")
     .upsert({
       exercise_name: exerciseNameValue,
       machine_name: media.machineName ?? exerciseNameValue,
-      machine_image_url: media.machine ?? null,
-      demo_image_url: media.demo ?? media.machine ?? null,
+      machine_image_url: null,
+      demo_image_url: null,
       demo_video_url: null,
       instructions: `Use controlled form for ${exerciseNameValue}. Keep the target muscle engaged and ask your coach if anything feels painful.`,
     }, { onConflict: "exercise_name" })
@@ -348,6 +358,24 @@ async function upsertExerciseMedia(supabase: SupabaseClient, exerciseNameValue: 
     .single();
 
   return data ?? null;
+}
+
+// Distinct players ever assigned each structured template — counted
+// across ALL statuses (active + replaced), so re-sending a different
+// plan later doesn't erase the fact this one WAS sent to that person.
+async function loadStructuredSentCounts(supabase: SupabaseClient): Promise<Map<string, number>> {
+  const { data } = await fetchAllRows<{ template_id: string; member_id: string }>(() =>
+    supabase.from("member_workout_programs").select("template_id, member_id"));
+
+  const byTemplate = new Map<string, Set<string>>();
+  for (const row of data ?? []) {
+    const set = byTemplate.get(row.template_id) ?? new Set<string>();
+    set.add(row.member_id);
+    byTemplate.set(row.template_id, set);
+  }
+  const counts = new Map<string, number>();
+  byTemplate.forEach((members, templateId) => counts.set(templateId, members.size));
+  return counts;
 }
 
 export async function loadWorkoutProgramTemplates(supabase: SupabaseClient): Promise<WorkoutProgramTemplate[]> {
@@ -360,11 +388,14 @@ export async function loadWorkoutProgramTemplates(supabase: SupabaseClient): Pro
     throw new Error(`Failed to load workout programs: ${error.message}`);
   }
 
+  const sentCounts = await loadStructuredSentCounts(supabase);
+
   const result: WorkoutProgramTemplate[] = [];
   for (const template of templates ?? []) {
     result.push({
-      ...(template as Omit<WorkoutProgramTemplate, "days">),
+      ...(template as Omit<WorkoutProgramTemplate, "days" | "sent_count">),
       source: "structured_templates",
+      sent_count: sentCounts.get(template.id as string) ?? 0,
       days: await loadTemplateDays(supabase, template.id as string),
     });
   }
@@ -401,6 +432,23 @@ export async function ensureLegacyWorkoutPlansSeeded(supabase: SupabaseClient): 
   if (insertError) throw new Error(`Failed to seed workout_plans: ${insertError.message}`);
 }
 
+// Distinct players a legacy plan was actually sent to — only rows with
+// status='sent' count (a 'failed' send never reached anyone).
+async function loadLegacySentCounts(supabase: SupabaseClient): Promise<Map<string, number>> {
+  const { data } = await fetchAllRows<{ plan_id: string; member_id: string }>(() =>
+    supabase.from("plan_sends").select("plan_id, member_id").eq("plan_type", "workout").eq("status", "sent"));
+
+  const byPlan = new Map<string, Set<string>>();
+  for (const row of data ?? []) {
+    const set = byPlan.get(row.plan_id) ?? new Set<string>();
+    set.add(row.member_id);
+    byPlan.set(row.plan_id, set);
+  }
+  const counts = new Map<string, number>();
+  byPlan.forEach((members, planId) => counts.set(planId, members.size));
+  return counts;
+}
+
 export async function loadLegacyWorkoutProgramTemplates(supabase: SupabaseClient): Promise<WorkoutProgramTemplate[]> {
   const { data: plans, error } = await supabase
     .from("workout_plans")
@@ -408,6 +456,8 @@ export async function loadLegacyWorkoutProgramTemplates(supabase: SupabaseClient
     .order("created_at", { ascending: true });
 
   if (error) throw new Error(`Failed to load workout_plans: ${error.message}`);
+
+  const sentCounts = await loadLegacySentCounts(supabase);
 
   return (plans ?? []).map((plan) => {
     const content = Array.isArray(plan.content) ? plan.content : [];
@@ -420,6 +470,7 @@ export async function loadLegacyWorkoutProgramTemplates(supabase: SupabaseClient
       description: "Seeded workout plan from workout_plans.",
       is_active: true,
       source: "legacy_workout_plans",
+      sent_count: sentCounts.get(plan.id as string) ?? 0,
       days: content.map((day, dayIndex) => legacyDayToTemplateDay(plan.id as string, day, dayIndex)),
     };
   });
@@ -463,12 +514,14 @@ function seedDayExercises(day: SeedDay) {
 }
 
 function legacyMediaForExercise(name: string) {
+  // Same rule as upsertExerciseMedia: never auto-attach a picture, even
+  // on a fresh legacy-plan seed. Coach picks every picture by hand.
   const media = MEDIA_PATHS[normalizeExerciseName(name)] ?? {};
   return {
     exercise_name: name,
     machine_name: media.machineName ?? name,
-    machine_image_url: media.machine ?? null,
-    demo_image_url: media.demo ?? media.machine ?? null,
+    machine_image_url: null,
+    demo_image_url: null,
     demo_video_url: null,
     instructions: `Use controlled form for ${name}. Keep the target muscle engaged and ask your coach if anything feels painful.`,
   };

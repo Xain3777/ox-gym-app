@@ -14,6 +14,7 @@ import {
   Send,
   Trash2,
   User,
+  Users,
   X,
 } from "lucide-react";
 import { ExerciseImage } from "@/components/ui/ExerciseImage";
@@ -178,6 +179,18 @@ export default function CoachPlansPage() {
                         program.is_active ? "bg-gold/10 border-gold/20 text-gold" : "bg-white/[0.04] border-white/[0.08] text-white/35",
                       )}>
                         {program.is_active ? "Active" : "Inactive"}
+                      </span>
+                      <span
+                        title="عدد اللاعبين الذين أُرسل لهم هذا البرنامج"
+                        className={cn(
+                          "border text-[10px] px-2 py-1 inline-flex items-center gap-1",
+                          program.sent_count > 0
+                            ? "bg-[#4ECDC4]/10 border-[#4ECDC4]/25 text-[#4ECDC4]"
+                            : "bg-white/[0.04] border-white/[0.08] text-white/35",
+                        )}
+                      >
+                        <Users size={10} />
+                        {program.sent_count > 0 ? `أُرسل لـ ${program.sent_count}` : "لم يُرسل بعد"}
                       </span>
                     </div>
                     <p className="text-white/42 text-[12px] mt-1">

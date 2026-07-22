@@ -889,7 +889,6 @@ function ExerciseForm({
       <MediaPickerModal
         open={picking !== null}
         title={picking === "machine" ? "اختر صورة الجهاز" : picking === "demo" ? "اختر صورة الشرح" : "اختر صورة"}
-        filter={picking === "machine" ? "machine" : picking === "demo" ? "demo" : "all"}
         currentUrl={picking === "machine" ? machineUrl : picking === "demo" ? demoUrl : imageUrl}
         onSelect={(source) => {
           const url = source?.url ?? "";

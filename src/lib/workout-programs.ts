@@ -154,27 +154,6 @@ const MEDIA_PATHS: Record<string, { machine?: string; demo?: string; machineName
   "triceps cable pushdown": { demo: "/exercises/machines/Triceps cable push down.png" },
 };
 
-// ── Machine-picture completeness ─────────────────────────────────
-// A plan may only be sent once EVERY exercise has a machine picture.
-// Works for both structured templates and legacy plans since both are
-// normalized into the same WorkoutProgramTemplate/days/exercises
-// shape by the time callers see them.
-export function allProgramExercises(program: Pick<WorkoutProgramTemplate, "days">): WorkoutTemplateExercise[] {
-  return program.days.flatMap((day) => [
-    ...day.exercises,
-    ...day.sections.flatMap((section) => section.exercises),
-  ]);
-}
-
-export function exercisesMissingMachinePicture(program: Pick<WorkoutProgramTemplate, "days">): WorkoutTemplateExercise[] {
-  return allProgramExercises(program).filter((ex) => !ex.media?.machine_image_url);
-}
-
-export function planReadyToSend(program: Pick<WorkoutProgramTemplate, "days">): boolean {
-  const exercises = allProgramExercises(program);
-  return exercises.length > 0 && exercises.every((ex) => Boolean(ex.media?.machine_image_url));
-}
-
 function normalizeExerciseName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }

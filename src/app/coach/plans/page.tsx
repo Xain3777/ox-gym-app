@@ -18,17 +18,14 @@ import {
   X,
 } from "lucide-react";
 import { ExerciseImage } from "@/components/ui/ExerciseImage";
-import { useMediaSources, type MediaSource } from "@/components/coach/MediaPickerModal";
+import { MediaPickerModal, MediaSlot } from "@/components/coach/MediaPickerModal";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
-import {
-  allProgramExercises,
-  exercisesMissingMachinePicture,
-  planReadyToSend,
-  type ExerciseMedia,
-  type WorkoutProgramTemplate,
-  type WorkoutTemplateDay,
-  type WorkoutTemplateExercise,
+import type {
+  ExerciseMedia,
+  WorkoutProgramTemplate,
+  WorkoutTemplateDay,
+  WorkoutTemplateExercise,
 } from "@/lib/workout-programs";
 
 type PlayerOption = {
@@ -126,40 +123,8 @@ export default function CoachPlansPage() {
     }
   }
 
-  // Aggregate "missing machine picture" state across every plan, for
-  // the warning banner below. A plan can't be sent until it's clean —
-  // this is what tells the coach how much work is left and where.
-  const missingPicSummary = useMemo(() => {
-    let exercisesMissing = 0;
-    let programsIncomplete = 0;
-    for (const program of programs) {
-      const missing = exercisesMissingMachinePicture(program).length;
-      if (missing > 0 || allProgramExercises(program).length === 0) programsIncomplete += 1;
-      exercisesMissing += missing;
-    }
-    return { exercisesMissing, programsIncomplete };
-  }, [programs]);
-
   return (
     <div className="p-5 md:p-6 pb-24 md:pb-6 max-w-7xl mx-auto space-y-5" dir="rtl">
-      {!loading && missingPicSummary.programsIncomplete > 0 && (
-        <div className="border-2 border-danger bg-danger/10 p-5 space-y-2">
-          <p className="text-danger text-[16px] font-bold flex items-center gap-2">
-            <AlertTriangle size={18} />
-            لا يمكن إرسال {missingPicSummary.programsIncomplete} برنامج قبل إضافة صور الأجهزة
-          </p>
-          <p className="text-white/70 text-[13px] leading-relaxed">
-            {missingPicSummary.exercisesMissing > 0
-              ? `يوجد ${missingPicSummary.exercisesMissing} تمرين بدون صورة جهاز. `
-              : ""}
-            لن يستطيع أي لاعب رؤية صورة الجهاز، ولن تتمكن من إرسال البرنامج، حتى تُضاف صورة لكل تمرين.
-          </p>
-          <p className="text-white/55 text-[12px] leading-relaxed">
-            <span className="text-danger font-bold">كيف:</span> افتح البرنامج ← افتح اليوم ← اضغط تعديل (✎) على كل تمرين ← اختر «صورة الجهاز» من القائمة.
-          </p>
-        </div>
-      )}
-
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p className="text-[#FF6B35] text-[10px] font-mono uppercase tracking-[0.16em]">OX Training Library</p>
@@ -195,7 +160,6 @@ export default function CoachPlansPage() {
             const expanded = expandedPrograms.has(program.id);
             const exerciseCount = countProgramExercises(program);
             const isStructured = program.source !== "legacy_workout_plans";
-            const readyToSend = planReadyToSend(program);
             return (
               <section key={program.id} className="border border-white/[0.07] bg-white/[0.035] overflow-hidden">
                 <div className="p-4 md:p-5 flex items-start gap-4">
@@ -228,15 +192,6 @@ export default function CoachPlansPage() {
                         <Users size={10} />
                         {program.sent_count > 0 ? `أُرسل لـ ${program.sent_count}` : "لم يُرسل بعد"}
                       </span>
-                      {!readyToSend && (
-                        <span
-                          title="أضف صورة الجهاز لكل تمرين قبل الإرسال"
-                          className="border border-danger/40 bg-danger/15 text-danger text-[10px] px-2 py-1 inline-flex items-center gap-1"
-                        >
-                          <AlertTriangle size={10} />
-                          بدون صور — لا يمكن الإرسال
-                        </span>
-                      )}
                     </div>
                     <p className="text-white/42 text-[12px] mt-1">
                       {program.category} · {program.days.length} أيام/نسخ · {exerciseCount} تمرين
@@ -249,12 +204,7 @@ export default function CoachPlansPage() {
                         <Pencil size={15} />
                       </IconButton>
                     )}
-                    <IconButton
-                      label={readyToSend ? "تعيين للاعب" : "أضف صور الأجهزة أولاً"}
-                      onClick={() => setAssigningProgram(program)}
-                      accent
-                      disabled={!program.is_active || !readyToSend}
-                    >
+                    <IconButton label="تعيين للاعب" onClick={() => setAssigningProgram(program)} accent disabled={!program.is_active}>
                       <Send size={15} />
                     </IconButton>
                     <IconButton label={expanded ? "إغلاق" : "فتح"} onClick={() => toggleProgram(program.id)}>
@@ -999,137 +949,50 @@ function MediaFields({
   form: Record<string, string>;
   setField: (field: string, value: string) => void;
 }) {
-  // No auto-matching: the coach picks every picture by hand from the
-  // list below. A name-based guess used to auto-attach the closest
-  // machine/demo image, which regularly attached the WRONG machine —
-  // that behaviour is gone on purpose.
-  const sources = useMediaSources();
-  const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "machine" | "demo">("all");
-
-  const filtered = useMemo(() => {
-    const q = normalizeForMatch(query);
-    let list = typeFilter === "all" ? sources : sources.filter((source) => source.type === typeFilter);
-    if (q) list = list.filter((source) => normalizeForMatch(source.name).includes(q));
-    return list;
-  }, [query, sources, typeFilter]);
-
-  function pick(source: MediaSource) {
-    if (source.type === "machine") {
-      setField("machine_image_url", source.url);
-      setField("machine_name", source.name);
-    } else {
-      setField("demo_image_url", source.url);
-    }
-  }
+  // No auto-matching, no typing a path — the coach picks every
+  // picture by tapping it in the shared story-style picker (same
+  // component used everywhere else this app attaches a picture).
+  const [picking, setPicking] = useState<"machine" | "demo" | null>(null);
 
   return (
     <div className="pt-3 border-t border-white/[0.06] space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[#FF6B35] text-[11px] font-bold">كيفية استخدام الجهاز / الوسائط</p>
-        <span className="text-gold/70 text-[10px]">اختيار يدوي — لا تُضاف الصور تلقائياً</span>
-      </div>
+      <p className="text-[#FF6B35] text-[11px] font-bold">صور التمرين</p>
       <div className="grid sm:grid-cols-2 gap-3">
-        <SelectedMedia
+        <MediaSlot
           label="صورة الجهاز"
-          src={form.machine_image_url}
-          empty="لا يوجد جهاز مرتبط"
+          url={form.machine_image_url || null}
+          onPick={() => setPicking("machine")}
           onClear={() => { setField("machine_image_url", ""); setField("machine_name", ""); }}
         />
-        <SelectedMedia
+        <MediaSlot
           label="صورة الشرح"
-          src={form.demo_image_url}
-          empty="لا توجد صورة شرح"
+          url={form.demo_image_url || null}
+          onPick={() => setPicking("demo")}
           onClear={() => setField("demo_image_url", "")}
         />
       </div>
       <div className="grid sm:grid-cols-2 gap-3">
         <TextInput label="اسم الجهاز" value={form.machine_name ?? ""} onChange={(value) => setField("machine_name", value)} />
         <TextInput label="رابط فيديو الشرح" value={form.demo_video_url ?? ""} onChange={(value) => setField("demo_video_url", value)} />
-        <TextInput label="مسار صورة الجهاز" value={form.machine_image_url ?? ""} onChange={(value) => setField("machine_image_url", value)} />
-        <TextInput label="مسار صورة الشرح" value={form.demo_image_url ?? ""} onChange={(value) => setField("demo_image_url", value)} />
       </div>
       <TextArea label="التعليمات" value={form.instructions ?? ""} onChange={(value) => setField("instructions", value)} />
-      <div className="space-y-2">
-        <TextInput label="اختر الجهاز / الصورة من القائمة" value={query} onChange={setQuery} />
-        <div className="flex gap-2">
-          {([
-            { key: "all",     label: "الكل" },
-            { key: "machine", label: "أجهزة" },
-            { key: "demo",    label: "صور شرح" },
-          ] as const).map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setTypeFilter(t.key)}
-              className={cn(
-                "px-3 py-1.5 text-[11px] font-bold border transition-colors",
-                typeFilter === t.key
-                  ? "bg-gold/10 border-gold/30 text-gold"
-                  : "border-white/[0.08] bg-white/[0.02] text-white/40 hover:text-white/70",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto">
-          {filtered.map((source) => (
-            <button
-              key={`${source.type}-${source.url}`}
-              type="button"
-              onClick={() => pick(source)}
-              className={cn(
-                "text-right border transition-colors overflow-hidden",
-                (source.type === "machine" ? form.machine_image_url : form.demo_image_url) === source.url
-                  ? "border-gold/50 bg-gold/[0.07]"
-                  : "border-white/[0.06] bg-white/[0.03] hover:border-gold/30",
-              )}
-            >
-              <ExerciseImage src={source.url} alt={source.name} className="w-full h-24" />
-              <div className="p-2">
-                <p className="text-white/70 text-[11px] truncate">{source.name}</p>
-                <p className="text-gold/60 text-[10px]">{source.type === "machine" ? "جهاز" : "شرح"}</p>
-              </div>
-            </button>
-          ))}
-        </div>
-        {filtered.length === 0 && (
-          <p className="text-white/30 text-[11px] text-center py-4">لا توجد صور مطابقة.</p>
-        )}
-      </div>
+
+      <MediaPickerModal
+        open={picking !== null}
+        title={picking === "machine" ? "اختر صورة الجهاز" : "اختر صورة الشرح"}
+        currentUrl={picking === "machine" ? form.machine_image_url : form.demo_image_url}
+        onSelect={(source) => {
+          if (picking === "machine") {
+            setField("machine_image_url", source?.url ?? "");
+            setField("machine_name", source ? (form.machine_name || source.name) : "");
+          } else {
+            setField("demo_image_url", source?.url ?? "");
+          }
+        }}
+        onClose={() => setPicking(null)}
+      />
     </div>
   );
-}
-
-function SelectedMedia({ label, src, empty, onClear }: { label: string; src?: string; empty: string; onClear?: () => void }) {
-  return (
-    <div className="border border-white/[0.06] bg-white/[0.025] p-2">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-white/35 text-[10px] font-bold">{label}</p>
-        {src && onClear && (
-          <button
-            type="button"
-            onClick={onClear}
-            className="text-white/35 hover:text-danger text-[10px] transition-colors"
-          >
-            إزالة ✕
-          </button>
-        )}
-      </div>
-      {src ? (
-        <ExerciseImage src={src} alt={label} className="w-full h-32" />
-      ) : (
-        <div className="h-32 flex items-center justify-center text-white/25 text-[12px] bg-iron border border-white/[0.04]">
-          {empty}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function normalizeForMatch(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 function AssignTemplateModal({
@@ -1202,13 +1065,6 @@ function AssignTemplateModal({
   async function assign() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    // Defense in depth — the card button is already disabled for an
-    // incomplete plan, but the server is the real gate; this just
-    // avoids a doomed round trip if it's ever reached anyway.
-    if (!planReadyToSend(currentProgram)) {
-      toastError("لا يمكن الإرسال", "أضف صورة الجهاز لكل تمرين أولاً.");
-      return;
-    }
     setAssigning(true);
     try {
       const isLegacyPlan = currentProgram.source === "legacy_workout_plans";

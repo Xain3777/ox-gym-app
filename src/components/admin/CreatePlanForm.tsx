@@ -1121,7 +1121,6 @@ export function CreatePlanForm({
       <MediaPickerModal
         open={pickerTarget !== null}
         title={pickerTarget?.slot === "machine" ? "اختر صورة الجهاز" : "اختر صورة التمرين"}
-        filter={pickerTarget?.slot === "machine" ? "machine" : "demo"}
         currentUrl={pickerTarget
           ? (pickerTarget.slot === "machine"
             ? form.days[pickerTarget.di]?.exercises[pickerTarget.ei]?.machine_image_url

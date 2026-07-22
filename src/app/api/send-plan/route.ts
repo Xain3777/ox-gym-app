@@ -51,32 +51,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json<ApiResponse>({ success: false, error: "Plan not found" }, { status: 404 });
   }
 
-  // Hard gate for workout plans built in the legacy builder: a plan
-  // cannot be sent until every exercise has a machine picture. Legacy
-  // plans store the picture inline in content JSONB (no shared media
-  // row to join), so check both places a coach-picked picture could
-  // have been written: the nested `media.machine_image_url` (the
-  // structured-style shape) and the flat `machine_image_url` (what
-  // CreatePlanForm writes).
-  if (plan_type === "workout") {
-    const days = Array.isArray(plan.content) ? (plan.content as Array<{ exercises?: unknown[] }>) : [];
-    const exercises = days.flatMap((day) => (Array.isArray(day.exercises) ? day.exercises : []));
-    const missingCount = exercises.filter((ex) => {
-      const e = ex as { machine_image_url?: string | null; media?: { machine_image_url?: string | null } | null };
-      return !e.media?.machine_image_url && !e.machine_image_url;
-    }).length;
-
-    if (exercises.length === 0) {
-      return NextResponse.json<ApiResponse>({ success: false, error: "This plan has no exercises yet." }, { status: 409 });
-    }
-    if (missingCount > 0) {
-      return NextResponse.json<ApiResponse>(
-        { success: false, error: `Cannot send — ${missingCount} exercise(s) are missing a machine picture. Add pictures in Coach → Plans first.` },
-        { status: 409 },
-      );
-    }
-  }
-
   // Email delivery removed — members no longer have an email address.
   // Plans are delivered in-app; record the send as completed.
   await supabase.from("plan_sends").insert({

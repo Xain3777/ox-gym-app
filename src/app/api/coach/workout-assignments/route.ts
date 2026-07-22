@@ -43,6 +43,40 @@ export async function POST(request: NextRequest) {
   if (!member) return NextResponse.json({ success: false, error: "Player not found" }, { status: 404 });
   if (!template) return NextResponse.json({ success: false, error: "Program not found" }, { status: 404 });
 
+  // Hard gate: a plan cannot be sent until every exercise on it has a
+  // machine picture. The UI already disables the Assign button for an
+  // incomplete plan, but this is the enforcement that actually can't
+  // be bypassed — checked fresh against the DB, not trusted from the
+  // client. media is a live join (exercise_media_id), so this reflects
+  // whatever the coach has picked as of right now.
+  const { data: exerciseRows } = await supabase
+    .from("workout_template_exercises")
+    .select("id, media:exercise_media(machine_image_url)")
+    .eq("template_id", template_id);
+
+  const exercises = exerciseRows ?? [];
+  const missingCount = exercises.filter((ex) => {
+    const media = Array.isArray(ex.media) ? ex.media[0] : ex.media;
+    return !media?.machine_image_url;
+  }).length;
+
+  if (exercises.length === 0) {
+    return NextResponse.json(
+      { success: false, error: "This plan has no exercises yet." },
+      { status: 409 },
+    );
+  }
+  if (missingCount > 0) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: `Cannot assign — ${missingCount} exercise(s) are missing a machine picture. Add pictures in Coach → Plans first.`,
+        code: "MISSING_MACHINE_PICTURES",
+      },
+      { status: 409 },
+    );
+  }
+
   // Code-only sendable check: the player must have signed up in the
   // app AND claimed an activation code that points to a non-cancelled,
   // non-expired gym subscription. No fuzzy phone/name matching here —

@@ -509,10 +509,19 @@ export default function WorkoutsPage() {
               dir="rtl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="grid grid-cols-2 gap-3 mb-5">
-                <ExerciseImage src={machineHelp.machineImageUrl} alt={`${machineHelp.name} machine`} className="w-full h-40" />
-                <ExerciseImage src={machineHelp.demoImageUrl} alt={`${machineHelp.name} demo`} className="w-full h-40" />
-              </div>
+              {machineHelp.machineImageUrl || machineHelp.demoImageUrl ? (
+                <div className="grid grid-cols-2 gap-3 mb-5">
+                  <ExerciseImage src={machineHelp.machineImageUrl} alt={`${machineHelp.name} machine`} className="w-full h-40" />
+                  <ExerciseImage src={machineHelp.demoImageUrl} alt={`${machineHelp.name} demo`} className="w-full h-40" />
+                </div>
+              ) : (
+                <div className="mb-5 border border-white/[0.08] bg-white/[0.03] p-6 text-center">
+                  <OxInfo size={22} className="text-white/25 mx-auto mb-3" />
+                  <p className="text-white/60 text-[14px] leading-relaxed">
+                    لم يضف الكوتش الصور بعد، الرجاء الانتظار
+                  </p>
+                </div>
+              )}
               {machineHelp.demoVideoUrl && (
                 <a href={machineHelp.demoVideoUrl} target="_blank" rel="noreferrer" className="mb-4 inline-flex items-center gap-2 text-gold text-[13px] font-semibold">
                   <OxPlay size={14} />

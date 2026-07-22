@@ -6,7 +6,7 @@ import { cn, daysUntil } from "@/lib/utils";
 import { useToast } from "@/components/ui/Toast";
 import { ExerciseImage } from "@/components/ui/ExerciseImage";
 import { MediaPickerModal } from "@/components/coach/MediaPickerModal";
-import type { WorkoutProgramTemplate, WorkoutTemplateExercise } from "@/lib/workout-programs";
+import { planReadyToSend, type WorkoutProgramTemplate, type WorkoutTemplateExercise } from "@/lib/workout-programs";
 import {
   AlertTriangle,
   ChevronDown,
@@ -180,6 +180,11 @@ export default function CoachPlayersPage() {
       toastError("Assign blocked", "This member is not eligible for workout assignment.");
       return;
     }
+    const program = programs.find((p) => p.id === templateId);
+    if (program && !planReadyToSend(program)) {
+      toastError("لا يمكن الإرسال", "أضف صورة الجهاز لكل تمرين أولاً (Coach → Plans).");
+      return;
+    }
     setAssigningTemplateId(templateId);
     try {
       const res = await fetch("/api/coach/workout-assignments", {
@@ -266,6 +271,7 @@ export default function CoachPlayersPage() {
                   {programs.map((program) => {
                     const isExpanded = expandedPrograms.has(program.id);
                     const isCurrent = selectedPlayer.current_assignment?.template?.id === program.id;
+                    const readyToSend = planReadyToSend(program);
                     return (
                       <div key={program.id} className="bg-white/[0.04] border border-white/[0.06] overflow-hidden">
                         <div className="p-5 flex items-start gap-4">
@@ -276,6 +282,14 @@ export default function CoachPlayersPage() {
                             <div className="flex items-center gap-2 flex-wrap">
                               <h2 className="text-white text-[18px] font-semibold">{program.name}</h2>
                               {isCurrent && <span className="bg-gold/10 text-gold text-[10px] font-bold uppercase px-2 py-0.5">Current</span>}
+                              {!readyToSend && (
+                                <span
+                                  title="أضف صورة الجهاز لكل تمرين قبل الإرسال"
+                                  className="bg-danger/15 border border-danger/40 text-danger text-[10px] font-bold px-2 py-0.5"
+                                >
+                                  بدون صور — لا يمكن الإرسال
+                                </span>
+                              )}
                             </div>
                             <p className="text-white/40 text-[12px] mt-1">
                               {program.category}
@@ -296,7 +310,8 @@ export default function CoachPlayersPage() {
                             <button
                               type="button"
                               onClick={() => assignProgram(program.id)}
-                              disabled={assigningTemplateId !== null || !selectedPlayer.eligible}
+                              disabled={assigningTemplateId !== null || !selectedPlayer.eligible || !readyToSend}
+                              title={readyToSend ? undefined : "أضف صورة الجهاز لكل تمرين أولاً"}
                               className="flex items-center gap-2 bg-[#FF6B35] text-void px-3 py-2.5 text-[12px] font-bold uppercase tracking-wider hover:bg-[#FF6B35]/90 disabled:opacity-50 transition-colors"
                             >
                               <Send size={14} />

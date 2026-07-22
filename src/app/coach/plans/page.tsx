@@ -21,11 +21,14 @@ import { ExerciseImage } from "@/components/ui/ExerciseImage";
 import { useMediaSources, type MediaSource } from "@/components/coach/MediaPickerModal";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
-import type {
-  ExerciseMedia,
-  WorkoutProgramTemplate,
-  WorkoutTemplateDay,
-  WorkoutTemplateExercise,
+import {
+  allProgramExercises,
+  exercisesMissingMachinePicture,
+  planReadyToSend,
+  type ExerciseMedia,
+  type WorkoutProgramTemplate,
+  type WorkoutTemplateDay,
+  type WorkoutTemplateExercise,
 } from "@/lib/workout-programs";
 
 type PlayerOption = {
@@ -123,8 +126,40 @@ export default function CoachPlansPage() {
     }
   }
 
+  // Aggregate "missing machine picture" state across every plan, for
+  // the warning banner below. A plan can't be sent until it's clean —
+  // this is what tells the coach how much work is left and where.
+  const missingPicSummary = useMemo(() => {
+    let exercisesMissing = 0;
+    let programsIncomplete = 0;
+    for (const program of programs) {
+      const missing = exercisesMissingMachinePicture(program).length;
+      if (missing > 0 || allProgramExercises(program).length === 0) programsIncomplete += 1;
+      exercisesMissing += missing;
+    }
+    return { exercisesMissing, programsIncomplete };
+  }, [programs]);
+
   return (
     <div className="p-5 md:p-6 pb-24 md:pb-6 max-w-7xl mx-auto space-y-5" dir="rtl">
+      {!loading && missingPicSummary.programsIncomplete > 0 && (
+        <div className="border-2 border-danger bg-danger/10 p-5 space-y-2">
+          <p className="text-danger text-[16px] font-bold flex items-center gap-2">
+            <AlertTriangle size={18} />
+            لا يمكن إرسال {missingPicSummary.programsIncomplete} برنامج قبل إضافة صور الأجهزة
+          </p>
+          <p className="text-white/70 text-[13px] leading-relaxed">
+            {missingPicSummary.exercisesMissing > 0
+              ? `يوجد ${missingPicSummary.exercisesMissing} تمرين بدون صورة جهاز. `
+              : ""}
+            لن يستطيع أي لاعب رؤية صورة الجهاز، ولن تتمكن من إرسال البرنامج، حتى تُضاف صورة لكل تمرين.
+          </p>
+          <p className="text-white/55 text-[12px] leading-relaxed">
+            <span className="text-danger font-bold">كيف:</span> افتح البرنامج ← افتح اليوم ← اضغط تعديل (✎) على كل تمرين ← اختر «صورة الجهاز» من القائمة.
+          </p>
+        </div>
+      )}
+
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p className="text-[#FF6B35] text-[10px] font-mono uppercase tracking-[0.16em]">OX Training Library</p>
@@ -160,6 +195,7 @@ export default function CoachPlansPage() {
             const expanded = expandedPrograms.has(program.id);
             const exerciseCount = countProgramExercises(program);
             const isStructured = program.source !== "legacy_workout_plans";
+            const readyToSend = planReadyToSend(program);
             return (
               <section key={program.id} className="border border-white/[0.07] bg-white/[0.035] overflow-hidden">
                 <div className="p-4 md:p-5 flex items-start gap-4">
@@ -192,6 +228,15 @@ export default function CoachPlansPage() {
                         <Users size={10} />
                         {program.sent_count > 0 ? `أُرسل لـ ${program.sent_count}` : "لم يُرسل بعد"}
                       </span>
+                      {!readyToSend && (
+                        <span
+                          title="أضف صورة الجهاز لكل تمرين قبل الإرسال"
+                          className="border border-danger/40 bg-danger/15 text-danger text-[10px] px-2 py-1 inline-flex items-center gap-1"
+                        >
+                          <AlertTriangle size={10} />
+                          بدون صور — لا يمكن الإرسال
+                        </span>
+                      )}
                     </div>
                     <p className="text-white/42 text-[12px] mt-1">
                       {program.category} · {program.days.length} أيام/نسخ · {exerciseCount} تمرين
@@ -204,7 +249,12 @@ export default function CoachPlansPage() {
                         <Pencil size={15} />
                       </IconButton>
                     )}
-                    <IconButton label="تعيين للاعب" onClick={() => setAssigningProgram(program)} accent disabled={!program.is_active}>
+                    <IconButton
+                      label={readyToSend ? "تعيين للاعب" : "أضف صور الأجهزة أولاً"}
+                      onClick={() => setAssigningProgram(program)}
+                      accent
+                      disabled={!program.is_active || !readyToSend}
+                    >
                       <Send size={15} />
                     </IconButton>
                     <IconButton label={expanded ? "إغلاق" : "فتح"} onClick={() => toggleProgram(program.id)}>
@@ -1152,6 +1202,13 @@ function AssignTemplateModal({
   async function assign() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
+    // Defense in depth — the card button is already disabled for an
+    // incomplete plan, but the server is the real gate; this just
+    // avoids a doomed round trip if it's ever reached anyway.
+    if (!planReadyToSend(currentProgram)) {
+      toastError("لا يمكن الإرسال", "أضف صورة الجهاز لكل تمرين أولاً.");
+      return;
+    }
     setAssigning(true);
     try {
       const isLegacyPlan = currentProgram.source === "legacy_workout_plans";
